@@ -1,0 +1,425 @@
+# BDCore INSTANCE LAYER — The Royal British Legion (RBL)
+#
+# Grounded in public sources: RBL's "Our Strategy to 2035" (Connect / Remember /
+# Support pillars), their Digital, Data & Technology (DDaT) directorate and CIO
+# function, a live CRM modernisation programme (legacy CRM -> Microsoft Dynamics
+# 365), a Euler/Talend-based enterprise data integration programme aimed at a
+# "single trusted supporter view", their departmental structure (Services dept
+# ~400 staff, Fundraising Marketing & Remembrance, Poppyscotland), their
+# public-facing services (Poppy Appeal, welfare grants, National Memorial
+# Arboretum / National Remembrance Gardens, membership), a confirmed employee
+# benefits platform (Reward Gateway, live since Sept 2020), a confirmed
+# "central database managed by Legion staff" for membership records, and a
+# real legacy SQL Server infrastructure modernisation delivered with Phoenix
+# Software and Simpson Associates.
+#
+# v2 note: v1 of this file had 6 applications, all clustered around Fundraising,
+# and no Finance or Workforce/HR capability — unrepresentative of a real
+# organisation. This version adds Workforce & People Management and Finance &
+# Corporate Services capabilities, and spreads applications so every capability
+# has at least one connected system.
+#
+# Where a real detail wasn't publicly available (e.g. exact budget figures,
+# named vendors for case management/finance systems, internal risk register
+# wording), values are realistic illustrative estimates — flagged inline with
+# "# illustrative". Treat this as a plausible demo dataset, not verified
+# internal RBL data.
+
+nodes:
+
+  # --- STRATEGY ---
+  - {id: s1, concept_type: Strategy, name: "RBL Strategy to 2035", status: Active, type: Corporate,
+     time_horizon: Long, priority: Critical, owner: "Board of Trustees",
+     strategic_theme: "Connect, Remember, Support"}
+
+  # --- GOAL ---
+  - {id: g1, concept_type: Goal, name: "Modernise Service Delivery", status: "In Progress",
+     type: Operational, priority: High, owner: "Executive Director: Digital, Data & Technology"}
+  - {id: g2, concept_type: Goal, name: "Achieve a Single Trusted Supporter View", status: "In Progress",
+     type: Operational, priority: High, owner: "Head of Data, Insight and Fundraising CRM"}
+  - {id: g3, concept_type: Goal, name: "Widen Participation in Remembrance", status: "In Progress",
+     type: Strategic, priority: Medium, owner: "Director of Remembrance"}
+
+  # --- DECISION ---
+  - {id: d1, concept_type: Decision, name: "Adopt Microsoft Dynamics 365 as core CRM platform",
+     status: Approved, type: Architecture, decision_maker: "Chief Information Officer",
+     rationale: "Legacy CRM was over a decade old, built for direct marketing, and not integrated with digital channels"}
+  - {id: d2, concept_type: Decision, name: "Modernise legacy SQL Server infrastructure via managed service",
+     status: Approved, type: Architecture, decision_maker: "Executive Director: Digital, Data & Technology",
+     rationale: "Legacy SQL infrastructure was complex, outdated, and relied on a single point of failure"}
+
+  # --- INITIATIVE ---
+  - {id: i1, concept_type: Initiative, name: "CRM Modernisation Programme", status: "In Progress",
+     type: Modernisation, sponsor: "Executive Director: Digital, Data & Technology", priority: Critical}
+  - {id: i2, concept_type: Initiative, name: "Enterprise Data Integration Programme", status: "In Progress",
+     type: Modernisation, sponsor: "Head of Data, Insight and Fundraising CRM", priority: High}
+  - {id: i3, concept_type: Initiative, name: "Legacy SQL Server Infrastructure Modernisation", status: "In Progress",
+     type: Modernisation, sponsor: "Executive Director: Digital, Data & Technology", priority: High}
+     # REAL: delivered as a managed service with Phoenix Software and Simpson Associates,
+     # replacing a legacy SQL infrastructure with a single point of failure.
+
+  # --- FICTIONAL — blocked-decisions register ---
+  # Everything below is an invented example, not a real RBL initiative. It exists to
+  # test whether the ontology can capture "what decision did this system block" —
+  # the LinkedIn framework this was built to check the tool against — not to make
+  # any factual claim about RBL. Do not present these as real to anyone.
+  - {id: i4, concept_type: Initiative, name: "[FICTIONAL] Tiered Membership Pricing Change", status: Shelved,
+     type: Commercial, sponsor: "Head of Membership", start_date: "2025-11-01", target_date: "2026-01-15",
+     forecast_cost: 35000, description: "Wanted to offer tiered membership pricing; the membership database's flat record structure couldn't express tiers without a costly rebuild, so it was shelved."}
+  - {id: i5, concept_type: Initiative, name: "[FICTIONAL] Corporate Partner Revenue-Share Integration", status: Shelved,
+     type: Commercial, sponsor: "Head of Corporate Partnerships", start_date: "2025-06-01", target_date: "2025-09-01",
+     forecast_cost: 52000, description: "A corporate partner wanted automated revenue-share reporting; the finance system's data model had no concept of a shared transaction, so the deal proceeded on manual monthly reconciliation instead."}
+  - {id: i6, concept_type: Initiative, name: "[FICTIONAL] AI-Assisted Grant Triage Pilot", status: Shelved,
+     type: Compliance, sponsor: "Director of Services", start_date: "2026-01-01", target_date: "2026-03-01",
+     forecast_cost: 18000, description: "Wanted to pilot AI-assisted triage of incoming welfare grant applications; nobody could extract clean, structured case data out of the system fast enough, so the pilot never left the lab."}
+  - {id: i7, concept_type: Initiative, name: "[FICTIONAL] Real-Time Poppy Appeal Campaign Dashboard", status: Shelved,
+     type: Commercial, sponsor: "Head of Digital Marketing", start_date: "2025-09-01", target_date: "2025-10-01",
+     forecast_cost: 12000, description: "Wanted a real-time fundraising dashboard for the Poppy Appeal; the data platform only refreshes overnight, so it shipped as a nightly manual export the ops team still runs by hand."}
+
+  # --- OUTCOME ---
+  - {id: o1, concept_type: Outcome, name: "Single Trusted Supporter View Achieved",
+     status: "Partially Realised", type: Operational}
+  - {id: o2, concept_type: Outcome, name: "Improved Digital-First Customer Experience",
+     status: Expected, type: Operational}
+  - {id: o3, concept_type: Outcome, name: "Improved Data Platform Reliability", status: "Partially Realised", type: Operational}
+
+  # --- CAPABILITY ---
+  - {id: c1, concept_type: Capability, name: "Welfare & Independent Living Support", status: Operational, importance: Critical, market_differentiation: High}
+  - {id: c2, concept_type: Capability, name: "Remembrance & Commemoration", status: Operational, importance: Critical, market_differentiation: High}
+  - {id: c3, concept_type: Capability, name: "Fundraising & Supporter Engagement", status: Operational, importance: Critical, market_differentiation: Medium}
+  - {id: c4, concept_type: Capability, name: "Membership & Branch Network Management", status: Operational, importance: High, market_differentiation: Medium}
+  - {id: c5, concept_type: Capability, name: "Campaigning & Policy Influence", status: Operational, importance: Medium, market_differentiation: High}
+  - {id: c6, concept_type: Capability, name: "Workforce & People Management", status: Operational, importance: High, market_differentiation: Low}
+  - {id: c7, concept_type: Capability, name: "Finance & Corporate Services", status: Operational, importance: Critical, market_differentiation: Low}
+
+  # --- PROCESS ---
+  - {id: p1, concept_type: Process, name: "Poppy Appeal Collection & Fundraising", status: Active, type: Core,
+     criticality: Critical, automation_level: Partial, frequency: Daily, roles: "Fundraising Officer, Community Fundraising Coordinator"}
+  - {id: p2, concept_type: Process, name: "Welfare Grant Assessment", status: Active, type: Core,
+     criticality: Critical, automation_level: Manual, frequency: Daily, roles: "Grants Caseworker, Welfare Officer"}
+  - {id: p3, concept_type: Process, name: "Membership Renewal", status: Active, type: Support,
+     criticality: Medium, automation_level: Partial, frequency: Monthly, roles: "Membership Administrator"}
+  - {id: p4, concept_type: Process, name: "Employee Onboarding & Benefits Administration", status: Active, type: Support,
+     criticality: Medium, automation_level: Partial, frequency: Monthly, roles: "HR Advisor, People & Culture Coordinator"}
+  - {id: p5, concept_type: Process, name: "Financial Close & Reporting", status: Active, type: Management,
+     criticality: Critical, automation_level: Manual, frequency: Monthly, roles: "Finance Officer, Management Accountant"}
+  - {id: p6, concept_type: Process, name: "Volunteer Recruitment & Deployment", status: Active, type: Core,
+     criticality: High, automation_level: Manual, frequency: Weekly, roles: "Volunteer Coordinator"}
+
+  # --- ORGANISATION ---
+  # org1 is the ROOT organisation — deliberately untyped (no "type" field).
+  # It has no ParentOrganisation, so the Type enum doesn't apply to it; only
+  # its children below (org2-org5) are typed relative to it.
+  - {id: org1, concept_type: Organisation, name: "Royal British Legion", status: Active,
+     leader: "Director General", strategic_role: Core}
+  - {id: org2, concept_type: Organisation, name: "Digital, Data & Technology (DDaT) Directorate", status: Active,
+     type: Department, parent_organisation: org1, leader: "Executive Director: Digital, Data & Technology"}
+  - {id: org3, concept_type: Organisation, name: "Services Department", status: Active, type: Department,
+     parent_organisation: org1, headcount: 400}
+  - {id: org4, concept_type: Organisation, name: "Fundraising, Marketing & Remembrance Directorate", status: Active,
+     type: Department, parent_organisation: org1}
+  - {id: org5, concept_type: Organisation, name: "Poppyscotland", status: Active, type: External,
+     parent_organisation: org1}   # sister charity operating semi-autonomously in Scotland
+  - {id: org6, concept_type: Organisation, name: "People & Culture Directorate", status: Active,
+     type: Department, parent_organisation: org1}
+  - {id: org7, concept_type: Organisation, name: "Finance Directorate", status: Active,
+     type: Department, parent_organisation: org1}
+  - {id: org8, concept_type: Organisation, name: "Poppy Shop", status: Active, type: External,
+     parent_organisation: org1}   # real trading subsidiary — charities can't trade directly under UK charity law
+
+  # --- PRODUCT (public-facing services) ---
+  - {id: pr1, concept_type: Product, name: "Poppy Appeal", status: Active, type: Service, strategic_importance: Critical}
+  - {id: pr2, concept_type: Product, name: "Welfare Grants & Independent Living Service", status: Active, type: Service, strategic_importance: Critical}
+  - {id: pr3, concept_type: Product, name: "National Remembrance Gardens (formerly National Memorial Arboretum)", status: Active, type: Service, strategic_importance: High}
+  - {id: pr4, concept_type: Product, name: "RBL Membership", status: Active, type: Service, strategic_importance: High}
+  - {id: pr5, concept_type: Product, name: "Poppy Shop Retail", status: Active, type: External, strategic_importance: Medium}
+  - {id: pr6, concept_type: Product, name: "Campaigning & Public Affairs", status: Active, type: Internal, strategic_importance: Medium}
+
+  # --- APPLICATION ---
+  # business_value / technical_health: 1=Low/Poor, 2=Medium/Adequate, 3=High/Good, 4=Good (health only)
+  # tco: illustrative estimated annual GBP cost — not verified RBL financial data
+  - {id: a1, concept_type: Application, category: "CRM", architecture_style: Traditional, service_level: Platinum, rto: "4 hours", rpo: "15 minutes", active_date: "2025-03-01", user_count: 850, name: "Microsoft Dynamics 365 CRM", status: Production, type: SaaS, vendor: Microsoft,
+     business_value: 3, technical_health: 4, criticality: Critical, tco: 420000, user_count: 850, hosting_model: SaaS,
+     owner: "Head of Data, Insight and Fundraising CRM"}
+  - {id: a2, concept_type: Application, category: "Website/CMS", architecture_style: Traditional, service_level: Gold, rto: "8 hours", rpo: "1 hour", active_date: "2011-06-01", user_count: 40, name: "britishlegion.org.uk (public website)", status: Production, type: COTS, vendor: WordPress,
+     business_value: 3, technical_health: 3, criticality: High, tco: 180000, hosting_model: Cloud,
+     owner: "Head of Digital Marketing"}
+  - {id: a3, concept_type: Application, category: "Data Integration", architecture_style: Traditional, service_level: Silver, rto: "24 hours", rpo: "4 hours", active_date: "2024-02-01", user_count: 8, name: "Talend Data Integration Platform", status: Production, type: SaaS, vendor: Talend,
+     business_value: 2, technical_health: 4, criticality: High, tco: 150000, hosting_model: SaaS}
+  - {id: a4, concept_type: Application, category: "Payment Processing", architecture_style: Traditional, service_level: Gold, rto: "8 hours", rpo: "1 hour", active_date: "2015-01-01", name: "PayPal Donation Processing", status: Production, type: SaaS, vendor: PayPal,
+     business_value: 3, technical_health: 4, criticality: High, tco: 60000, hosting_model: SaaS}
+  - {id: a5, concept_type: Application, category: "Analytics", architecture_style: Traditional, service_level: Silver, rto: "24 hours", rpo: "4 hours", active_date: "2019-01-01", user_count: 15, name: "Adobe Analytics", status: Production, type: SaaS, vendor: Adobe,
+     business_value: 2, technical_health: 4, criticality: Medium, tco: 90000, hosting_model: SaaS}
+  - {id: a6, concept_type: Application, category: "CRM", architecture_style: Traditional, service_level: Platinum, rto: "4 hours", rpo: "15 minutes", active_date: "2010-01-01", sunset_date: "2024-09-01", retiring_date: "2026-06-01", decommission_date: "2027-03-01", user_count: 60, name: "Legacy Direct-Marketing CRM", status: Retiring, type: Legacy, vendor: Unsupported,
+     business_value: 1, technical_health: 1, criticality: Medium, tco: 210000, hosting_model: "On-Prem",
+     owner: "Executive Director: Digital, Data & Technology"}
+  # a7-a12 added in v2 to give Welfare, Membership, Workforce, Finance, Remembrance and
+  # Campaigning their own systems, instead of every application clustering on Fundraising.
+  - {id: a7, concept_type: Application, category: "Membership Management", architecture_style: Traditional, service_level: Bronze, rto: "72 hours", rpo: "24 hours", active_date: "2008-01-01", user_count: 25, name: "Membership Central Database", status: Production, type: Custom, vendor: "Internal (legacy)",
+     business_value: 3, technical_health: 2, criticality: High, tco: 95000, hosting_model: "On-Prem"}
+     # REAL: RBL's Membership Management Handbook confirms "members' details are held in
+     # the central database managed by Legion staff" — name/vendor of the system not public.
+  - {id: a8, concept_type: Application, category: "Case Management", architecture_style: Traditional, service_level: Gold, rto: "8 hours", rpo: "1 hour", active_date: "2017-01-01", user_count: 180, name: "Welfare Case Management System", status: Production, type: Custom, vendor: Undisclosed,
+     business_value: 3, technical_health: 2, criticality: Critical, tco: 140000, hosting_model: Cloud,
+     owner: "Director of Services"}
+     # ILLUSTRATIVE: RBL job/volunteer descriptions confirm caseworkers use a dedicated
+     # system ("complete induction and system use training"), but no vendor is public.
+  - {id: a9, concept_type: Application, category: "HR & Benefits", architecture_style: Traditional, service_level: Silver, rto: "24 hours", rpo: "4 hours", active_date: "2021-01-15", user_count: 800, name: "Reward Gateway Employee Benefits Platform", status: Production, type: SaaS, vendor: "Reward Gateway",
+     business_value: 2, technical_health: 4, criticality: Medium, tco: 45000, hosting_model: SaaS,
+     owner: "Director of People & Culture"}
+     # REAL: confirmed case study — RBL approached Reward Gateway in Sept 2020 for an
+     # employee benefits and engagement platform.
+  - {id: a10, concept_type: Application, category: "E-commerce", architecture_style: Traditional, service_level: Silver, rto: "24 hours", rpo: "4 hours", active_date: "2016-01-01", name: "Poppy Shop E-commerce Platform", status: Production, type: COTS, vendor: Undisclosed,
+     business_value: 2, technical_health: 3, criticality: Medium, tco: 70000, hosting_model: Cloud}
+     # ILLUSTRATIVE: Poppy Shop's existence as a separate trading subsidiary is real; the
+     # specific e-commerce platform is not publicly confirmed.
+  - {id: a11, concept_type: Application, category: "Campaign Management", architecture_style: Traditional, service_level: Silver, rto: "24 hours", rpo: "4 hours", active_date: "2020-01-01", user_count: 12, name: "Campaigns & Public Affairs Tracker", status: Production, type: SaaS, vendor: Undisclosed,
+     business_value: 2, technical_health: 3, criticality: Medium, tco: 35000, hosting_model: SaaS}
+     # ILLUSTRATIVE: a Campaigns, Policy and Research team is real (part of the Director
+     # General department); the specific tracking tool is not publicly confirmed.
+  - {id: a12, concept_type: Application, category: "Finance & ERP", architecture_style: Traditional, service_level: Platinum, rto: "4 hours", rpo: "15 minutes", active_date: "2010-01-01", user_count: 20, name: "Finance & Accounting System", status: Production, type: Custom, vendor: Undisclosed,
+     business_value: 3, technical_health: 2, criticality: Critical, tco: 160000, hosting_model: "On-Prem",
+     owner: "Director of Finance"}
+     # ILLUSTRATIVE: a Finance function certainly exists; the specific system is not
+     # publicly confirmed. Modelled on legacy on-prem SQL Server infrastructure, consistent
+     # with the real Phoenix Software/Simpson Associates modernisation case study.
+
+  # --- DATA ---
+  - {id: dt1, concept_type: Data, name: "Supporter & Donor Data", status: Active, type: Master, classification: Confidential, quality: High}
+  - {id: dt2, concept_type: Data, name: "Beneficiary / Welfare Case Data", status: Active, type: Transactional,
+     classification: Restricted, sensitivity: High, quality: Adequate}
+  - {id: dt3, concept_type: Data, name: "Membership Data", status: Active, type: Master, classification: Internal, quality: Poor}
+  - {id: dt4, concept_type: Data, name: "Employee & HR Data", status: Active, type: Master, classification: Confidential, quality: High}
+  - {id: dt5, concept_type: Data, name: "Financial & Transactional Data", status: Active, type: Transactional, classification: Restricted, quality: Poor}
+
+  # --- SOFTWARE TECHNOLOGY ---
+  - {id: st1, concept_type: SoftwareTechnology, name: "Oracle Cloud Infrastructure", tech_category: "Cloud Platforms",
+     lifecycle: Current, support_status: Full, strategic_classification: Preferred, status: Active, type: Platform}
+  - {id: st2, concept_type: SoftwareTechnology, name: "Microsoft Azure", tech_category: "Cloud Platforms",
+     lifecycle: Current, support_status: Full, strategic_classification: Preferred, status: Active, type: Platform}
+  - {id: st3, concept_type: SoftwareTechnology, name: "Citrix Virtual Apps and Desktops", tech_category: "Infrastructure & Security",
+     lifecycle: Current, support_status: Full, strategic_classification: Contained, status: Active, type: Platform}
+  - {id: st4, concept_type: SoftwareTechnology, name: "Microsoft Intune", tech_category: "Infrastructure & Security",
+     lifecycle: Current, support_status: Full, strategic_classification: Preferred, status: Active, type: Platform}
+  - {id: st5, concept_type: SoftwareTechnology, name: "Microsoft SQL Server", tech_category: "Data & Analytics",
+     lifecycle: "Approaching EOL", support_status: Limited, strategic_classification: Contained, status: Active, type: Database}
+     # REAL: Phoenix Software/Simpson Associates case study confirms RBL modernised legacy
+     # SQL Server infrastructure that underpins their line-of-business applications.
+
+  # --- HARDWARE TECHNOLOGY ---
+  - {id: h1, concept_type: HardwareTechnology, name: "Corporate Laptop & Desktop Fleet", tech_category: "Infrastructure & Security",
+     lifecycle: "Approaching EOL", support_status: Full, technical_health: Adequate, status: Active, type: "End User"}
+  - {id: h2, concept_type: HardwareTechnology, name: "On-Premises Server Infrastructure", tech_category: "Infrastructure & Security",
+     lifecycle: EOL, support_status: Limited, technical_health: Poor, status: Active, type: Server}
+
+  # --- RISK ---
+  - {id: risk1, concept_type: Risk, name: "Legacy CRM Technical Debt / Fragmented Supporter Data", status: Assessed,
+     type: Technology, likelihood: Likely, impact: High}
+  - {id: risk2, concept_type: Risk, name: "Safeguarding Risk in Welfare Casework", status: Assessed,
+     type: Operational, likelihood: Possible, impact: Critical}
+  - {id: risk3, concept_type: Risk, name: "GDPR / Data Protection Compliance Risk", status: Assessed,
+     type: Compliance, likelihood: Possible, impact: High}
+  - {id: risk4, concept_type: Risk, name: "Single Point of Failure in Legacy On-Prem Systems", status: Assessed,
+     type: Technology, likelihood: Possible, impact: Critical}
+
+  # --- CONTROL ---
+  - {id: ctrl1, concept_type: Control, name: "Data Protection & GDPR Compliance Framework", status: Implemented, type: Preventive}
+  - {id: ctrl2, concept_type: Control, name: "Welfare Casework Safeguarding Policy & Review", status: Implemented, type: Detective}
+  - {id: ctrl3, concept_type: Control, name: "Financial Grant Approval Authorisation Control", status: Implemented, type: Preventive}
+  - {id: ctrl4, concept_type: Control, name: "IT Disaster Recovery & Backup Policy", status: Implemented, type: Corrective}
+
+
+relationships:
+
+  # --- FICTIONAL — pairs with the fictional initiatives above ---
+  - {source: a7, verb: blocks, target: i4, criticality: Medium, status: Active, strength: 70,
+     type: "[FICTIONAL] flat record structure couldn't express pricing tiers"}
+  - {source: a12, verb: blocks, target: i5, criticality: High, status: Active, strength: 80,
+     type: "[FICTIONAL] no data model concept of a shared/partner transaction"}
+  - {source: a8, verb: blocks, target: i6, criticality: High, status: Active, strength: 75,
+     type: "[FICTIONAL] couldn't extract clean structured case data fast enough"}
+  - {source: a3, verb: blocks, target: i7, criticality: Medium, status: Active, strength: 60,
+     type: "[FICTIONAL] overnight-only data refresh, no real-time feed"}
+
+  # Strategic
+  - {source: s1, verb: drives, target: g1, criticality: High, status: Active, strength: 90}
+  - {source: s1, verb: drives, target: i1, criticality: Critical, status: Active, strength: 95}
+  - {source: s1, verb: prioritises, target: c3, criticality: High, status: Active, strength: 85}
+  - {source: s1, verb: drives, target: g3, criticality: Medium, status: Active, strength: 70}
+  - {source: g3, verb: "contributes to", target: s1, criticality: Medium, status: Active, strength: 70}
+  - {source: d1, verb: justifies, target: i1, criticality: Critical, status: Active, strength: 90}
+  - {source: d1, verb: "approves investment in", target: i1, criticality: Critical, status: Active, strength: 90}
+  - {source: i1, verb: "contributes to", target: g1, criticality: High, status: Active, strength: 85}
+  - {source: i1, verb: delivers, target: o2, criticality: High, status: Planned, strength: 60}
+  - {source: i2, verb: delivers, target: o1, criticality: High, status: Active, strength: 75}
+  - {source: o1, verb: evidences, target: g2, criticality: High, status: Active, strength: 75}
+  - {source: o1, verb: "results from", target: i2, criticality: High, status: Active, strength: 80}
+  - {source: g1, verb: measures, target: o2, criticality: Medium, status: Planned, strength: 60}
+
+  # Structural
+  - {source: p1, verb: realises, target: c3, criticality: Critical, status: Active, strength: 90}
+  - {source: p2, verb: realises, target: c1, criticality: Critical, status: Active, strength: 90}
+  - {source: p3, verb: realises, target: c4, criticality: Medium, status: Active, strength: 80}
+  - {source: a1, verb: supports, target: c3, criticality: Critical, status: Active, strength: 85}
+  - {source: a2, verb: supports, target: pr1, criticality: High, status: Active, strength: 80}
+  - {source: a2, verb: supports, target: c3, criticality: High, status: Active, strength: 75}
+  - {source: a3, verb: supports, target: c3, criticality: High, status: Active, strength: 75}
+  - {source: a4, verb: supports, target: c3, criticality: High, status: Active, strength: 70}
+  - {source: a5, verb: supports, target: c3, criticality: Medium, status: Active, strength: 65}
+  - {source: a6, verb: supports, target: c3, criticality: Medium, status: Retiring, strength: 40,
+     type: "legacy support — being superseded by a1"}
+  - {source: dt1, verb: "belongs to", target: c3, criticality: High, status: Active, strength: 85}
+  - {source: dt2, verb: "belongs to", target: c1, criticality: High, status: Active, strength: 85}
+  - {source: dt3, verb: "belongs to", target: c4, criticality: Medium, status: Active, strength: 75}
+  - {source: pr1, verb: delivers, target: c3, criticality: Critical, status: Active, strength: 85}
+  - {source: org1, verb: contains, target: org2, criticality: Medium, status: Active, strength: 100}
+  - {source: org1, verb: contains, target: org3, criticality: Medium, status: Active, strength: 100}
+  - {source: org1, verb: contains, target: org4, criticality: Medium, status: Active, strength: 100}
+  - {source: org1, verb: contains, target: org5, criticality: Low, status: Active, strength: 60, type: "federated sister charity"}
+  - {source: org3, verb: owns, target: c1, criticality: Critical, status: Active, strength: 90}
+  - {source: org4, verb: owns, target: c3, criticality: Critical, status: Active, strength: 90}
+  - {source: org1, verb: owns, target: c2, criticality: Critical, status: Active, strength: 90}
+  - {source: org1, verb: owns, target: c4, criticality: High, status: Active, strength: 85}
+  - {source: org1, verb: owns, target: c5, criticality: Medium, status: Active, strength: 80}
+  - {source: org2, verb: owns, target: a1, criticality: Critical, status: Active, strength: 95}
+  - {source: org2, verb: owns, target: a3, criticality: High, status: Active, strength: 90}
+  - {source: org1, verb: owns, target: dt1, criticality: High, status: Active, strength: 90}
+  - {source: org2, verb: uses, target: a5, criticality: Medium, status: Active, strength: 70}
+  - {source: org3, verb: performs, target: p2, criticality: Critical, status: Active, strength: 90}
+  - {source: org4, verb: performs, target: p1, criticality: Critical, status: Active, strength: 90}
+  - {source: org1, verb: performs, target: p3, criticality: Medium, status: Active, strength: 75}
+
+  # Technology
+  - {source: a1, verb: "runs on", target: st2, criticality: Critical, status: Active, strength: 95, type: "IaaS hosting"}
+  - {source: a2, verb: "runs on", target: st1, criticality: High, status: Active, strength: 85, type: "IaaS hosting"}
+  - {source: a1, verb: stores, target: dt1, criticality: Critical, status: Active, strength: 95}
+  - {source: a3, verb: "integrates with", target: a1, criticality: High, status: Active, strength: 85, type: "ETL data feed"}
+  - {source: a4, verb: provides, target: dt1, criticality: High, status: Active, strength: 70, type: "donation transaction feed"}
+  - {source: a2, verb: "depends on", target: a4, criticality: High, status: Active, strength: 80, type: "payment processing"}
+  - {source: st3, verb: "runs on", target: h1, criticality: Medium, status: Active, strength: 75}
+  - {source: dt1, verb: "stored by", target: a1, criticality: Critical, status: Active, strength: 95}
+  - {source: dt2, verb: "governed by", target: org3, criticality: Critical, status: Active, strength: 90}
+
+  # Change & Transformation
+  - {source: i1, verb: implements, target: a1, criticality: Critical, status: Active, strength: 90}
+  - {source: i1, verb: retires, target: a6, criticality: High, status: Active, strength: 90}
+  - {source: i1, verb: replaces, target: a6, criticality: High, status: Active, strength: 90, type: "platform migration"}
+  - {source: i2, verb: transforms, target: c3, criticality: High, status: Active, strength: 75}
+  - {source: i2, verb: implements, target: a3, criticality: High, status: Active, strength: 85}
+  - {source: i1, verb: "must precede", target: i2, criticality: High, status: Active, strength: 80,
+     type: "CRM platform required before deeper data integration"}
+  - {source: d1, verb: rationalises, target: a6, criticality: High, status: Active, strength: 85}
+  - {source: d1, verb: governs, target: i1, criticality: Critical, status: Active, strength: 90}
+
+  # Governance, Risk & Control
+  - {source: risk1, verb: affects, target: a6, criticality: High, status: Active, strength: 85}
+  - {source: risk1, verb: affects, target: i1, criticality: High, status: Active, strength: 70,
+     type: "programme is the mitigation"}
+  - {source: risk2, verb: affects, target: p2, criticality: Critical, status: Active, strength: 80}
+  - {source: risk2, verb: affects, target: c1, criticality: High, status: Active, strength: 75}
+  - {source: risk3, verb: affects, target: dt2, criticality: Critical, status: Active, strength: 85}
+  - {source: risk3, verb: affects, target: org1, criticality: High, status: Active, strength: 70}
+  - {source: ctrl1, verb: mitigates, target: risk3, criticality: High, status: Active, strength: 80}
+  - {source: ctrl1, verb: constrains, target: dt2, criticality: High, status: Active, strength: 80}
+  - {source: ctrl2, verb: mitigates, target: risk2, criticality: Critical, status: Active, strength: 80}
+  - {source: ctrl2, verb: constrains, target: p2, criticality: Critical, status: Active, strength: 85}
+  - {source: ctrl3, verb: constrains, target: p2, criticality: High, status: Active, strength: 80}
+  - {source: d1, verb: accepts, target: risk1, criticality: Medium, status: Active, strength: 60,
+     type: "residual risk accepted pending programme completion"}
+  - {source: org1, verb: owns, target: risk1, criticality: Medium, status: Active, strength: 70}
+  - {source: org1, verb: owns, target: ctrl1, criticality: High, status: Active, strength: 80}
+
+  # Investment & Value
+  - {source: org1, verb: funds, target: i1, criticality: Critical, status: Active, strength: 90}
+  - {source: org1, verb: funds, target: i2, criticality: High, status: Active, strength: 85}
+  - {source: org1, verb: "invests in", target: c1, criticality: High, status: Active, strength: 80}
+  - {source: s1, verb: "invests in", target: c3, criticality: High, status: Active, strength: 85}
+  - {source: i1, verb: "consumes investment from", target: org1, criticality: High, status: Active, strength: 90}
+  - {source: c1, verb: enables, target: pr2, criticality: Critical, status: Active, strength: 90}
+  - {source: c3, verb: enables, target: p1, criticality: Critical, status: Active, strength: 90}
+  - {source: c4, verb: enables, target: pr4, criticality: High, status: Active, strength: 85}
+  - {source: p1, verb: delivers, target: pr1, criticality: Critical, status: Active, strength: 90}
+  - {source: p3, verb: delivers, target: pr4, criticality: Medium, status: Active, strength: 80}
+  - {source: pr1, verb: "realises value through", target: c3, criticality: Critical, status: Active, strength: 90}
+  - {source: a1, verb: enables, target: c3, criticality: Critical, status: Active, strength: 85}
+  - {source: c1, verb: "under-invested relative to", target: s1, criticality: Medium, status: Active, strength: 55,
+     type: "illustrative — welfare demand growth vs digital investment focus"}
+
+  # --- v2 additions: Workforce, Finance, Membership, Remembrance & Campaigning coverage ---
+
+  # Structural
+  - {source: p4, verb: realises, target: c6, criticality: High, status: Active, strength: 85}
+  - {source: p5, verb: realises, target: c7, criticality: Critical, status: Active, strength: 90}
+  - {source: p6, verb: realises, target: c1, criticality: High, status: Active, strength: 80}
+  - {source: a7, verb: supports, target: c4, criticality: High, status: Active, strength: 85}
+  - {source: a8, verb: supports, target: c1, criticality: Critical, status: Active, strength: 85}
+  - {source: a9, verb: supports, target: c6, criticality: Medium, status: Active, strength: 75}
+  - {source: a10, verb: supports, target: c2, criticality: Medium, status: Active, strength: 65}
+  - {source: a10, verb: supports, target: pr5, criticality: High, status: Active, strength: 85}
+  - {source: a11, verb: supports, target: c5, criticality: Medium, status: Active, strength: 70}
+  - {source: a12, verb: supports, target: c7, criticality: Critical, status: Active, strength: 85}
+  - {source: org1, verb: contains, target: org6, criticality: Medium, status: Active, strength: 100}
+  - {source: org1, verb: contains, target: org7, criticality: Medium, status: Active, strength: 100}
+  - {source: org1, verb: contains, target: org8, criticality: Low, status: Active, strength: 60, type: "trading subsidiary"}
+  - {source: org6, verb: owns, target: c6, criticality: High, status: Active, strength: 90}
+  - {source: org7, verb: owns, target: c7, criticality: Critical, status: Active, strength: 90}
+  - {source: org2, verb: owns, target: a7, criticality: High, status: Active, strength: 80}
+  - {source: org3, verb: owns, target: a8, criticality: Critical, status: Active, strength: 85}
+  - {source: org6, verb: owns, target: a9, criticality: Medium, status: Active, strength: 85}
+  - {source: org8, verb: owns, target: a10, criticality: Medium, status: Active, strength: 85}
+  - {source: org7, verb: owns, target: a12, criticality: Critical, status: Active, strength: 85}
+  - {source: org6, verb: owns, target: dt4, criticality: High, status: Active, strength: 85}
+  - {source: org7, verb: owns, target: dt5, criticality: High, status: Active, strength: 85}
+  - {source: org6, verb: performs, target: p4, criticality: High, status: Active, strength: 85}
+  - {source: org7, verb: performs, target: p5, criticality: Critical, status: Active, strength: 90}
+  - {source: org3, verb: performs, target: p6, criticality: High, status: Active, strength: 80}
+  - {source: dt4, verb: "belongs to", target: c6, criticality: High, status: Active, strength: 80}
+  - {source: dt5, verb: "belongs to", target: c7, criticality: High, status: Active, strength: 80}
+
+  # Technology
+  - {source: a7, verb: "runs on", target: st5, criticality: High, status: Active, strength: 85}
+  - {source: a12, verb: "runs on", target: st5, criticality: Critical, status: Active, strength: 85}
+  - {source: a8, verb: "runs on", target: st2, criticality: High, status: Active, strength: 80}
+  - {source: a10, verb: "runs on", target: st1, criticality: Medium, status: Active, strength: 75}
+  - {source: a11, verb: "runs on", target: st2, criticality: Medium, status: Active, strength: 70}
+  - {source: a7, verb: stores, target: dt3, criticality: High, status: Active, strength: 90}
+  - {source: a8, verb: stores, target: dt2, criticality: Critical, status: Active, strength: 90}
+  - {source: a9, verb: stores, target: dt4, criticality: Medium, status: Active, strength: 80}
+  - {source: a12, verb: stores, target: dt5, criticality: Critical, status: Active, strength: 90}
+  - {source: st5, verb: "runs on", target: h2, criticality: High, status: Active, strength: 90}
+
+  # Change & Transformation
+  - {source: i3, verb: implements, target: a7, criticality: High, status: Active, strength: 80,
+     type: "database platform migration"}
+  - {source: i3, verb: implements, target: a12, criticality: High, status: Active, strength: 80,
+     type: "database platform migration"}
+  - {source: i3, verb: delivers, target: o3, criticality: High, status: Active, strength: 75}
+  - {source: d2, verb: justifies, target: i3, criticality: High, status: Active, strength: 85}
+  - {source: d2, verb: "approves investment in", target: i3, criticality: High, status: Active, strength: 85}
+  - {source: d2, verb: governs, target: st5, criticality: High, status: Active, strength: 80}
+
+  # Governance, Risk & Control
+  - {source: risk4, verb: affects, target: a7, criticality: High, status: Active, strength: 75}
+  - {source: risk4, verb: affects, target: a12, criticality: High, status: Active, strength: 75}
+  - {source: risk4, verb: affects, target: i3, criticality: Medium, status: Active, strength: 65,
+     type: "programme is the mitigation"}
+  - {source: ctrl4, verb: mitigates, target: risk4, criticality: High, status: Active, strength: 80}
+  - {source: ctrl4, verb: constrains, target: st5, criticality: Medium, status: Active, strength: 70}
+  - {source: org2, verb: owns, target: risk4, criticality: Medium, status: Active, strength: 70}
+  - {source: org2, verb: owns, target: ctrl4, criticality: High, status: Active, strength: 80}
+
+  # Investment & Value
+  - {source: org1, verb: funds, target: i3, criticality: High, status: Active, strength: 80}
+  - {source: org6, verb: "invests in", target: c6, criticality: High, status: Active, strength: 80}
+  - {source: org7, verb: "invests in", target: c7, criticality: Critical, status: Active, strength: 85}
+  - {source: a7, verb: enables, target: c4, criticality: High, status: Active, strength: 80}
+  - {source: a8, verb: enables, target: c1, criticality: Critical, status: Active, strength: 85}
+  - {source: a9, verb: enables, target: c6, criticality: Medium, status: Active, strength: 75}
+  - {source: a10, verb: enables, target: c2, criticality: Medium, status: Active, strength: 65}
+  - {source: a11, verb: enables, target: c5, criticality: Medium, status: Active, strength: 70}
+  - {source: a12, verb: enables, target: c7, criticality: Critical, status: Active, strength: 85}
+  - {source: c6, verb: enables, target: p4, criticality: High, status: Active, strength: 85}
+  - {source: c7, verb: enables, target: p5, criticality: Critical, status: Active, strength: 90}
+  - {source: c1, verb: enables, target: p6, criticality: High, status: Active, strength: 80}
+  - {source: pr5, verb: "realises value through", target: c2, criticality: Medium, status: Active, strength: 70}
+  - {source: pr6, verb: "realises value through", target: c5, criticality: Medium, status: Active, strength: 70}

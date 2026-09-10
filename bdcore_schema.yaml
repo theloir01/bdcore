@@ -1,0 +1,530 @@
+# BDCore ontology — schema layer config
+# Load this into the graph DB as ConceptType / AttributeDefinition nodes.
+# Every concept extends the "base" spine below, then adds its own attributes.
+
+base_attributes: &base
+  - {name: Name, type: string, required: true}
+  - {name: Description, type: string}
+  - {name: Owner, type: string}
+  - {name: Organisation, type: ref, ref_type: Organisation}
+
+concept_types:
+
+  - name: Strategy
+    category: Strategic
+    attributes:
+      - *base
+      - {name: Status, type: enum, options: [Draft, Active, Retired]}
+      - {name: Stereotype, type: enum, options: [Corporate, Business Unit, Functional]}
+      - {name: TimeHorizon, type: enum, options: [Short, Medium, Long]}
+      - {name: Priority, type: enum, options: [Critical, High, Medium, Low]}
+      - {name: ConfidenceLevel, type: enum, options: [High, Medium, Low]}
+      - {name: InvestmentPriority, type: enum, options: [Grow, Maintain, Reduce]}
+      - {name: TargetDate, type: date}
+      - {name: StrategicTheme, type: string}
+
+  - name: Goal
+    category: Strategic
+    attributes:
+      - *base
+      - {name: Status, type: enum, options: [Not Started, In Progress, Achieved, Missed]}
+      - {name: Stereotype, type: enum, options: [Strategic, Operational, Compliance]}
+      - {name: Priority, type: enum, options: [Critical, High, Medium, Low]}
+      - {name: StartDate, type: date}
+      - {name: TargetDate, type: date}
+      - {name: SuccessMeasure, type: string}
+      - {name: TargetValue, type: number}
+      - {name: CurrentValue, type: number}
+      - {name: StrategicTheme, type: string}
+      - {name: AlignmentScore, type: number, unit: percent, range: [0, 100]}
+
+  - name: Decision
+    category: Strategic
+    attributes:
+      - *base
+      - {name: Status, type: enum, options: [Proposed, Approved, Rejected, Deprecated, Superseded]}
+      - {name: DecisionDate, type: date}
+      - {name: Stereotype, type: enum, options: [Strategic, Architecture, Investment, Rationalisation, Governance]}
+      - {name: DecisionMaker, type: string}
+      - {name: Rationale, type: string}
+      - {name: OptionsConsidered, type: string}
+      - {name: ChosenOption, type: string}
+      - {name: Consequences, type: string, purpose: "what becomes easier or harder as a result — the part of an ADR most often skipped and most useful to a future reader"}
+      - {name: ReviewDate, type: date}
+      - {name: Confidence, type: enum, options: [High, Medium, Low]}
+      - {name: ImpactLevel, type: enum, options: [Critical, High, Medium, Low]}
+
+  - name: Requirement
+    category: Structural
+    attributes:
+      - *base
+      - {name: Status, type: enum, options: [Draft, Proposed, Approved, In Design, Fulfilled, Rejected, Deprecated]}
+      - {name: Stereotype, type: enum, options: [Functional, Non-Functional]}
+      - {name: Priority, type: enum, options: [Must Have, Should Have, Could Have, Won't Have]}
+      - {name: AcceptanceCriteria, type: string, purpose: "how you know this requirement is actually satisfied"}
+      - {name: Rationale, type: string}
+      - {name: TargetDate, type: date}
+
+  - name: Initiative
+    category: Strategic
+    attributes:
+      - *base
+      - {name: Status, type: enum, options: [Proposed, Approved, In Progress, Complete, Cancelled, Shelved],
+         purpose: "Shelved is distinct from Cancelled — Cancelled means the business decided against it, Shelved means the business wanted it and a system couldn't bend"}
+      - {name: Stereotype, type: enum, options: [Transformation, Migration, Retirement, Modernisation, Compliance, Commercial]}
+      - {name: Priority, type: enum, options: [Critical, High, Medium, Low]}
+      - {name: Sponsor, type: string}
+      - {name: StartDate, type: date}
+      - {name: TargetDate, type: date}
+      - {name: Budget, type: currency}
+      - {name: ForecastCost, type: currency}
+      - {name: ExpectedBenefit, type: currency}
+      - {name: Progress, type: number, unit: percent}
+      - {name: RiskLevel, type: enum, options: [Critical, High, Medium, Low]}
+      - {name: StrategicContributionWeight, type: number, unit: percent, range: [0, 100]}
+
+  - name: Outcome
+    category: Strategic
+    attributes:
+      - *base
+      - {name: Status, type: enum, options: [Expected, Partially Realised, Realised, Not Realised]}
+      - {name: Stereotype, type: enum, options: [Financial, Operational, Strategic, Compliance]}
+      - {name: TargetDate, type: date}
+      - {name: AchievedDate, type: date}
+      - {name: SuccessMeasure, type: string}
+      - {name: TargetValue, type: number}
+      - {name: ActualValue, type: number}
+      - {name: BenefitValue, type: currency}
+      - {name: RealisedBenefit, type: currency}
+      - {name: Confidence, type: enum, options: [High, Medium, Low]}
+
+  - name: Capability
+    category: Structural
+    attributes:
+      - *base
+      - {name: Status, type: enum, options: [Planned, Developing, Operational, Retiring]}
+      - {name: Maturity, type: enum, options: [Initial, Developing, Defined, Managed, Optimised]}
+      - {name: TargetMaturity, type: enum, options: [Initial, Developing, Defined, Managed, Optimised]}
+      - {name: Importance, type: enum, options: [Critical, High, Medium, Low]}
+      - {name: StrategicAlignment, type: enum, options: [High, Medium, Low]}
+      - {name: Lifecycle, type: enum, options: [Emerging, Growth, Mature, Decline]}
+      - {name: InvestmentLevel, type: enum, options: [Invest, Maintain, Reduce]}
+      - {name: RiskLevel, type: enum, options: [Critical, High, Medium, Low]}
+      - {name: MarketDifferentiation, type: enum, options: [High, Medium, Low], purpose: "how much this capability differentiates the organisation vs being table-stakes — basis for consistency review against Importance"}
+      - {name: GovernanceMaturity, type: enum, options: ["1 - Initial", "2 - Managed", "3 - Defined", "4 - Quantitative", "5 - Optimizing"], purpose: "CMMI-style maturity — is there clear accountability and decision rights for this capability"}
+      - {name: PoliciesMaturity, type: enum, options: ["1 - Initial", "2 - Managed", "3 - Defined", "4 - Quantitative", "5 - Optimizing"], purpose: "are the rules governing this capability documented, current, and actually followed"}
+      - {name: ProcessMaturity, type: enum, options: ["1 - Initial", "2 - Managed", "3 - Defined", "4 - Quantitative", "5 - Optimizing"], purpose: "how standardised and repeatable the processes realising this capability are"}
+      - {name: PeopleMaturity, type: enum, options: ["1 - Initial", "2 - Managed", "3 - Defined", "4 - Quantitative", "5 - Optimizing"], purpose: "skills, capacity, and role clarity of the people delivering this capability"}
+      - {name: ApplicationsMaturity, type: enum, options: ["1 - Initial", "2 - Managed", "3 - Defined", "4 - Quantitative", "5 - Optimizing"], purpose: "how well the supporting application landscape actually serves this capability"}
+      - {name: MetricsMaturity, type: enum, options: ["1 - Initial", "2 - Managed", "3 - Defined", "4 - Quantitative", "5 - Optimizing"], purpose: "is performance of this capability actually measured, and are those measures used"}
+   
+  - name: Process 
+    category: Structural
+    attributes:
+      - *base
+      - {name: Status, type: enum, options: [Draft, Active, Retiring, Retired]}
+      - {name: Stereotype, type: enum, options: [Core, Support, Management]}
+      - {name: Roles, type: string, purpose: "job roles/teams who do this work day-to-day — the basis for 'impacted roles' in decision reports"}
+      - {name: Criticality, type: enum, options: [Critical, High, Medium, Low]}
+      - {name: Maturity, type: number, range: [1, 5]}
+      - {name: AutomationLevel, type: enum, options: [Manual, Partial, Full]}
+      - {name: Frequency, type: enum, options: [Real-time, Daily, Weekly, Monthly, Ad-hoc]}
+      - {name: PerformanceMeasure, type: string}
+      - {name: OperatingCost, type: currency}
+      - {name: RiskLevel, type: enum, options: [Critical, High, Medium, Low]}
+      - {name: ComplianceRelevance, type: enum, options: [High, Medium, Low, None]}
+      - {name: AIAutomationPotential, type: enum, options: [Not Assessed, Low, Medium, High]}
+      - {name: AIReadiness, type: enum, options: [Blocked, Emerging, Ready, Pilot, Operational]}
+
+  - name: Location
+    category: Structural
+    attributes:
+      - *base
+      - {name: Stereotype, type: enum, options: [Country, Region, City, Site, Building, Floor], purpose: "hierarchy level — a Region/City/Site can all 'contain' a finer-grained Location beneath it"}
+      - {name: Status, type: enum, options: [Active, Planned, Closed]}
+      - {name: Address, type: string}
+      - {name: GeoCoordinates, type: string, purpose: "lat,long as a plain string — no nested/geo type in this schema"}
+      - {name: TimeZone, type: string}
+      - {name: Country, type: string, purpose: "quick-reference denormalised field, even on a City/Site — avoids needing to walk the full contains hierarchy just to filter by country"}
+      - {name: DataResidencyZone, type: enum, options: [UK, EU, US, APAC, Global], purpose: "the actual reason this concept usually gets asked for — data residency / compliance reasoning"}
+
+  - name: Organisation
+    category: Structural
+    attributes:
+      - *base
+      - {name: Status, type: enum, options: [Active, Restructuring, Merging, Closing]}
+      # Type is optional. Leave it blank on the single ROOT organisation
+      # (the top-level legal entity itself, with no ParentOrganisation) —
+      # it doesn't need a type, it just IS the organisation. Only its
+      # children (directorates, departments, teams, external partners)
+      # get typed, since "type relative to what?" only makes sense once
+      # something has a parent to be typed in relation to.
+      - {name: Stereotype, type: enum, options: [Business Unit, Department, Team, External, Vendor], required: false}
+      - {name: ParentOrganisation, type: ref, ref_type: Organisation}
+      - {name: Leader, type: string}
+      - {name: Headcount, type: number}
+      - {name: OperatingCost, type: currency}
+      - {name: Budget, type: currency}
+      - {name: StrategicRole, type: enum, options: [Core, Enabling, Support]}
+
+  - name: Product
+    category: Structural
+    attributes:
+      - *base
+      - {name: Status, type: enum, options: [Planned, Active, End of Sale, End of Life]}
+      - {name: Stereotype, type: enum, options: [Internal, External, Platform, Service]}
+      - {name: Lifecycle, type: enum, options: [Introduction, Growth, Maturity, Decline]}
+      - {name: CustomerSegment, type: string}
+      - {name: Revenue, type: currency}
+      - {name: CostToServe, type: currency}
+      - {name: StrategicImportance, type: enum, options: [Critical, High, Medium, Low]}
+      - {name: Criticality, type: enum, options: [Critical, High, Medium, Low]}
+
+  - name: Journey
+    category: Structural
+    attributes:
+      - *base
+      - {name: Status, type: enum, options: [Planned, Active, Retired]}
+      - {name: Stereotype, type: enum, options: [Customer, Employee, Partner, Internal]}
+      - {name: CustomerSegment, type: string}
+      - {name: Channel, type: string}
+      - {name: Importance, type: enum, options: [Critical, High, Medium, Low]}
+      - {name: StrategicAlignment, type: enum, options: [High, Medium, Low]}
+      - {name: Lifecycle, type: enum, options: [Emerging, Growth, Mature, Decline]}
+      - {name: RiskLevel, type: enum, options: [Critical, High, Medium, Low]}
+      - {name: PerformanceMeasure, type: string}
+      - {name: TargetOutcome, type: string}
+
+  - name: JourneyStage
+    category: Structural
+    attributes:
+      - *base
+      - {name: Status, type: enum, options: [Planned, Active, Retired]}
+      - {name: Sequence, type: number}
+      - {name: Stereotype, type: enum, options: [Entry, Interaction, Decision, Fulfilment, Exit]}
+      - {name: CustomerNeed, type: string}
+      - {name: Channel, type: string}
+      - {name: Importance, type: enum, options: [Critical, High, Medium, Low]}
+      - {name: Criticality, type: enum, options: [Critical, High, Medium, Low]}
+      - {name: PainPoint, type: string}
+      - {name: PerformanceMeasure, type: string}
+      - {name: RiskLevel, type: enum, options: [Critical, High, Medium, Low]}
+      - {name: AIAutomationPotential, type: enum, options: [Not Assessed, Low, Medium, High]}
+      - {name: HumanInteraction, type: enum, options: [Required, Optional, None]}
+
+  - name: Application
+    category: Technology
+    attributes:
+      - *base
+      - {name: Status, type: enum, options: [Planned, In Development, Production, Retiring, Retired]}
+      - {name: Stereotype, type: enum, options: [COTS, Custom, SaaS, Legacy]}
+      - {name: ArchitectureStyle, type: enum, options: [Traditional, "AI Agent", Hybrid],
+         purpose: "orthogonal to Type — an AI Agent can itself be COTS, Custom, or SaaS. Traditional/Hybrid/AI Agent answers 'what kind of thing is this', Type answers 'how did we acquire it'."}
+      - {name: FunctionalCategory, type: string, purpose: "what job this app does — the basis for redundancy analysis: two apps in the same capability AND category are genuine overlap candidates, not just apps that happen to share a capability"}
+      - {name: Vendor, type: string}
+      - {name: Version, type: string}
+      - {name: LifecycleStatus, type: enum, options: [Strategic, Tactical, Tolerate, Retire]}
+      - {name: Criticality, type: enum, options: [Critical, High, Medium, Low]}
+      - {name: BusinessValue, type: enum, options: [High, Medium, Low]}
+      - {name: TechnicalHealth, type: enum, options: [Good, Adequate, Poor, Critical]}
+      - {name: RunCost, type: currency}
+      - {name: ChangeCost, type: currency}
+      - {name: TCO, type: currency}
+      - {name: UserCount, type: number}
+      - {name: HostingModel, type: enum, options: [On-Prem, Cloud, Hybrid, SaaS]}
+      - {name: ServiceLevel, type: enum, options: [Platinum, Gold, Silver, Bronze], purpose: "committed support tier — basis for consistency review against Criticality"}
+      - {name: RTO, type: string, purpose: "Recovery Time Objective — how long can this be down"}
+      - {name: RPO, type: string, purpose: "Recovery Point Objective — how much data loss is tolerable"}
+      - {name: PlannedDate, type: date, purpose: "lifecycle timeline stage dates — populate whichever stages have actually happened/are scheduled"}
+      - {name: ActiveDate, type: date}
+      - {name: SunsetDate, type: date}
+      - {name: RetiringDate, type: date}
+      - {name: DecommissionDate, type: date}
+      - {name: AIEnabled, type: enum, options: [Yes, No]}
+      - {name: HumanOversight, type: enum, options: [Required, Recommended, None]}
+      - {name: AIImpactType, type: enum, options: [Assist, Augment, Automate, Replace]}
+
+  - name: Data
+    category: Technology
+    attributes:
+      - *base
+      - {name: Status, type: enum, options: [Draft, Active, Archived, Deleted]}
+      - {name: Stereotype, type: enum, options: [Master, Reference, Transactional, Analytical]}
+      - {name: Classification, type: enum, options: [Public, Internal, Confidential, Restricted]}
+      - {name: Sensitivity, type: enum, options: [High, Medium, Low]}
+      - {name: Criticality, type: enum, options: [Critical, High, Medium, Low]}
+      - {name: Quality, type: enum, options: [High, Adequate, Poor]}
+      - {name: Lifecycle, type: enum, options: [Active, Archive, Retain, Dispose]}
+      - {name: RetentionPeriod, type: string}
+      - {name: RegulatoryRelevance, type: multi_enum, options: [GDPR, SOX, HIPAA, None]}
+      - {name: SourceSystem, type: string}
+
+  - name: SoftwareTechnology
+    category: Technology
+    attributes:
+      - *base
+      - {name: Status, type: enum, options: [Evaluation, Standard, Contained, Retiring, Retired]}
+      - {name: Stereotype, type: enum, options: [Platform, Framework, Database, Middleware, Runtime]}
+      - {name: Version, type: string}
+      - {name: Vendor, type: string}
+      - {name: Lifecycle, type: enum, options: [Current, Approaching EOL, EOL, Unsupported]}
+      - {name: StrategicClassification, type: enum, options: [Preferred, Accepted, Contained, Retire]}
+      - {name: TechnicalHealth, type: enum, options: [Good, Adequate, Poor, Critical]}
+      - {name: SupportStatus, type: enum, options: [Full, Limited, Community, None]}
+      - {name: LicenceCost, type: currency}
+      - {name: OperatingCost, type: currency}
+      - {name: TCO, type: currency}
+      - {name: TechCategory, type: enum, options: ["Languages & Frameworks", "Data & Analytics", "Infrastructure & Security", "Integration & Tools", "Cloud Platforms"], purpose: "radar quadrant grouping"}
+
+  - name: HardwareTechnology
+    category: Technology
+    attributes:
+      - *base
+      - {name: Status, type: enum, options: [Planned, Active, Retiring, Retired]}
+      - {name: Stereotype, type: enum, options: [Server, Storage, Network, End User, IoT]}
+      - {name: Manufacturer, type: string}
+      - {name: Model, type: string}
+      - {name: Version, type: string}
+      - {name: Lifecycle, type: enum, options: [Current, Approaching EOL, EOL]}
+      - {name: Capacity, type: string}
+      - {name: Criticality, type: enum, options: [Critical, High, Medium, Low]}
+      - {name: TechnicalHealth, type: enum, options: [Good, Adequate, Poor, Critical]}
+      - {name: OperatingCost, type: currency}
+      - {name: TCO, type: currency}
+      - {name: SupportStatus, type: enum, options: [Full, Limited, None]}
+      - {name: TechCategory, type: enum, options: ["Languages & Frameworks", "Data & Analytics", "Infrastructure & Security", "Integration & Tools", "Cloud Platforms"]}
+
+  - name: AIModel
+    category: Technology
+    attributes:
+      - *base
+      - {name: Status, type: enum, options: [Planned, Evaluation, Production, Retiring, Retired]}
+      - {name: Stereotype, type: enum,
+         options: [Foundation, Generative, Predictive, Classification, Recommendation, Embedding, Vision, Speech]}
+      - {name: ModelPurpose, type: string}
+      - {name: Provider, type: string}
+      - {name: Version, type: string}
+      - {name: LifecycleStatus, type: enum, options: [Strategic, Tactical, Tolerate, Retire]}
+      - {name: Criticality, type: enum, options: [Critical, High, Medium, Low]}
+      - {name: BusinessValue, type: enum, options: [High, Medium, Low]}
+      - {name: TechnicalHealth, type: enum, options: [Good, Adequate, Poor, Critical]}
+      - {name: RiskLevel, type: enum, options: [Critical, High, Medium, Low]}
+      - {name: ApprovalStatus, type: enum, options: [Not Assessed, Pending, Approved, Rejected, Suspended]}
+      - {name: HumanOversight, type: enum, options: [Required, Recommended, None]}
+      - {name: Explainability, type: enum, options: [High, Medium, Low, Not Applicable]}
+      - {name: HostingModel, type: enum, options: [On-Prem, Cloud, SaaS, API, Hybrid]}
+      - {name: RegulatoryRelevance, type: multi_enum, options: [GDPR, EUAIAct, SOX, HIPAA, None]}
+      - {name: RunCost, type: currency}
+      - {name: ChangeCost, type: currency}
+      - {name: TCO, type: currency}
+      - {name: LastReviewDate, type: date}
+      - {name: NextReviewDate, type: date}
+
+  - name: Interface
+    category: Technology
+    attributes:
+      - *base
+      - {name: Status, type: enum, options: [Active, Deprecated, Planned, Retired]}
+      - {name: Direction, type: enum, options: [Inbound, Outbound, Bidirectional]}
+      - {name: Protocol, type: enum, options: ["REST API", SOAP, "File Transfer (SFTP)", "Database Link", "Message Queue", Webhook, "Batch ETL", "Manual/Other"], purpose: "how the two applications actually talk to each other"}
+      - {name: DataFormat, type: enum, options: [JSON, XML, CSV, "Fixed-Width", Proprietary, "N/A"], purpose: "how data is consumed"}
+      - {name: Frequency, type: enum, options: ["Real-time", "Near Real-time", Hourly, Daily, Weekly, "On-Demand", "Ad-hoc"]}
+      - {name: AuthMethod, type: enum, options: [OAuth2, "API Key", "Basic Auth", Certificate, None, Other]}
+      - {name: DataClassification, type: enum, options: [Public, Internal, Confidential, Restricted]}
+
+  - name: Risk
+    category: GRC
+    attributes:
+      - *base
+      - {name: Status, type: enum, options: [Identified, Assessed, Mitigated, Accepted, Closed]}
+      - {name: Stereotype, type: enum, options: [Strategic, Operational, Technology, Compliance, Security, Financial]}
+      - {name: Likelihood, type: enum, options: [Almost Certain, Likely, Possible, Unlikely, Rare]}
+      - {name: Impact, type: enum, options: [Critical, High, Medium, Low, Negligible]}
+      - {name: RiskScore, type: number, derived_from: "Likelihood x Impact"}
+      - {name: ResidualRisk, type: string}
+      - {name: RiskAppetite, type: enum, options: [Accept, Reduce, Transfer, Avoid]}
+      - {name: ReviewDate, type: date}
+      - {name: Source, type: enum, options: [Internal, External, Regulatory]}
+
+  - name: Control
+    category: GRC
+    attributes:
+      - *base
+      - {name: Status, type: enum, options: [Planned, Implemented, Effective, Ineffective, Retired]}
+      - {name: Stereotype, type: enum, options: [Preventive, Detective, Corrective, Compensating]}
+      - {name: AutomationLevel, type: enum, options: [Manual, Semi-Automated, Fully Automated]}
+      - {name: Effectiveness, type: enum, options: [Effective, Partially Effective, Ineffective]}
+      - {name: Frequency, type: enum, options: [Continuous, Periodic, Event-Driven]}
+      - {name: Cost, type: currency}
+      - {name: ComplianceRequirement, type: enum, options: [SOX, GDPR, ISO27001, NIST, Custom]}
+      - {name: LastAssessedDate, type: date}
+      - {name: NextReviewDate, type: date}
+
+# --- Universal relationship attributes (apply identically to every edge, any verb) ---
+# Note: "Type" is a free enumeration PER VERB (a subtype qualifier), not a global enum.
+# e.g. verb="depends on" + Type="data feed" vs Type="authentication".
+# This is the mechanism that keeps the verb vocabulary at 38 instead of 150+:
+# verbs tell AI WHAT the connection is; these attributes tell it HOW STRONG,
+# HOW CRITICAL, WHAT SUBTYPE, and WHAT STATE.
+relationship_universal_attributes:
+  - {name: Criticality, type: enum, options: [Critical, High, Medium, Low], purpose: "impact analysis / retirement blast radius"}
+  - {name: Status, type: enum, options: [Planned, Active, Retiring, Retired], purpose: "current vs future-state vs legacy links"}
+  - {name: Strength, type: number, unit: percent, range: [0, 100], purpose: "e.g. 'supports' at 90% vs 20% = keep vs replace"}
+  - {name: Type, type: string, scope: per_verb, purpose: "free subtype qualifier within a verb"}
+
+# --- Relationship types: 87 directional relationships across 6 categories, 38 unique verbs ---
+relationship_types:
+
+  # Strategic — how intent flows through the enterprise
+  - {verb: prioritises, source: Strategy, target: Capability, category: Strategic}
+  - {verb: drives, source: Strategy, target: Goal, category: Strategic}
+  - {verb: drives, source: Strategy, target: Initiative, category: Strategic}
+  - {verb: contributes to, source: Goal, target: Strategy, category: Strategic}
+  - {verb: contradicts with, source: Goal, target: Goal, category: Strategic}
+  - {verb: depends on, source: Goal, target: Goal, category: Strategic}
+  - {verb: implements, source: Decision, target: Strategy, category: Strategic}
+  - {verb: supersedes, source: Decision, target: Decision, category: Strategic, purpose: "the missing link — Status already had a Superseded option with no way to say which decision replaced it"}
+  - {verb: redirects, source: Decision, target: Initiative, category: Strategic}
+  - {verb: cancels, source: Decision, target: Goal, category: Strategic}
+  - {verb: justifies, source: Decision, target: Initiative, category: Strategic}
+  - {verb: approves investment in, source: Decision, target: Initiative, category: Strategic}
+  - {verb: contributes to, source: Initiative, target: Goal, category: Strategic}
+  - {verb: delivers, source: Initiative, target: Outcome, category: Strategic}
+  - {verb: evidences, source: Outcome, target: Goal, category: Strategic}
+  - {verb: results from, source: Outcome, target: Initiative, category: Strategic}
+
+  # Requirement — traces back to what drove it (reusing "results from", same
+  # pattern as Outcome-from-Initiative above), decomposes into sub-requirements
+  # (reusing "contains", same pattern as Capability/Location/Organisation
+  # self-nesting), and gets fulfilled by real or drafted solution components
+  # (a genuinely new verb — nothing existing captures "this satisfies this").
+  - {verb: results from, source: Requirement, target: Capability, category: Structural}
+  - {verb: results from, source: Requirement, target: Risk, category: Structural}
+  - {verb: results from, source: Requirement, target: Decision, category: Structural}
+  - {verb: results from, source: Requirement, target: Initiative, category: Structural}
+  - {verb: contains, source: Requirement, target: Requirement, category: Structural}
+  - {verb: fulfils, source: Application, target: Requirement, category: Structural}
+  - {verb: fulfils, source: SoftwareTechnology, target: Requirement, category: Structural}
+  - {verb: fulfils, source: HardwareTechnology, target: Requirement, category: Structural}
+  - {verb: fulfils, source: AIModel, target: Requirement, category: Structural}
+
+  # Structural — how the enterprise is organised
+  - {verb: contains, source: Capability, target: Capability, category: Structural}
+  - {verb: contains, source: Location, target: Location, category: Structural, purpose: "hierarchy — Country contains Region contains City contains Site"}
+  - {verb: hosted at, source: Application, target: Location, category: Technology}
+  - {verb: hosted at, source: SoftwareTechnology, target: Location, category: Technology}
+  - {verb: hosted at, source: HardwareTechnology, target: Location, category: Technology}
+  - {verb: based at, source: Organisation, target: Location, category: Structural}
+  - {verb: constrains, source: Control, target: Location, category: GRC, purpose: "a control that only applies within a given jurisdiction — the actual reason this usually gets asked for"}
+  - {verb: contains, source: Journey, target: JourneyStage, category: Structural}
+  - {verb: realises, source: Process, target: Capability, category: Structural}
+  - {verb: supports, source: Application, target: Capability, category: Structural}
+  - {verb: supports, source: Application, target: Process, category: Structural}
+  - {verb: supports, source: Application, target: Product, category: Structural}
+  - {verb: supports, source: Process, target: JourneyStage, category: Structural}
+  - {verb: belongs to, source: Data, target: Capability, category: Structural}
+  - {verb: delivers, source: Product, target: Capability, category: Structural}
+  - {verb: contains, source: Organisation, target: Organisation, category: Structural}
+  - {verb: owns, source: Organisation, target: Capability, category: Structural}
+  - {verb: owns, source: Organisation, target: Process, category: Structural}
+  - {verb: owns, source: Organisation, target: Application, category: Structural}
+  - {verb: owns, source: Organisation, target: Data, category: Structural}
+  - {verb: owns, source: Organisation, target: Product, category: Structural}
+  - {verb: uses, source: Organisation, target: Application, category: Structural}
+  - {verb: performs, source: Organisation, target: Process, category: Structural}
+  - {verb: precedes, source: JourneyStage, target: JourneyStage, category: Structural}
+  - {verb: enables, source: Capability, target: JourneyStage, category: Structural}
+
+  # Technology — how technology supports the enterprise
+  - {verb: runs on, source: Application, target: SoftwareTechnology, category: Technology}
+  - {verb: runs on, source: Application, target: HardwareTechnology, category: Technology}
+  - {verb: stores, source: Application, target: Data, category: Technology}
+  - {verb: consumes, source: Application, target: Data, category: Technology}
+  - {verb: provides, source: Application, target: Data, category: Technology}
+  # Interface — formalizes what "integrates with" used to represent as a bare
+  # edge with a free-text label. Retired in favour of a real node with real,
+  # governed attributes (protocol, data format, frequency, auth), so there's
+  # one consistent way to represent an integration, not two. Zero new verbs
+  # needed — "provides" and "uses" already exist and mean exactly this.
+  - {verb: provides, source: Application, target: Interface, category: Technology, purpose: "the exposing/producing side of an integration"}
+  - {verb: uses, source: Application, target: Interface, category: Technology, purpose: "the consuming side of an integration"}
+  - {verb: provides, source: Interface, target: Data, category: Technology, purpose: "what data actually flows through this interface"}
+  - {verb: depends on, source: Application, target: Application, category: Technology}
+  - {verb: duplicates, source: Application, target: Application, category: Technology}
+  - {verb: replaces, source: Application, target: Application, category: Technology}
+  - {verb: runs on, source: SoftwareTechnology, target: HardwareTechnology, category: Technology}
+  - {verb: depends on, source: SoftwareTechnology, target: SoftwareTechnology, category: Technology}
+  - {verb: stored by, source: Data, target: Application, category: Technology}
+  - {verb: governed by, source: Data, target: Organisation, category: Technology}
+  - {verb: owns, source: Organisation, target: AIModel, category: Structural}
+  # AI model and application architecture
+  - {verb: uses, source: Application, target: AIModel, category: Technology}
+  - {verb: runs on, source: AIModel, target: SoftwareTechnology, category: Technology}
+  # AI model and data
+  - {verb: trained on, source: AIModel, target: Data, category: Technology}
+  - {verb: consumes, source: AIModel, target: Data, category: Technology}
+
+  # Change — how change flows through the enterprise
+  - {verb: transforms, source: Initiative, target: Capability, category: Change}
+  - {verb: develops, source: Initiative, target: Capability, category: Change}
+  - {verb: implements, source: Initiative, target: Application, category: Change}
+  - {verb: retires, source: Initiative, target: Application, category: Change}
+  - {verb: replaces, source: Initiative, target: Application, category: Change}
+  - {verb: replaces, source: Application, target: Application, category: Change}
+  - {verb: replaces, source: Application, target: Process, category: Change}
+  - {verb: replaces, source: Application, target: JourneyStage, category: Change}
+  - {verb: implements, source: Initiative, target: Process, category: Change}
+  - {verb: implements, source: Initiative, target: Control, category: Change}
+  - {verb: must precede, source: Initiative, target: Initiative, category: Change}
+  - {verb: depends on, source: Initiative, target: Initiative, category: Change}
+  - {verb: blocks, source: Initiative, target: Initiative, category: Change}
+  - {verb: blocks, source: Application, target: Initiative, category: Change,
+     purpose: "the business decision this application's limitations prevented — the basis for a blocked-decisions register, distinct from age/lifecycle-based replacement cases"}
+  - {verb: unlocks, source: Initiative, target: Capability, category: Change}
+  - {verb: addresses gap in, source: Initiative, target: Capability, category: Change}
+  - {verb: rationalises, source: Decision, target: Application, category: Change}
+  - {verb: governs, source: Decision, target: Initiative, category: Change}
+  - {verb: augments, source: Application, target: Process, category: Change}
+  - {verb: augments, source: Application, target: JourneyStage, category: Change}
+  - {verb: automates, source: Application, target: Process, category: Change}
+  - {verb: automates, source: Application, target: JourneyStage, category: Change}
+  # AI model lifecycle and change
+  - {verb: develops, source: Initiative, target: AIModel, category: Change}
+  - {verb: implements, source: Initiative, target: AIModel, category: Change}
+  - {verb: replaces, source: Initiative, target: AIModel, category: Change}
+
+  # GRC — how risk and compliance flow
+  - {verb: affects, source: Risk, target: Application, category: GRC}
+  - {verb: affects, source: Risk, target: Process, category: GRC}
+  - {verb: affects, source: Risk, target: Data, category: GRC}
+  - {verb: affects, source: Risk, target: Capability, category: GRC}
+  - {verb: affects, source: Risk, target: Organisation, category: GRC}
+  - {verb: affects, source: Risk, target: SoftwareTechnology, category: GRC}
+  - {verb: affects, source: Risk, target: HardwareTechnology, category: GRC}
+  - {verb: affects, source: Risk, target: Initiative, category: GRC}
+  - {verb: mitigates, source: Control, target: Risk, category: GRC}
+  - {verb: constrains, source: Control, target: Process, category: GRC}
+  - {verb: constrains, source: Control, target: Application, category: GRC}
+  - {verb: constrains, source: Control, target: Data, category: GRC}
+  - {verb: accepts, source: Decision, target: Risk, category: GRC}
+  - {verb: governs, source: Decision, target: Application, category: GRC}
+  - {verb: governs, source: Decision, target: SoftwareTechnology, category: GRC}
+  - {verb: owns, source: Organisation, target: Risk, category: GRC}
+  - {verb: owns, source: Organisation, target: Control, category: GRC}
+  - {verb: affects, source: Risk, target: AIModel, category: GRC}
+  - {verb: constrains, source: Control, target: AIModel, category: GRC}
+  - {verb: governs, source: Decision, target: AIModel, category: GRC}
+
+  # Investment — how money and value flow
+  - {verb: funds, source: Organisation, target: Initiative, category: Investment}
+  - {verb: invests in, source: Organisation, target: Capability, category: Investment}
+  - {verb: invests in, source: Strategy, target: Capability, category: Investment}
+  - {verb: consumes investment from, source: Initiative, target: Organisation, category: Investment}
+  - {verb: enables, source: Capability, target: Product, category: Investment}
+  - {verb: enables, source: Capability, target: Process, category: Investment}
+  - {verb: delivers, source: Process, target: Product, category: Investment}
+  - {verb: realises value through, source: Product, target: Capability, category: Investment}
+  - {verb: enables, source: Application, target: Capability, category: Investment}
+  - {verb: under-invested relative to, source: Capability, target: Strategy, category: Investment}
+  - {verb: competes with, source: Initiative, target: Initiative, category: Investment}
+  - {verb: measures, source: Goal, target: Outcome, category: Investment}
