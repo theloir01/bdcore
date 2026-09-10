@@ -31,18 +31,27 @@ own Anthropic API key from console.anthropic.com.
 """
 
 import json
+import os
 import re
+import sys
 from flask import Flask, request, jsonify
 from neo4j import GraphDatabase
 import requests
 
 # ---------------------------------------------------------------------------
-# EDIT THESE FOUR VALUES
+# Set these as environment variables before running (or in a local .env
+# file loaded by your shell) — never hard-code secrets in this file.
+#   ANTHROPIC_API_KEY, NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD
 # ---------------------------------------------------------------------------
-ANTHROPIC_API_KEY = "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"
-NEO4J_URI = "neo4j+s://745d653e.databases.neo4j.io"
-NEO4J_USERNAME = "neo4j"
-NEO4J_PASSWORD = "9iizTzGOGMw6EvEgVyeohXpeufJgnHgN_ExQblJpe_k"
+REQUIRED_ENV_VARS = ["ANTHROPIC_API_KEY", "NEO4J_URI", "NEO4J_USERNAME", "NEO4J_PASSWORD"]
+missing = [name for name in REQUIRED_ENV_VARS if not os.environ.get(name)]
+if missing:
+    sys.exit(f"Missing required environment variable(s): {', '.join(missing)}")
+
+ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
+NEO4J_URI = os.environ["NEO4J_URI"]
+NEO4J_USERNAME = os.environ["NEO4J_USERNAME"]
+NEO4J_PASSWORD = os.environ["NEO4J_PASSWORD"]
 # ---------------------------------------------------------------------------
 
 CLAUDE_MODEL = "claude-sonnet-4-5"

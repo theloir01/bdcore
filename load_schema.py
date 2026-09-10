@@ -21,16 +21,25 @@ real enterprise data (actual capabilities, applications, etc.) is completely
 unaffected by re-running this.
 """
 
+import os
+import sys
 import yaml
 from neo4j import GraphDatabase
 
 # ---------------------------------------------------------------------------
-# EDIT THESE THREE VALUES — copy them from your Aura instance's connection
-# details (the ones you downloaded when you created the Free instance).
+# Set these as environment variables before running — copy the values from
+# your Aura instance's connection details (downloaded when you created the
+# Free instance). Never hard-code credentials in this file.
+#   NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD
 # ---------------------------------------------------------------------------
-NEO4J_URI = "neo4j+s://745d653e.databases.neo4j.io"
-NEO4J_USERNAME = "neo4j"
-NEO4J_PASSWORD = "9iizTzGOGMw6EvEgVyeohXpeufJgnHgN_ExQblJpe_k"
+REQUIRED_ENV_VARS = ["NEO4J_URI", "NEO4J_USERNAME", "NEO4J_PASSWORD"]
+missing = [name for name in REQUIRED_ENV_VARS if not os.environ.get(name)]
+if missing:
+    sys.exit(f"Missing required environment variable(s): {', '.join(missing)}")
+
+NEO4J_URI = os.environ["NEO4J_URI"]
+NEO4J_USERNAME = os.environ["NEO4J_USERNAME"]
+NEO4J_PASSWORD = os.environ["NEO4J_PASSWORD"]
 # ---------------------------------------------------------------------------
 
 SCHEMA_FILE = "bdcore_schema.yaml"
