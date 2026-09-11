@@ -193,13 +193,14 @@ const COLORS = {
 // into one brand color.
 const DEFAULT_BRAND = { name: "The Royal British Legion", subtitle: "Digital, Data & Technology", logo: null, primary: "#0A0E1A", accent: "#0EA968" };
 
-// Modelling Canvas: the 21 real BDCore concept types (whitelist — anything
+// Modelling Canvas: the 23 real BDCore concept types (whitelist — anything
 // pushed to Neo4j must be one of these, no arbitrary labels) and the
 // controlled verb vocabulary, mirrored from chat_server.py's SCHEMA_CONTEXT.
 const CANVAS_CONCEPT_TYPES = [
   "AIModel", "Application", "Capability", "Control", "Data", "Decision", "Goal",
   "HardwareTechnology", "Initiative", "Interface", "Journey", "JourneyStage", "Location", "Organisation",
   "Outcome", "Process", "Product", "Requirement", "Risk", "SoftwareTechnology", "Strategy",
+  "ValueStream", "ValueStreamStage",
 ];
 const CANVAS_VERBS = [
   "accepts", "affects", "approves investment in", "belongs to", "constrains",
@@ -375,6 +376,8 @@ const CONCEPT_TYPE_STYLE = {
   AIModel: { color: "#7B5EA7", icon: <svg {...CONCEPT_ICON_COMMON}><rect x="7" y="7" width="10" height="10" rx="2" /><line x1="12" y1="2" x2="12" y2="7" /><line x1="12" y1="17" x2="12" y2="22" /><line x1="2" y1="12" x2="7" y2="12" /><line x1="17" y1="12" x2="22" y2="12" /><circle cx="12" cy="12" r="1.8" fill="#fff" stroke="none" /></svg> },
   Journey: { color: "#B54A6B", icon: <svg {...CONCEPT_ICON_COMMON}><path d="M4 18c4-7 7 5 11-2c1.5-2.6 3-3.4 5-3" strokeDasharray="2.5,2.5" /><circle cx="4" cy="18" r="1.8" fill="#fff" stroke="none" /><path d="M17 10l3-3M20 7v4M20 7h-4" /></svg> },
   JourneyStage: { color: "#D98CA3", icon: <svg {...CONCEPT_ICON_COMMON}><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="2.8" fill="#fff" stroke="none" /></svg> },
+  ValueStream: { color: "#7A5C3E", icon: <svg {...CONCEPT_ICON_COMMON}><path d="M2 12h3M9 12h3M15.5 12h2" /><circle cx="6" cy="12" r="2.2" /><circle cx="12.5" cy="12" r="2.2" /><path d="M19 8l3.5 4-3.5 4" /></svg> },
+  ValueStreamStage: { color: "#B08D6E", icon: <svg {...CONCEPT_ICON_COMMON}><circle cx="12" cy="12" r="8" /><path d="M8.3 12.3l2.4 2.4 5-5.4" /></svg> },
   Location: { color: "#2C8C7A", icon: <svg {...CONCEPT_ICON_COMMON}><path d="M12 21s7-6.5 7-12a7 7 0 0 0-14 0c0 5.5 7 12 7 12z" /><circle cx="12" cy="9" r="2.3" /></svg> },
   Requirement: { color: "#6456A3", icon: <svg {...CONCEPT_ICON_COMMON}><rect x="5" y="3" width="14" height="18" rx="2" /><path d="M9 3V2h6v1" /><polyline points="8,11 10.5,13.5 16,8" /><line x1="8" y1="17" x2="16" y2="17" /></svg> },
   Interface: { color: "#1B8FA0", icon: <svg {...CONCEPT_ICON_COMMON}><rect x="2" y="9" width="7" height="6" rx="1.5" /><path d="M9 12h3" /><path d="M12 12h3l1.5-3M16.5 9l1.5 3-1.5 3" /><circle cx="20" cy="12" r="2" /></svg> },
@@ -4674,7 +4677,7 @@ function APMDashboardLive() {
                 icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8"><rect x="3" y="4" width="7" height="7" rx="1" /><rect x="14" y="4" width="7" height="7" rx="1" /><rect x="3" y="15" width="7" height="5" rx="1" /><rect x="14" y="15" width="7" height="5" rx="1" /></svg> },
               { key: "canvas", title: "Modelling Canvas", desc: "Sketch freely, formalise deliberately — or ask AI to draw it for you.", color: "#7B5EA7",
                 icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8"><circle cx="6" cy="6" r="2.5" /><circle cx="18" cy="6" r="2.5" /><circle cx="12" cy="18" r="2.5" /><path d="M8.2 7.2l7.6 1.2M13 16l-2-6M11 16l2-6" /></svg> },
-              { key: "ontology", title: "Ontology Manager", desc: "All 21 concept types, managed directly — add, edit, delete.", color: "#D97706",
+              { key: "ontology", title: "Ontology Manager", desc: "All 23 concept types, managed directly — add, edit, delete.", color: "#D97706",
                 icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8"><rect x="4" y="4" width="16" height="16" rx="3" /><path d="M4 10h16M10 4v16" /></svg> },
               { key: "decisionlog", title: "Decision Log", desc: "Every architecture decision — consequences, and what superseded what.", color: "#F0384D",
                 icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8"><path d="M7 3h8l4 4v14H7z" /><path d="M15 3v4h4" /><line x1="9.5" y1="12" x2="16" y2="12" /><line x1="9.5" y1="16" x2="16" y2="16" /></svg> },
