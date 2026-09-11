@@ -5,35 +5,97 @@
 <title>RBL Application Portfolio</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
-  html, body { margin: 0; padding: 0; background: #F3F4F7; }
+  @import url('https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+
+  :root {
+    --ink: #0A0E1A;
+    --ink-secondary: #64748B;
+    --paper: #F3F4FA;
+    --card: #FFFFFF;
+    --border: #E4E6F0;
+    --accent: #0EA968;
+    --accent-bright: #22D3A6;
+    --accent2: #7C5CFF;
+    --accent2-bright: #9B8CFF;
+    --risk: #F0384D;
+    --glow-accent: rgba(14,169,104,0.35);
+    --glow-accent2: rgba(124,92,255,0.35);
+    --shadow-sm: 0 1px 2px rgba(10,14,26,0.05), 0 1px 1px rgba(10,14,26,0.04);
+    --shadow-md: 0 4px 14px rgba(10,14,26,0.07), 0 1px 3px rgba(10,14,26,0.06);
+    --shadow-lg: 0 20px 48px rgba(10,14,26,0.14), 0 4px 14px rgba(10,14,26,0.08);
+    --shadow-glow: 0 8px 28px var(--glow-accent), 0 2px 8px rgba(10,14,26,0.08);
+    --font-display: "Sora", "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-body: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+
+  html, body { margin: 0; padding: 0; background: var(--paper); font-family: var(--font-body); }
   * { box-sizing: border-box; }
+  ::selection { background: var(--accent-bright); color: #06251A; }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #C7CBDC; border-radius: 10px; border: 2px solid var(--paper); }
+  ::-webkit-scrollbar-thumb:hover { background: #A7ADC4; }
+  button, input, select, textarea { font-family: inherit; }
+  button:focus-visible, input:focus-visible, [tabindex]:focus-visible {
+    outline: 2px solid var(--accent-bright); outline-offset: 2px; border-radius: 6px;
+  }
+  h1, h2, h3 { font-family: var(--font-display); }
+
   table { border-collapse: collapse; width: 100%; }
   th, td { text-align: left; padding: 10px 14px; font-size: 13.5px; }
-  tbody tr { border-top: 1px solid #DCDFE6; }
-  tbody tr:hover { background: #FBFAF6; }
+  tbody tr { border-top: 1px solid var(--border); transition: background 0.12s ease; }
+  tbody tr:hover { background: #F4FBF7; }
   input { font-family: inherit; }
+
   .chat-markdown p { margin: 0 0 8px 0; }
   .chat-markdown p:last-child { margin-bottom: 0; }
   .chat-markdown ul, .chat-markdown ol { margin: 6px 0; padding-left: 20px; }
   .chat-markdown li { margin-bottom: 2px; }
-  .chat-markdown code { background: #EFEDE5; padding: 1px 5px; border-radius: 4px; font-size: 0.9em; font-family: ui-monospace, monospace; }
-  .chat-markdown pre { background: #1C2A3A; color: #E8EAED; padding: 12px 14px; border-radius: 8px; overflow-x: auto; margin: 8px 0; }
+  .chat-markdown code { background: #EEF0F8; padding: 1px 5px; border-radius: 4px; font-size: 0.9em; font-family: ui-monospace, monospace; }
+  .chat-markdown pre { background: var(--ink); color: #E8EAED; padding: 12px 14px; border-radius: 12px; overflow-x: auto; margin: 8px 0; }
   .chat-markdown pre code { background: none; padding: 0; color: inherit; }
-  .chat-markdown blockquote { border-left: 3px solid #DCDFE6; margin: 8px 0; padding: 2px 0 2px 12px; color: #5A6B80; font-style: italic; font-size: 0.95em; }
+  .chat-markdown blockquote { border-left: 3px solid var(--accent); margin: 8px 0; padding: 2px 0 2px 12px; color: #64748B; font-style: italic; font-size: 0.95em; }
   .chat-markdown table { margin: 8px 0; font-size: 0.95em; }
-  .chat-markdown th { border-bottom: 1px solid #DCDFE6; font-weight: 600; }
+  .chat-markdown th { border-bottom: 1px solid var(--border); font-weight: 600; }
   .chat-markdown h1, .chat-markdown h2, .chat-markdown h3 { margin: 10px 0 6px 0; font-size: 1.05em; }
-  .chat-markdown a { color: #1E7A4C; }
-  .chat-markdown hr { border: none; border-top: 1px solid #DCDFE6; margin: 10px 0; }
+  .chat-markdown a { color: var(--accent); }
+  .chat-markdown hr { border: none; border-top: 1px solid var(--border); margin: 10px 0; }
 
   @keyframes heroGradientShift {
     0% { background-position: 0% 50%; }
     50% { background-position: 100% 50%; }
     100% { background-position: 0% 50%; }
   }
+  @keyframes floatSlow {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(-14px, 16px) scale(1.06); }
+  }
+  @keyframes floatSlowReverse {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(18px, -12px) scale(1.08); }
+  }
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes viewFade {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes pulseGlow {
+    0%, 100% { box-shadow: 0 0 0 0 var(--glow-accent); }
+    50% { box-shadow: 0 0 0 8px rgba(14,169,104,0); }
+  }
+  @keyframes shimmer {
+    0% { background-position: -400px 0; }
+    100% { background-position: 400px 0; }
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .view-transition { animation: viewFade 0.32s cubic-bezier(0.16, 1, 0.3, 1); }
+
   .hero-flashy {
-    background: linear-gradient(120deg, #0F1826, #16342A, #1E7A4C, #16342A, #0F1826);
+    background: linear-gradient(120deg, #060A14, #0E2A20, #0EA968, #0E2A20, #060A14);
     background-size: 400% 400%;
     animation: heroGradientShift 14s ease infinite;
   }
@@ -45,15 +107,60 @@
     opacity: 0.12;
     pointer-events: none;
   }
+  .hero-orb {
+    position: absolute; border-radius: 50%; filter: blur(40px); pointer-events: none;
+  }
   .hero-title {
-    background: linear-gradient(90deg, #FFFFFF 0%, #E8F0EA 45%, #C9E8D6 60%, #FFFFFF 100%);
+    background: linear-gradient(90deg, #FFFFFF 0%, #E8F5ED 40%, #9EF0CE 55%, #FFFFFF 100%);
     background-size: 200% auto;
     -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: #fff;
     animation: heroGradientShift 6s ease infinite;
+    font-family: var(--font-display);
   }
   .landing-chat-input:focus { box-shadow: 0 0 0 4px rgba(255,255,255,0.25); }
-  .landing-card { transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease; }
-  .landing-card:hover { transform: translateY(-4px); box-shadow: 0 16px 36px rgba(20,31,48,0.18); border-color: transparent; }
+
+  .landing-card {
+    transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s ease, border-color 0.22s ease;
+    animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  }
+  .landing-card:hover { transform: translateY(-6px); box-shadow: var(--shadow-lg); border-color: transparent; }
+
+  .ds-card {
+    transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease, border-color 0.2s ease;
+  }
+  .ds-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg) !important; }
+
+  .ds-icon-chip {
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    background: linear-gradient(135deg, var(--accent), var(--accent-bright));
+    box-shadow: 0 6px 16px rgba(14,169,104,0.3);
+    color: #fff;
+  }
+
+  .ds-btn-primary {
+    background: linear-gradient(135deg, var(--accent) 0%, #0C8F58 100%);
+    color: #fff; border: none; cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+    box-shadow: 0 4px 14px rgba(14,169,104,0.32);
+  }
+  .ds-btn-primary:hover { transform: translateY(-1px); filter: brightness(1.06); box-shadow: 0 8px 22px rgba(14,169,104,0.4); }
+  .ds-btn-primary:active { transform: translateY(0); }
+
+  .ds-nav-pill { transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease; }
+  .ds-nav-pill:not(.ds-nav-pill-active):hover { background: rgba(255,255,255,0.08) !important; color: #fff !important; }
+
+  .skeleton {
+    background: linear-gradient(90deg, #EDEFF7 25%, #F7F8FC 37%, #EDEFF7 63%);
+    background-size: 800px 100%;
+    animation: shimmer 1.4s ease infinite;
+    border-radius: 8px;
+  }
+
+  .spin-loader {
+    width: 15px; height: 15px; border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.35); border-top-color: #fff;
+    animation: spin 0.7s linear infinite; display: inline-block;
+  }
 </style>
 </head>
 <body>
@@ -68,10 +175,14 @@
 <script type="text/plain" id="app-source">
 const { useState, useMemo, useCallback, useEffect, useRef } = React;
 const COLORS = {
-  ink: "#141F30", inkSecondary: "#5A6B80", paper: "#F3F4F7", card: "#FFFFFF",
-  border: "#DCDFE6", accent: "#1E7A4C", accentMuted: "#5FA37D",
-  risk: "#D64530", riskMuted: "#E8917D",
-  quadInvest: "#DCEAE1", quadTolerate: "#EDEAE1", quadMigrate: "#FBE0D8", quadEliminate: "#EAD3CC",
+  ink: "#0A0E1A", inkSecondary: "#64748B", paper: "#F3F4FA", card: "#FFFFFF",
+  border: "#E4E6F0", accent: "#0EA968", accentMuted: "#6FD3A8",
+  accent2: "#7C5CFF", accent2Muted: "#B7A8FF",
+  risk: "#F0384D", riskMuted: "#F8A5AF",
+  warning: "#F59E0B", info: "#3B82F6",
+  gradientAccent: "linear-gradient(135deg, #0EA968 0%, #22D3A6 100%)",
+  gradientAI: "linear-gradient(135deg, #7C5CFF 0%, #22D3EE 100%)",
+  quadInvest: "#C9F2DE", quadTolerate: "#FCE7B8", quadMigrate: "#FFD9CB", quadEliminate: "#FBC9D4",
 };
 
 // White-label config — persisted in localStorage like the Neo4j credentials.
@@ -80,7 +191,7 @@ const COLORS = {
 // concept-type colors deliberately stay fixed — those are multi-hued by
 // design, for visual distinction between categories, not meant to collapse
 // into one brand color.
-const DEFAULT_BRAND = { name: "The Royal British Legion", subtitle: "Digital, Data & Technology", logo: null, primary: "#141F30", accent: "#1E7A4C" };
+const DEFAULT_BRAND = { name: "The Royal British Legion", subtitle: "Digital, Data & Technology", logo: null, primary: "#0A0E1A", accent: "#0EA968" };
 
 // Modelling Canvas: the 21 real BDCore concept types (whitelist — anything
 // pushed to Neo4j must be one of these, no arbitrary labels) and the
@@ -239,16 +350,16 @@ const CONCEPT_TYPE_STYLE = {
   Goal: { color: "#D9971F", icon: <svg {...CONCEPT_ICON_COMMON}><circle cx="12" cy="12" r="8.5" /><circle cx="12" cy="12" r="4" /><circle cx="12" cy="12" r="0.7" fill="#fff" stroke="none" /></svg> },
   Decision: { color: "#5A6B99", icon: <svg {...CONCEPT_ICON_COMMON}><path d="M12 3v6M12 9 L6 15 M12 9 L18 15 M6 15v6M18 15v6" /></svg> },
   Initiative: { color: "#2C7A8C", icon: <svg {...CONCEPT_ICON_COMMON}><path d="M7 18a4 4 0 0 1-.5-7.97A5 5 0 0 1 16.2 8.1 4.5 4.5 0 0 1 17 17H7z" /><polyline points="9.5,13 12,15.5 14.5,13" /><line x1="12" y1="15.5" x2="12" y2="9.5" /></svg> },
-  Outcome: { color: "#1E7A4C", icon: <svg {...CONCEPT_ICON_COMMON}><polyline points="3,7 10,14 14,10 21,17" /><polyline points="21,10 21,17 14,17" /></svg> },
-  Capability: { color: "#141F30", icon: <svg {...CONCEPT_ICON_COMMON}><rect x="3" y="4" width="5" height="16" rx="1" /><rect x="9.5" y="4" width="5" height="10" rx="1" /><rect x="16" y="4" width="5" height="13" rx="1" /></svg> },
+  Outcome: { color: "#0EA968", icon: <svg {...CONCEPT_ICON_COMMON}><polyline points="3,7 10,14 14,10 21,17" /><polyline points="21,10 21,17 14,17" /></svg> },
+  Capability: { color: "#0A0E1A", icon: <svg {...CONCEPT_ICON_COMMON}><rect x="3" y="4" width="5" height="16" rx="1" /><rect x="9.5" y="4" width="5" height="10" rx="1" /><rect x="16" y="4" width="5" height="13" rx="1" /></svg> },
   Process: { color: "#7A6A73", icon: <svg {...CONCEPT_ICON_COMMON}><polyline points="4,6 10,6 10,12 20,12" /><circle cx="4" cy="6" r="1.6" fill="#fff" stroke="none" /><circle cx="20" cy="12" r="1.6" fill="#fff" stroke="none" /></svg> },
   Organisation: { color: "#4A5A78", icon: <svg {...CONCEPT_ICON_COMMON}><rect x="5" y="3" width="14" height="18" rx="1" /><line x1="9" y1="8" x2="9" y2="8.01" /><line x1="15" y1="8" x2="15" y2="8.01" /><line x1="9" y1="13" x2="9" y2="13.01" /><line x1="15" y1="13" x2="15" y2="13.01" /></svg> },
   Product: { color: "#C9752E", icon: <svg {...CONCEPT_ICON_COMMON}><path d="M3 8l9-5 9 5-9 5-9-5z" /><path d="M3 8v8l9 5 9-5V8" /><path d="M12 13v8" /></svg> },
   Application: { color: "#2C3B4E", icon: <svg {...CONCEPT_ICON_COMMON}><rect x="3" y="3" width="7" height="7" rx="1.3" /><rect x="14" y="3" width="7" height="7" rx="1.3" /><rect x="3" y="14" width="7" height="7" rx="1.3" /><rect x="14" y="14" width="7" height="7" rx="1.3" /></svg> },
-  Data: { color: "#B08A3E", icon: <svg {...CONCEPT_ICON_COMMON}><ellipse cx="12" cy="5" rx="8" ry="3" /><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5" /><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3" /></svg> },
+  Data: { color: "#D97706", icon: <svg {...CONCEPT_ICON_COMMON}><ellipse cx="12" cy="5" rx="8" ry="3" /><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5" /><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3" /></svg> },
   SoftwareTechnology: { color: "#5B6E4F", icon: <svg {...CONCEPT_ICON_COMMON}><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="5.5" /><circle cx="12" cy="12" r="2" /></svg> },
   HardwareTechnology: { color: "#7C9070", icon: <svg {...CONCEPT_ICON_COMMON}><rect x="4" y="4" width="16" height="6" rx="1" /><rect x="4" y="14" width="16" height="6" rx="1" /><circle cx="7" cy="7" r="0.8" fill="#fff" stroke="none" /><circle cx="7" cy="17" r="0.8" fill="#fff" stroke="none" /></svg> },
-  Risk: { color: "#D64530", icon: <svg {...CONCEPT_ICON_COMMON}><path d="M12 3.5 L21.5 20 H2.5 Z" /><line x1="12" y1="9.5" x2="12" y2="14.5" /><circle cx="12" cy="17" r="0.7" fill="#fff" stroke="none" /></svg> },
+  Risk: { color: "#F0384D", icon: <svg {...CONCEPT_ICON_COMMON}><path d="M12 3.5 L21.5 20 H2.5 Z" /><line x1="12" y1="9.5" x2="12" y2="14.5" /><circle cx="12" cy="17" r="0.7" fill="#fff" stroke="none" /></svg> },
   Control: { color: "#3E7A9B", icon: <svg {...CONCEPT_ICON_COMMON}><path d="M12 3 L20 6.5 V11.5 C20 16.5 16.5 20 12 21.5 C7.5 20 4 16.5 4 11.5 V6.5 Z" /><polyline points="9,12 11,14.5 15,9.5" /></svg> },
   AIModel: { color: "#7B5EA7", icon: <svg {...CONCEPT_ICON_COMMON}><rect x="7" y="7" width="10" height="10" rx="2" /><line x1="12" y1="2" x2="12" y2="7" /><line x1="12" y1="17" x2="12" y2="22" /><line x1="2" y1="12" x2="7" y2="12" /><line x1="17" y1="12" x2="22" y2="12" /><circle cx="12" cy="12" r="1.8" fill="#fff" stroke="none" /></svg> },
   Journey: { color: "#B54A6B", icon: <svg {...CONCEPT_ICON_COMMON}><path d="M4 18c4-7 7 5 11-2c1.5-2.6 3-3.4 5-3" strokeDasharray="2.5,2.5" /><circle cx="4" cy="18" r="1.8" fill="#fff" stroke="none" /><path d="M17 10l3-3M20 7v4M20 7h-4" /></svg> },
@@ -633,34 +744,34 @@ function renderBasicShapeSvg(shapeKey, w, h, color) {
 }
 
 const DISPOSITION_INFO = {
-  Retain: { color: "#1E7A4C", desc: "Healthy and valuable — leave as is." },
-  Rehost: { color: "#2C7A8C", desc: "Healthy and valuable — just needs to move off legacy infrastructure." },
-  Replatform: { color: "#D9971F", desc: "Valuable but ageing, on legacy infrastructure — modernise while migrating." },
-  Replace: { color: "#D64530", desc: "Valuable but poor technical health — lift-and-shift won't fix this." },
-  Retire: { color: "#8A6B82", desc: "Low value, or already being decommissioned." },
-  Refactor: { color: "#5A6B99", desc: "Doesn't fit a clean pattern — needs architect judgement." },
+  Retain: { color: "#0EA968", desc: "Healthy and valuable — leave as is." },
+  Rehost: { color: "#0891B2", desc: "Healthy and valuable — just needs to move off legacy infrastructure." },
+  Replatform: { color: "#F59E0B", desc: "Valuable but ageing, on legacy infrastructure — modernise while migrating." },
+  Replace: { color: "#FB6340", desc: "Valuable but poor technical health — lift-and-shift won't fix this." },
+  Retire: { color: "#8B7BA8", desc: "Low value, or already being decommissioned." },
+  Refactor: { color: "#6366F1", desc: "Doesn't fit a clean pattern — needs architect judgement." },
 };
 
 const NODE_TYPE_COLOR = {
-  Application: "#141F30", SoftwareTechnology: "#1E7A4C",
-  HardwareTechnology: "#5FA37D", Data: "#B08A3E",
+  Application: "#0A0E1A", SoftwareTechnology: "#0EA968",
+  HardwareTechnology: "#22D3A6", Data: "#F59E0B",
 };
 
 const DEPENDENCY_TYPES = new Set(["RUNS_ON", "DEPENDS_ON", "INTEGRATES_WITH"]);
 
 const EDGE_STYLES = {
-  RUNS_ON: { color: "#141F30", dash: null, label: "runs on" },
-  DEPENDS_ON: { color: "#D64530", dash: null, label: "depends on" },
-  INTEGRATES_WITH: { color: "#1E7A4C", dash: null, label: "integrates with" },
-  STORES: { color: "#B08A3E", dash: "6,3", label: "stores" },
-  PROVIDES: { color: "#4A7A8C", dash: "2,2", label: "provides" },
-  STORED_BY: { color: "#8B5E83", dash: "9,3", label: "stored by" },
-  DUPLICATES: { color: "#6B6B6B", dash: "1,3", label: "duplicates" },
-  REPLACES: { color: "#C9752E", dash: "5,2,1,2", label: "replaces" },
-  GOVERNED_BY: { color: "#6C7A99", dash: "3,4", label: "governed by" },
+  RUNS_ON: { color: "#0A0E1A", dash: null, label: "runs on" },
+  DEPENDS_ON: { color: "#F0384D", dash: null, label: "depends on" },
+  INTEGRATES_WITH: { color: "#0EA968", dash: null, label: "integrates with" },
+  STORES: { color: "#F59E0B", dash: "6,3", label: "stores" },
+  PROVIDES: { color: "#3B82F6", dash: "2,2", label: "provides" },
+  STORED_BY: { color: "#7C5CFF", dash: "9,3", label: "stored by" },
+  DUPLICATES: { color: "#94A3B8", dash: "1,3", label: "duplicates" },
+  REPLACES: { color: "#FB6340", dash: "5,2,1,2", label: "replaces" },
+  GOVERNED_BY: { color: "#6366F1", dash: "3,4", label: "governed by" },
 };
 function edgeStyle(relType) {
-  return EDGE_STYLES[relType] || { color: "#5A6B80", dash: null, label: relType.toLowerCase().replace(/_/g, " ") };
+  return EDGE_STYLES[relType] || { color: "#64748B", dash: null, label: relType.toLowerCase().replace(/_/g, " ") };
 }
 
 const healthLabel = { 1: "Poor", 2: "Adequate", 3: "Good", 4: "Good" };
@@ -727,10 +838,10 @@ function computeAITime(app) {
   return { exposure, entrenchment };
 }
 const AI_TIME_INFO = {
-  "Prime Disruption Target": { color: "#D64530", desc: "High AI exposure, and this specific system isn't valuable or healthy enough to defend." },
-  "Watch Closely": { color: "#B08A3E", desc: "High AI exposure, but currently a strong, valuable system — monitor for AI-native competitors." },
+  "Prime Disruption Target": { color: "#F0384D", desc: "High AI exposure, and this specific system isn't valuable or healthy enough to defend." },
+  "Watch Closely": { color: "#D97706", desc: "High AI exposure, but currently a strong, valuable system — monitor for AI-native competitors." },
   "Modernise Conventionally": { color: "#6C7A99", desc: "Weak system, but for ordinary technical-debt reasons — not an AI-specific story." },
-  "Safe for Now": { color: "#1E7A4C", desc: "Low category exposure and a solid system — no near-term AI disruption case." },
+  "Safe for Now": { color: "#0EA968", desc: "Low category exposure and a solid system — no near-term AI disruption case." },
 };
 function aiTimeQuadrant({ exposure, entrenchment }) {
   const highExp = exposure >= 2.5, highEntrench = entrenchment >= 2.25;
@@ -803,7 +914,7 @@ function computeBlastRadius(app, allApps, depLinks, depNodes, processes, orgsByP
 
 const RADAR_RING_ORDER = ["Preferred", "Accepted", "Contained", "Retire"];
 const RADAR_RING_LABELS = { Preferred: "Adopt", Accepted: "Trial", Contained: "Hold", Retire: "Sunset" };
-const RADAR_RING_COLORS = { Preferred: "#1E7A4C", Accepted: "#4A7A8C", Contained: "#B08A3E", Retire: "#D64530" };
+const RADAR_RING_COLORS = { Preferred: "#0EA968", Accepted: "#4A7A8C", Contained: "#D97706", Retire: "#F0384D" };
 const RADAR_BAND_RADII = { Preferred: 65, Accepted: 115, Contained: 165, Retire: 210 };
 
 const LIFECYCLE_STAGES = [
@@ -841,8 +952,8 @@ function computeAIScores(p) {
 }
 
 const AI_QUADRANT_INFO = {
-  "Automate Now": { color: "#1E7A4C", desc: "Manual, frequent, valuable work — and the data behind it is good enough to trust." },
-  "Fix Data First": { color: "#B08A3E", desc: "Worth automating, but the underlying data quality isn't there yet." },
+  "Automate Now": { color: "#0EA968", desc: "Manual, frequent, valuable work — and the data behind it is good enough to trust." },
+  "Fix Data First": { color: "#D97706", desc: "Worth automating, but the underlying data quality isn't there yet." },
   "Low Priority": { color: "#6C7A99", desc: "Data's ready, but the process isn't manual/frequent/valuable enough to matter yet." },
   "Not Yet": { color: "#7A6A73", desc: "Neither the opportunity nor the data readiness make a case right now." },
 };
@@ -2090,9 +2201,11 @@ function APMDashboardLive() {
 
   const navButtonStyle = (key) => ({
     display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", padding: "9px 14px", fontSize: 13.5,
-    fontWeight: 500, cursor: "pointer", borderRadius: 8, border: "none", marginBottom: 2,
-    background: view === key ? "#2C3B4E" : "transparent",
-    color: view === key ? "#fff" : "#B7C0C9",
+    fontWeight: 500, cursor: "pointer", borderRadius: 10, border: "none", marginBottom: 2,
+    background: view === key ? "linear-gradient(135deg, rgba(14,169,104,0.9), rgba(34,211,166,0.85))" : "transparent",
+    color: view === key ? "#06170F" : "#AEB8CC",
+    fontWeight: view === key ? 700 : 500,
+    boxShadow: view === key ? "0 4px 14px rgba(14,169,104,0.35)" : "none",
   });
   const ICON_COMMON = { width: 16, height: 16, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round", strokeLinejoin: "round", style: { flexShrink: 0 } };
   const ICONS = {
@@ -2594,7 +2707,7 @@ function APMDashboardLive() {
   };
 
   const SHAPE_W = 92, SHAPE_H = 76;
-  const SHAPE_CATEGORY_COLOR = { Basic: "#4A5A78", Cloud: "#2C7A8C", Network: "#5A6B99", Security: "#D64530", Generic: "#7A6A73", BPM: "#1E7A4C" };
+  const SHAPE_CATEGORY_COLOR = { Basic: "#4A5A78", Cloud: "#2C7A8C", Network: "#5A6B99", Security: "#F0384D", Generic: "#7A6A73", BPM: "#0EA968" };
 
   const addShape = (category, shapeKey) => {
     const def = SHAPE_INDEX[shapeKey];
@@ -3180,7 +3293,7 @@ function APMDashboardLive() {
             display: "flex", alignItems: "center", justifyContent: "center" }}
             onClick={() => setShowBrandSettings(false)}>
             <div onClick={(e) => e.stopPropagation()}
-              style={{ background: "#fff", borderRadius: 16, padding: 26, width: 420, boxShadow: "0 24px 60px rgba(20,31,48,0.35)" }}>
+              style={{ background: "#fff", borderRadius: 16, padding: 26, width: 420, boxShadow: "0 24px 60px rgba(10,14,26,0.38)" }}>
               <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>Customize branding</div>
               <div style={{ fontSize: 12, color: COLORS.inkSecondary, marginBottom: 18, lineHeight: 1.5 }}>
                 Changes preview live. Primary and accent re-theme the sidebar, buttons, and highlights throughout the
@@ -3246,7 +3359,7 @@ function APMDashboardLive() {
             onClick={() => { setShowEnumManager(false); setEnumManagerAttrName(null); }}>
             <div onClick={(e) => e.stopPropagation()}
               style={{ background: "#fff", borderRadius: 16, padding: 26, width: 460, maxHeight: "80vh", overflowY: "auto",
-                boxShadow: "0 24px 60px rgba(20,31,48,0.35)" }}>
+                boxShadow: "0 24px 60px rgba(10,14,26,0.38)" }}>
               <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>Manage attribute options</div>
               <div style={{ fontSize: 12, color: COLORS.inkSecondary, marginBottom: 18 }}>{omSelectedType}</div>
 
@@ -3328,36 +3441,48 @@ function APMDashboardLive() {
       })()}
 
       {status === "connected" && (
-        <div style={{ width: 226, flexShrink: 0, background: COLORS.ink, padding: "22px 14px", minHeight: "100vh" }}>
+        <div style={{ width: 226, flexShrink: 0,
+          background: "linear-gradient(190deg, #0D1220 0%, #0A0E1A 55%, #081410 100%)",
+          padding: "22px 14px", minHeight: "100vh", position: "relative", overflow: "hidden" }}>
+          <div style={{ position: "absolute", top: -80, left: -60, width: 200, height: 200, borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(14,169,104,0.28), transparent 70%)", pointerEvents: "none" }} />
           <div onClick={() => setView("landing")}
-            style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 8px", marginBottom: 18, cursor: "pointer" }}>
-            <div style={{ width: 22, height: 22, borderRadius: 6, background: COLORS.accent,
-              display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            style={{ display: "flex", alignItems: "center", gap: 9, padding: "0 8px", marginBottom: 20, cursor: "pointer", position: "relative" }}>
+            <div style={{ width: 26, height: 26, borderRadius: 8, background: COLORS.gradientAccent,
+              display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+              boxShadow: "0 4px 12px rgba(14,169,104,0.45)" }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#06170F" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="6" cy="6" r="2.2" /><circle cx="18" cy="6" r="2.2" /><circle cx="12" cy="18" r="2.2" />
                 <line x1="7.6" y1="7.6" x2="10.7" y2="16.1" /><line x1="16.4" y1="7.6" x2="13.3" y2="16.1" /><line x1="8.2" y1="6" x2="15.8" y2="6" />
               </svg>
             </div>
-            <div style={{ color: "#fff", fontSize: 13.5, fontWeight: 600, letterSpacing: "0.01em" }}>Unify Workspace</div>
+            <div style={{ color: "#fff", fontSize: 14, fontWeight: 700, letterSpacing: "0.01em", fontFamily: "var(--font-display)" }}>Unify Workspace</div>
           </div>
 
-          <div style={{ display: "flex", gap: 6, marginBottom: 20, padding: "0 8px" }}>
+          <div style={{ display: "flex", gap: 4, marginBottom: 22, padding: 3, background: "rgba(255,255,255,0.05)",
+            borderRadius: 12, position: "relative" }}>
             <button onClick={() => setView("brief")}
-              style={{ flex: 1, padding: "8px 0", fontSize: 12, fontWeight: 700, borderRadius: 8, cursor: "pointer",
-                border: "none", background: (view !== "canvas" && view !== "ontology") ? COLORS.accent : "rgba(255,255,255,0.08)",
-                color: (view !== "canvas" && view !== "ontology") ? "#fff" : "#9AA5B1" }}>
+              style={{ flex: 1, padding: "7px 0", fontSize: 11.5, fontWeight: 700, borderRadius: 9, cursor: "pointer",
+                border: "none", transition: "background 0.15s ease, color 0.15s ease",
+                background: (view !== "canvas" && view !== "ontology") ? COLORS.gradientAccent : "transparent",
+                color: (view !== "canvas" && view !== "ontology") ? "#06170F" : "#8891A6",
+                boxShadow: (view !== "canvas" && view !== "ontology") ? "0 3px 10px rgba(14,169,104,0.35)" : "none" }}>
               APM
             </button>
             <button onClick={() => setView("canvas")}
-              style={{ flex: 1, padding: "8px 0", fontSize: 12, fontWeight: 700, borderRadius: 8, cursor: "pointer",
-                border: "none", background: view === "canvas" ? COLORS.accent : "rgba(255,255,255,0.08)",
-                color: view === "canvas" ? "#fff" : "#9AA5B1" }}>
+              style={{ flex: 1, padding: "7px 0", fontSize: 11.5, fontWeight: 700, borderRadius: 9, cursor: "pointer",
+                border: "none", transition: "background 0.15s ease, color 0.15s ease",
+                background: view === "canvas" ? COLORS.gradientAccent : "transparent",
+                color: view === "canvas" ? "#06170F" : "#8891A6",
+                boxShadow: view === "canvas" ? "0 3px 10px rgba(14,169,104,0.35)" : "none" }}>
               Workspaces
             </button>
             <button onClick={() => { setView("ontology"); loadOmInstances(omSelectedType); }}
-              style={{ flex: 1, padding: "8px 0", fontSize: 12, fontWeight: 700, borderRadius: 8, cursor: "pointer",
-                border: "none", background: view === "ontology" ? COLORS.accent : "rgba(255,255,255,0.08)",
-                color: view === "ontology" ? "#fff" : "#9AA5B1" }}>
+              style={{ flex: 1, padding: "7px 0", fontSize: 11.5, fontWeight: 700, borderRadius: 9, cursor: "pointer",
+                border: "none", transition: "background 0.15s ease, color 0.15s ease",
+                background: view === "ontology" ? COLORS.gradientAccent : "transparent",
+                color: view === "ontology" ? "#06170F" : "#8891A6",
+                boxShadow: view === "ontology" ? "0 3px 10px rgba(14,169,104,0.35)" : "none" }}>
               Ontology
             </button>
           </div>
@@ -3365,7 +3490,7 @@ function APMDashboardLive() {
           {view !== "canvas" && view !== "ontology" ? (
             <>
               {NAV_ITEMS.map(([key, label, icon]) => (
-                <button key={key} onClick={() => { setView(key); setSelectedNode(null); }} style={navButtonStyle(key)}>
+                <button key={key} className={view === key ? "ds-nav-pill ds-nav-pill-active" : "ds-nav-pill"} onClick={() => { setView(key); setSelectedNode(null); }} style={navButtonStyle(key)}>
                   {ICONS[icon]}<span>{label}</span>
                 </button>
               ))}
@@ -3380,7 +3505,7 @@ function APMDashboardLive() {
                     <span style={{ fontSize: 10 }}>{openGroups[group.key] ? "▾" : "▸"}</span>
                   </div>
                   {openGroups[group.key] && group.items.map(([key, label, icon]) => (
-                    <button key={key} onClick={() => { setView(key); setSelectedNode(null); }}
+                    <button key={key} className={view === key ? "ds-nav-pill ds-nav-pill-active" : "ds-nav-pill"} onClick={() => { setView(key); setSelectedNode(null); }}
                       style={{ ...navButtonStyle(key), paddingLeft: 20, fontSize: 13 }}>
                       {ICONS[icon]}<span>{label}</span>
                     </button>
@@ -3481,43 +3606,73 @@ function APMDashboardLive() {
       )}
 
       {status !== "connected" && (
-        <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)", borderRadius: 14,
-          padding: 20, marginBottom: 28, maxWidth: 520 }}>
-          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Connect to Your Aura Instance</div>
-          <div style={{ fontSize: 12.5, color: COLORS.inkSecondary, marginBottom: 14, lineHeight: 1.5 }}>
-            Paste the same connection URI, username, and password you used in load_schema.py. Nothing is stored —
-            these live only in this page while it's open.
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <input placeholder="neo4j+s://xxxxxxxx.databases.neo4j.io" value={uri} onChange={(e) => setUri(e.target.value)}
-              style={{ padding: "8px 10px", border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)", borderRadius: 8, fontSize: 13.5 }} />
-            <div style={{ display: "flex", gap: 10 }}>
-              <input placeholder="username" value={username} onChange={(e) => setUsername(e.target.value)}
-                style={{ flex: 1, padding: "8px 10px", border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)", borderRadius: 8, fontSize: 13.5 }} />
-              <input placeholder="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)}
-                style={{ flex: 1, padding: "8px 10px", border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)", borderRadius: 8, fontSize: 13.5 }} />
+        <div className="hero-flashy" style={{ position: "fixed", inset: 0, display: "flex", flexDirection: "column",
+          alignItems: "center", justifyContent: "center", padding: 24, overflow: "auto" }}>
+          <div className="hero-orb" style={{ width: 360, height: 360, top: "10%", left: "8%",
+            background: "radial-gradient(circle, rgba(14,169,104,0.5), transparent 70%)", animation: "floatSlow 12s ease-in-out infinite" }} />
+          <div className="hero-orb" style={{ width: 300, height: 300, bottom: "8%", right: "10%",
+            background: "radial-gradient(circle, rgba(124,92,255,0.4), transparent 70%)", animation: "floatSlowReverse 15s ease-in-out infinite" }} />
+
+          <div style={{ textAlign: "center", marginBottom: 32, position: "relative", maxWidth: 640 }}>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 14px", borderRadius: 20,
+              background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", marginBottom: 20 }}>
+              <div style={{ width: 8, height: 8, borderRadius: "50%", background: COLORS.accentMuted, animation: "pulseGlow 2s ease infinite" }} />
+              <span style={{ fontSize: 11.5, fontWeight: 600, color: "#C9E8D6", letterSpacing: "0.05em", textTransform: "uppercase" }}>
+                {brand.name}
+              </span>
             </div>
-            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-              <button onClick={handleConnect} disabled={status === "loading"}
-                style={{ padding: "9px 16px", background: COLORS.ink, color: COLORS.card, border: "none",
-                  borderRadius: 8, fontSize: 13.5, fontWeight: 500, cursor: "pointer", width: "fit-content" }}>
-                {status === "loading" ? "Connecting…" : "Connect and Load"}
-              </button>
-              {uri && (
-                <span onClick={forgetSavedLogin} style={{ fontSize: 12, color: COLORS.inkSecondary, cursor: "pointer", textDecoration: "underline" }}>
-                  Forget saved login
-                </span>
+            <h1 className="hero-title" style={{ fontSize: 44, fontWeight: 800, margin: "0 0 14px", lineHeight: 1.1 }}>
+              Unify Workspace
+            </h1>
+            <p style={{ fontSize: 16, color: "rgba(255,255,255,0.75)", lineHeight: 1.6, margin: 0 }}>
+              One graph of your whole organisation — strategy, capabilities, applications, technology, risk —
+              queryable in plain English and navigable like a map.
+            </p>
+          </div>
+
+          <div style={{ width: "100%", maxWidth: 440, background: "rgba(15,20,32,0.55)", backdropFilter: "blur(20px)",
+            WebkitBackdropFilter: "blur(20px)", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 20,
+            padding: 26, boxShadow: "0 24px 60px rgba(0,0,0,0.4)", position: "relative", animation: "fadeInUp 0.6s cubic-bezier(0.16,1,0.3,1)" }}>
+            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4, color: "#fff" }}>Connect to Your Aura Instance</div>
+            <div style={{ fontSize: 12.5, color: "rgba(255,255,255,0.6)", marginBottom: 16, lineHeight: 1.5 }}>
+              Paste the same connection URI, username, and password you used in load_schema.py. Nothing is stored —
+              these live only in this page while it's open.
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <input placeholder="neo4j+s://xxxxxxxx.databases.neo4j.io" value={uri} onChange={(e) => setUri(e.target.value)}
+                style={{ padding: "10px 12px", border: "1px solid rgba(255,255,255,0.16)", background: "rgba(255,255,255,0.06)",
+                  color: "#fff", borderRadius: 10, fontSize: 13.5, outline: "none" }} />
+              <div style={{ display: "flex", gap: 10 }}>
+                <input placeholder="username" value={username} onChange={(e) => setUsername(e.target.value)}
+                  style={{ flex: 1, padding: "10px 12px", border: "1px solid rgba(255,255,255,0.16)", background: "rgba(255,255,255,0.06)",
+                    color: "#fff", borderRadius: 10, fontSize: 13.5, outline: "none" }} />
+                <input placeholder="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)}
+                  style={{ flex: 1, padding: "10px 12px", border: "1px solid rgba(255,255,255,0.16)", background: "rgba(255,255,255,0.06)",
+                    color: "#fff", borderRadius: 10, fontSize: 13.5, outline: "none" }} />
+              </div>
+              <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 4 }}>
+                <button className="ds-btn-primary" onClick={handleConnect} disabled={status === "loading"}
+                  style={{ padding: "10px 20px", borderRadius: 10, fontSize: 13.5, fontWeight: 700, width: "fit-content",
+                    display: "flex", alignItems: "center", gap: 8 }}>
+                  {status === "loading" && <span className="spin-loader" />}
+                  {status === "loading" ? "Connecting…" : "Connect and Load →"}
+                </button>
+                {uri && (
+                  <span onClick={forgetSavedLogin} style={{ fontSize: 12, color: "rgba(255,255,255,0.55)", cursor: "pointer", textDecoration: "underline" }}>
+                    Forget saved login
+                  </span>
+                )}
+              </div>
+              {status === "error" && (
+                <div style={{ fontSize: 12.5, color: "#FFB4BD", marginTop: 4, lineHeight: 1.5 }}>{errorMsg}</div>
               )}
             </div>
-            {status === "error" && (
-              <div style={{ fontSize: 12.5, color: COLORS.risk, marginTop: 4, lineHeight: 1.5 }}>{errorMsg}</div>
-            )}
           </div>
         </div>
       )}
 
       {status === "connected" && (
-        <>
+        <div className="view-transition" key={view}>
 
 
           {view === "portfolio" && (
@@ -3525,7 +3680,7 @@ function APMDashboardLive() {
               {subTabs([["portfolio", "Applications"], ["capboard", "Capability Board"]])}
               {askBox("portfolio", "Ask in plain language, e.g. which applications have no owner…")}
 
-              <div style={{ background: COLORS.card, border: `1px solid ${COLORS.accent}33`, borderRadius: 10, padding: 10, marginBottom: 14 }}>
+              <div style={{ background: COLORS.card, border: `1px solid ${COLORS.accent}33`, borderRadius: 12, padding: 10, marginBottom: 14 }}>
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                   <span style={{ color: COLORS.accent, flexShrink: 0, fontSize: 15 }}>✦</span>
                   <input value={refineInput} onChange={(e) => setRefineInput(e.target.value)}
@@ -3574,9 +3729,9 @@ function APMDashboardLive() {
                 </div>
                 <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                   <input placeholder="Search name or vendor…" value={search} onChange={(e) => setSearch(e.target.value)}
-                    style={{ padding: "7px 10px", border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)", borderRadius: 8, fontSize: 13, width: 240 }} />
+                    style={{ padding: "7px 10px", border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 8, fontSize: 13, width: 240 }} />
                   <button onClick={handleRefresh}
-                    style={{ padding: "7px 14px", background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)",
+                    style={{ padding: "7px 14px", background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)",
                       borderRadius: 8, fontSize: 13, cursor: "pointer" }}>Refresh From Neo4j</button>
                   {(statusFilter.size > 0 || criticalityFilter.size > 0 || dispositionFilter.size > 0 || hostingFilter.size > 0 || aiResultFilter || search) && (
                     <button onClick={() => { setStatusFilter(new Set()); setCriticalityFilter(new Set()); setDispositionFilter(new Set()); setHostingFilter(new Set()); setAiResultFilter(null); setSearch(""); }}
@@ -3588,21 +3743,30 @@ function APMDashboardLive() {
 
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 28 }}>
                 {[
-                  { label: "Applications Shown", value: kpis.total },
-                  { label: "In Production", value: kpis.production },
-                  { label: "With an Active Risk", value: kpis.atRisk, tone: kpis.atRisk > 0 ? "risk" : null },
-                  { label: "Estimated Annual TCO", value: fmtGBP(kpis.totalTco) },
+                  { label: "Applications Shown", value: kpis.total, glyph: "▦", color: COLORS.accent },
+                  { label: "In Production", value: kpis.production, glyph: "●", color: COLORS.info },
+                  { label: "With an Active Risk", value: kpis.atRisk, tone: kpis.atRisk > 0 ? "risk" : null, glyph: "▲", color: COLORS.risk },
+                  { label: "Estimated Annual TCO", value: fmtGBP(kpis.totalTco), glyph: "£", color: COLORS.warning },
                 ].map((kpi, i) => (
-                  <div key={i} style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)",
-                    borderTop: `3px solid ${kpi.tone === "risk" ? COLORS.risk : COLORS.ink}`, padding: "16px 18px", borderRadius: 14 }}>
-                    <div style={{ fontSize: 26, fontWeight: 600 }}>{kpi.value}</div>
-                    <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginTop: 4 }}>{kpi.label}</div>
+                  <div key={i} className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)",
+                    padding: "18px 20px", borderRadius: 18, position: "relative", overflow: "hidden" }}>
+                    <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3,
+                      background: `linear-gradient(90deg, ${kpi.tone === "risk" ? COLORS.risk : kpi.color}, transparent)` }} />
+                    <div style={{ width: 34, height: 34, borderRadius: 10, marginBottom: 12,
+                      background: `${kpi.tone === "risk" ? COLORS.risk : kpi.color}18`,
+                      color: kpi.tone === "risk" ? COLORS.risk : kpi.color,
+                      display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 700 }}>
+                      {kpi.glyph}
+                    </div>
+                    <div style={{ fontSize: 28, fontWeight: 800, fontFamily: "var(--font-display)",
+                      color: kpi.tone === "risk" ? COLORS.risk : COLORS.ink }}>{kpi.value}</div>
+                    <div style={{ fontSize: 12.5, color: COLORS.inkSecondary, marginTop: 4 }}>{kpi.label}</div>
                   </div>
                 ))}
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 24, marginBottom: 28 }}>
-                <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)", borderRadius: 14, padding: 20 }}>
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18, padding: 20 }}>
                   <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 2 }}>Business Value vs. Technical Health</div>
                   <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginBottom: 12 }}>
                     Bubble size reflects estimated annual TCO. Apps with identical scores are fanned out around
@@ -3638,7 +3802,7 @@ function APMDashboardLive() {
                   </svg>
                 </div>
 
-                <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)", borderRadius: 14, padding: 18 }}>
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18, padding: 18 }}>
                   {hovered ? (() => {
                     const a = appsWithDisposition.find((x) => x.id === hovered);
                     if (!a) return null;
@@ -3673,7 +3837,7 @@ function APMDashboardLive() {
               </div>
 
               {/* 6R Disposition panel */}
-              <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)", borderRadius: 14, padding: 20, marginBottom: 28 }}>
+              <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18, padding: 20, marginBottom: 28 }}>
                 <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 2 }}>6R Disposition</div>
                 <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginBottom: 14 }}>
                   A sharper lens than the quadrant alone — what to actually do about each application, based on
@@ -3682,18 +3846,20 @@ function APMDashboardLive() {
                 {allDispositions.map((d) => (
                   <div key={d} style={{ display: "flex", alignItems: "center", marginBottom: 8, cursor: "pointer" }}
                     onClick={() => toggleSetFilter(setDispositionFilter, dispositionFilter, d)}>
-                    <div style={{ width: 100, fontSize: 13, fontWeight: dispositionFilter.has(d) ? 700 : 400 }}>{d}</div>
-                    <div style={{ flex: 1, background: "#EFEDE5", height: 18, borderRadius: 6, overflow: "hidden", marginRight: 10 }}>
+                    <div style={{ width: 100, fontSize: 13, fontWeight: dispositionFilter.has(d) ? 700 : 400,
+                      color: dispositionFilter.has(d) ? DISPOSITION_INFO[d].color : COLORS.ink }}>{d}</div>
+                    <div style={{ flex: 1, background: "#EEF0F8", height: 10, borderRadius: 999, overflow: "hidden", marginRight: 10 }}>
                       <div style={{ width: `${(dispositionCounts[d] / Math.max(1, apps.length)) * 100}%`,
-                        background: DISPOSITION_INFO[d].color, height: "100%" }} />
+                        background: `linear-gradient(90deg, ${DISPOSITION_INFO[d].color}, ${DISPOSITION_INFO[d].color}CC)`,
+                        height: "100%", borderRadius: 999, transition: "width 0.5s cubic-bezier(0.16,1,0.3,1)" }} />
                     </div>
                     <div style={{ width: 200, fontSize: 12, color: COLORS.inkSecondary }}>{DISPOSITION_INFO[d].desc}</div>
-                    <div style={{ width: 30, textAlign: "right", fontSize: 13 }}>{dispositionCounts[d]}</div>
+                    <div style={{ width: 30, textAlign: "right", fontSize: 13, fontWeight: 700 }}>{dispositionCounts[d]}</div>
                   </div>
                 ))}
               </div>
 
-              <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)", borderRadius: 14, padding: 20, marginBottom: 28 }}>
+              <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18, padding: 20, marginBottom: 28 }}>
                 <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 2 }}>Capability Coverage</div>
                 <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginBottom: 14 }}>
                   Live count of applications with a SUPPORTS relationship into each capability.
@@ -3701,9 +3867,10 @@ function APMDashboardLive() {
                 {capCoverage.map((c) => (
                   <div key={c.capability} style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
                     <div style={{ width: 260, fontSize: 13 }}>{c.capability}</div>
-                    <div style={{ flex: 1, background: "#EFEDE5", height: 18, borderRadius: 6, overflow: "hidden" }}>
+                    <div style={{ flex: 1, background: "#EEF0F8", height: 10, borderRadius: 999, overflow: "hidden" }}>
                       <div style={{ width: `${Math.min(100, (c.count / Math.max(1, apps.length)) * 100)}%`,
-                        background: c.count === 0 ? COLORS.riskMuted : COLORS.accent, height: "100%" }} />
+                        background: c.count === 0 ? COLORS.riskMuted : COLORS.gradientAccent, height: "100%",
+                        borderRadius: 999, transition: "width 0.5s cubic-bezier(0.16,1,0.3,1)" }} />
                     </div>
                     <div style={{ width: 90, textAlign: "right", fontSize: 13, color: COLORS.inkSecondary }}>
                       {c.count} application{c.count === 1 ? "" : "s"}
@@ -3712,7 +3879,7 @@ function APMDashboardLive() {
                 ))}
               </div>
 
-              <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)", borderRadius: 14, overflow: "hidden" }}>
+              <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18, overflow: "hidden" }}>
                 <div style={{ padding: "16px 18px 4px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
                   <div style={{ fontSize: 15, fontWeight: 600 }}>
                     Inventory ({filteredApps.length} of {apps.length})
@@ -3800,7 +3967,7 @@ function APMDashboardLive() {
 
           {view === "dependencies" && (
             <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 24 }}>
-              <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)", borderRadius: 14, padding: 20 }}>
+              <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18, padding: 20 }}>
                 <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 2 }}>Technical Dependency Graph</div>
                 <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginBottom: 12 }}>
                   Applications, platforms, and data, connected by runs-on / depends-on / integrates-with / stores
@@ -3808,6 +3975,18 @@ function APMDashboardLive() {
                   click a node to see its blast radius.
                 </div>
                 <svg viewBox={`0 0 ${graphW} ${graphH}`} width="100%" height={graphH}>
+                  <defs>
+                    <pattern id="depGrid" width="26" height="26" patternUnits="userSpaceOnUse">
+                      <circle cx="1.5" cy="1.5" r="1.1" fill="#E4E6F0" />
+                    </pattern>
+                    <filter id="nodeGlow" x="-80%" y="-80%" width="260%" height="260%">
+                      <feGaussianBlur stdDeviation="4.5" result="blur" />
+                      <feMerge>
+                        <feMergeNode in="blur" /><feMergeNode in="SourceGraphic" />
+                      </feMerge>
+                    </filter>
+                  </defs>
+                  <rect x="0" y="0" width={graphW} height={graphH} fill="url(#depGrid)" />
                   {depLinks.map((l, i) => {
                     const a = positions[l.sourceId], b = positions[l.targetId];
                     if (!a || !b) return null;
@@ -3830,10 +4009,11 @@ function APMDashboardLive() {
                           onMouseEnter={() => setHoveredEdge(i)} onMouseLeave={() => setHoveredEdge(null)}
                           style={{ cursor: "pointer" }} />
                         <line x1={x1} y1={y1} x2={x2} y2={y2}
-                          pointerEvents="none"
-                          stroke={dim ? "#DCDFE6" : style.color} strokeWidth={dim ? 1 : (isHovered ? 2.5 : 1.5)}
+                          pointerEvents="none" strokeLinecap="round"
+                          stroke={dim ? "#DCDFE6" : style.color} strokeWidth={dim ? 1 : (isHovered ? 3 : 1.8)}
                           strokeDasharray={style.dash || undefined}
-                          opacity={dim ? 0.3 : 0.85} markerEnd="url(#arrow)" />
+                          opacity={dim ? 0.3 : 0.9} markerEnd="url(#arrow)"
+                          style={{ transition: "stroke-width 0.15s ease" }} />
                         {isHovered && !dim && (
                           <g>
                             <rect x={midX - 62} y={midY - 11} width="124" height="20" fill="#fff"
@@ -3860,9 +4040,16 @@ function APMDashboardLive() {
                     return (
                       <g key={n.id} onClick={() => setSelectedNode(isSelected ? null : n.id)} style={{ cursor: "pointer" }}
                         opacity={dim ? 0.25 : 1}>
+                        {isSelected && (
+                          <circle cx={p.x} cy={p.y} r={22} fill="none" stroke={COLORS.accent} strokeWidth={2} opacity={0.4}>
+                            <animate attributeName="r" values="18;24;18" dur="1.8s" repeatCount="indefinite" />
+                            <animate attributeName="opacity" values="0.5;0.05;0.5" dur="1.8s" repeatCount="indefinite" />
+                          </circle>
+                        )}
                         <circle cx={p.x} cy={p.y} r={isSelected ? 16 : 12} fill={NODE_TYPE_COLOR[n.type] || COLORS.inkSecondary}
-                          stroke={isSpof ? COLORS.risk : "#fff"} strokeWidth={isSpof ? 3 : 1.5} />
-                        <text x={p.x} y={p.y - 18} fontSize="10.5" fill={COLORS.ink} textAnchor="middle" fontWeight={isSelected ? "600" : "400"}>
+                          stroke={isSpof ? COLORS.risk : "#fff"} strokeWidth={isSpof ? 3 : 1.5}
+                          filter={isSelected || isSpof ? "url(#nodeGlow)" : undefined} />
+                        <text x={p.x} y={p.y - 18} fontSize="10.5" fill={COLORS.ink} textAnchor="middle" fontWeight={isSelected ? "700" : "500"}>
                           {n.name.length > 20 ? n.name.slice(0, 18) + "…" : n.name}
                         </text>
                       </g>
@@ -3893,7 +4080,7 @@ function APMDashboardLive() {
                 </div>
               </div>
 
-              <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)", borderRadius: 14, padding: 18 }}>
+              <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18, padding: 18 }}>
                 {selectedNode ? (() => {
                   const n = depNodes.find((x) => x.id === selectedNode);
                   if (!n) return null;
@@ -3955,27 +4142,27 @@ function APMDashboardLive() {
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 28 }}>
-                <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)",
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)",
                   borderTop: `3px solid ${healthStats.withOwner === healthStats.total ? COLORS.accent : COLORS.risk}`,
-                  padding: "16px 18px", borderRadius: 14 }}>
+                  padding: "16px 18px", borderRadius: 18 }}>
                   <div style={{ fontSize: 26, fontWeight: 600 }}>{healthStats.withOwner} of {healthStats.total}</div>
                   <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginTop: 4 }}>Applications With an Owner Defined</div>
                 </div>
-                <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)",
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)",
                   borderTop: `3px solid ${healthStats.withVendor === healthStats.total ? COLORS.accent : COLORS.risk}`,
-                  padding: "16px 18px", borderRadius: 14 }}>
+                  padding: "16px 18px", borderRadius: 18 }}>
                   <div style={{ fontSize: 26, fontWeight: 600 }}>{healthStats.withVendor} of {healthStats.total}</div>
                   <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginTop: 4 }}>Applications With a Confirmed Vendor</div>
                 </div>
-                <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)",
-                  borderTop: `3px solid ${healthStats.completenessScore >= 80 ? COLORS.accent : healthStats.completenessScore >= 50 ? "#B08A3E" : COLORS.risk}`,
-                  padding: "16px 18px", borderRadius: 14 }}>
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)",
+                  borderTop: `3px solid ${healthStats.completenessScore >= 80 ? COLORS.accent : healthStats.completenessScore >= 50 ? "#D97706" : COLORS.risk}`,
+                  padding: "16px 18px", borderRadius: 18 }}>
                   <div style={{ fontSize: 26, fontWeight: 600 }}>{healthStats.completenessScore}%</div>
                   <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginTop: 4 }}>Overall Data Completeness Score</div>
                 </div>
               </div>
 
-              <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)", borderRadius: 14, padding: 20 }}>
+              <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18, padding: 20 }}>
                 <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 2 }}>Data Gaps</div>
                 <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginBottom: 14 }}>
                   {healthStats.gaps.length === 0
@@ -4018,7 +4205,7 @@ function APMDashboardLive() {
               </div>
 
               {topRecommendation && (
-                <div style={{ background: "#DCEAE1", border: `1px solid ${COLORS.accent}`, borderRadius: 14,
+                <div style={{ background: "#DCEAE1", border: `1px solid ${COLORS.accent}`, borderRadius: 18,
                   padding: "16px 20px", marginBottom: 24 }}>
                   <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.accent, marginBottom: 4 }}>Top Recommendation</div>
                   <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>{topRecommendation.name}</div>
@@ -4031,7 +4218,7 @@ function APMDashboardLive() {
               )}
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 24, marginBottom: 28 }}>
-                <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)", borderRadius: 14, padding: 20 }}>
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18, padding: 20 }}>
                   <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 2 }}>AI Opportunity vs. Data Readiness</div>
                   <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginBottom: 12 }}>
                     One bubble per process. Hover for detail.
@@ -4065,7 +4252,7 @@ function APMDashboardLive() {
                     })}
                   </svg>
                 </div>
-                <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)", borderRadius: 14, padding: 18 }}>
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18, padding: 18 }}>
                   {hovered && scoredProcesses.find((p) => p.id === hovered) ? (() => {
                     const p = scoredProcesses.find((x) => x.id === hovered);
                     return (
@@ -4092,7 +4279,7 @@ function APMDashboardLive() {
                 </div>
               </div>
 
-              <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)", borderRadius: 14, overflow: "hidden" }}>
+              <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18, overflow: "hidden" }}>
                 <div style={{ padding: "16px 18px 4px", fontSize: 15, fontWeight: 600 }}>All Processes, Ranked</div>
                 <table>
                   <thead>
@@ -4129,29 +4316,29 @@ function APMDashboardLive() {
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 28 }}>
-                <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)", borderTop: `3px solid ${COLORS.ink}`, padding: "16px 18px", borderRadius: 14 }}>
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderTop: `3px solid ${COLORS.ink}`, padding: "16px 18px", borderRadius: 18 }}>
                   <div style={{ fontSize: 26, fontWeight: 600 }}>{apps.length}</div>
                   <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginTop: 4 }}>Applications Analysed</div>
                 </div>
-                <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)", borderTop: `3px solid ${COLORS.ink}`, padding: "16px 18px", borderRadius: 14 }}>
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderTop: `3px solid ${COLORS.ink}`, padding: "16px 18px", borderRadius: 18 }}>
                   <div style={{ fontSize: 26, fontWeight: 600 }}>{new Set(apps.map((a) => a.category)).size}</div>
                   <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginTop: 4 }}>Distinct Functional Categories</div>
                 </div>
-                <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)",
-                  borderTop: `3px solid ${redundancyGroups.length ? COLORS.risk : COLORS.accent}`, padding: "16px 18px", borderRadius: 14 }}>
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)",
+                  borderTop: `3px solid ${redundancyGroups.length ? COLORS.risk : COLORS.accent}`, padding: "16px 18px", borderRadius: 18 }}>
                   <div style={{ fontSize: 26, fontWeight: 600 }}>{redundancyGroups.length}</div>
                   <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginTop: 4 }}>Overlap group{redundancyGroups.length === 1 ? "" : "s"} found</div>
                 </div>
               </div>
 
               {redundancyGroups.length === 0 ? (
-                <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)", borderRadius: 14, padding: 24,
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18, padding: 24,
                   fontSize: 13.5, color: COLORS.inkSecondary }}>
                   No overlap groups found — every application is the only one of its kind serving its capability.
                 </div>
               ) : (
                 redundancyGroups.map((g, i) => (
-                  <div key={i} style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)", borderRadius: 14,
+                  <div key={i} className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18,
                     padding: 20, marginBottom: 16 }}>
                     <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 2 }}>{g.category}</div>
                     <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginBottom: 14 }}>
@@ -4194,7 +4381,7 @@ function APMDashboardLive() {
                 value and technical health TIME already scores.
               </div>
 
-              <div style={{ background: "#EDEAE1", border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)", borderRadius: 14,
+              <div style={{ background: "#EDEAE1", border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18,
                 padding: "14px 18px", marginBottom: 24, fontSize: 12.5, color: COLORS.inkSecondary, lineHeight: 1.6 }}>
                 <b style={{ color: COLORS.ink }}>Worth noticing:</b> the Welfare Case Management System scored as
                 your #1 <i>AI Opportunity</i> (the underlying process is manual, frequent, and important) — but it
@@ -4205,7 +4392,7 @@ function APMDashboardLive() {
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 24, marginBottom: 28 }}>
-                <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)", borderRadius: 14, padding: 20 }}>
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18, padding: 20 }}>
                   <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 2 }}>AI Disruption Exposure vs. Entrenchment</div>
                   <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginBottom: 12 }}>One bubble per application.</div>
                   <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H}>
@@ -4237,7 +4424,7 @@ function APMDashboardLive() {
                     })}
                   </svg>
                 </div>
-                <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)", borderRadius: 14, padding: 18 }}>
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18, padding: 18 }}>
                   {hovered && scoredAppsForAITime.find((a) => a.id === hovered) ? (() => {
                     const a = scoredAppsForAITime.find((x) => x.id === hovered);
                     return (
@@ -4263,7 +4450,7 @@ function APMDashboardLive() {
                 </div>
               </div>
 
-              <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)", overflow: "hidden", borderRadius: 14 }}>
+              <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", overflow: "hidden", borderRadius: 18 }}>
                 <div style={{ padding: "16px 18px 4px", fontSize: 15, fontWeight: 600 }}>All Applications</div>
                 <table>
                   <thead>
@@ -4299,38 +4486,38 @@ function APMDashboardLive() {
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 28 }}>
-                <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)",
-                  borderTop: `3px solid ${atRiskTech.length ? COLORS.risk : COLORS.accent}`, padding: "16px 18px", borderRadius: 14 }}>
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)",
+                  borderTop: `3px solid ${atRiskTech.length ? COLORS.risk : COLORS.accent}`, padding: "16px 18px", borderRadius: 18 }}>
                   <div style={{ fontSize: 26, fontWeight: 600 }}>{atRiskTech.length}</div>
                   <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginTop: 4 }}>Technologies Approaching or Past End-of-Life</div>
                 </div>
-                <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)",
-                  borderTop: `3px solid ${totalAppsExposed ? COLORS.risk : COLORS.accent}`, padding: "16px 18px", borderRadius: 14 }}>
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)",
+                  borderTop: `3px solid ${totalAppsExposed ? COLORS.risk : COLORS.accent}`, padding: "16px 18px", borderRadius: 18 }}>
                   <div style={{ fontSize: 26, fontWeight: 600 }}>{totalAppsExposed}</div>
                   <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginTop: 4 }}>Applications Exposed</div>
                 </div>
-                <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)",
-                  borderTop: `3px solid ${totalTcoExposed ? "#B08A3E" : COLORS.accent}`, padding: "16px 18px", borderRadius: 14 }}>
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)",
+                  borderTop: `3px solid ${totalTcoExposed ? "#D97706" : COLORS.accent}`, padding: "16px 18px", borderRadius: 18 }}>
                   <div style={{ fontSize: 26, fontWeight: 600 }}>{fmtGBP(totalTcoExposed)}</div>
                   <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginTop: 4 }}>Estimated Annual TCO Exposed</div>
                 </div>
               </div>
 
               {atRiskTech.length === 0 ? (
-                <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)", borderRadius: 14, padding: 24,
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18, padding: 24,
                   fontSize: 13.5, color: COLORS.inkSecondary }}>
                   Nothing at risk — every technology in the estate is on a current lifecycle.
                 </div>
               ) : (
                 atRiskTech.map((t) => (
-                  <div key={t.id} style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)", borderRadius: 14,
+                  <div key={t.id} className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18,
                     padding: 20, marginBottom: 16 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                       <div>
                         <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>{t.name}</div>
                         <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
                           <span style={{ background: t.lifecycle === "Approaching EOL" ? "#FBEAD0" : "#FBE0D8",
-                            color: t.lifecycle === "Approaching EOL" ? "#B08A3E" : COLORS.risk,
+                            color: t.lifecycle === "Approaching EOL" ? "#D97706" : COLORS.risk,
                             padding: "3px 9px", borderRadius: 8, fontSize: 11.5, fontWeight: 600 }}>{t.lifecycle}</span>
                           <span style={{ fontSize: 12, color: COLORS.inkSecondary, alignSelf: "center" }}>
                             {t.type} · support: {t.supportStatus || "—"}
@@ -4339,7 +4526,7 @@ function APMDashboardLive() {
                       </div>
                       <button onClick={() => { setView("dependencies"); setSelectedNode(t.id); }}
                         style={{ padding: "6px 12px", background: COLORS.card, color: COLORS.ink,
-                          border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)", borderRadius: 8, fontSize: 12, cursor: "pointer" }}>
+                          border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 8, fontSize: 12, cursor: "pointer" }}>
                         View dependency chain →
                       </button>
                     </div>
@@ -4353,7 +4540,7 @@ function APMDashboardLive() {
                         </div>
                         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                           {t.exposedApps.map((a) => (
-                            <span key={a.id} style={{ background: "#F3F4F7", border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)",
+                            <span key={a.id} style={{ background: "#F3F4F7", border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)",
                               padding: "4px 10px", borderRadius: 8, fontSize: 12.5 }}>{a.name}</span>
                           ))}
                         </div>
@@ -4375,23 +4562,23 @@ function APMDashboardLive() {
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 28 }}>
-                <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)", borderTop: `3px solid ${COLORS.ink}`, padding: "16px 18px", borderRadius: 14 }}>
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderTop: `3px solid ${COLORS.ink}`, padding: "16px 18px", borderRadius: 18 }}>
                   <div style={{ fontSize: 26, fontWeight: 600 }}>
                     {migrationWaves.foundation.length + migrationWaves.dependentApps.length + migrationWaves.standaloneApps.length}
                   </div>
                   <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginTop: 4 }}>Systems in Scope for Migration</div>
                 </div>
-                <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)", borderTop: `3px solid ${COLORS.ink}`, padding: "16px 18px", borderRadius: 14 }}>
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderTop: `3px solid ${COLORS.ink}`, padding: "16px 18px", borderRadius: 18 }}>
                   <div style={{ fontSize: 26, fontWeight: 600 }}>{migrationWaves.foundation.length}</div>
                   <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginTop: 4 }}>Foundation Decisions Blocking Other Moves</div>
                 </div>
-                <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)", borderTop: `3px solid ${COLORS.accent}`, padding: "16px 18px", borderRadius: 14 }}>
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderTop: `3px solid ${COLORS.accent}`, padding: "16px 18px", borderRadius: 18 }}>
                   <div style={{ fontSize: 26, fontWeight: 600 }}>{fmtGBP(totalMigrationSavings)}</div>
                   <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginTop: 4 }}>Estimated annual savings (illustrative)</div>
                 </div>
               </div>
 
-              <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)", borderRadius: 14, padding: 20, marginBottom: 16 }}>
+              <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18, padding: 20, marginBottom: 16 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.inkSecondary, marginBottom: 10 }}>Wave 1 · Foundation — Must Be Decided First</div>
                 {migrationWaves.foundation.length === 0 ? (
                   <div style={{ fontSize: 13, color: COLORS.inkSecondary }}>No at-risk foundation infrastructure.</div>
@@ -4403,13 +4590,13 @@ function APMDashboardLive() {
                       <div style={{ fontSize: 12, color: COLORS.inkSecondary }}>{t.type}</div>
                     </div>
                     <span style={{ background: t.lifecycle === "Approaching EOL" ? "#FBEAD0" : "#FBE0D8",
-                      color: t.lifecycle === "Approaching EOL" ? "#B08A3E" : COLORS.risk,
+                      color: t.lifecycle === "Approaching EOL" ? "#D97706" : COLORS.risk,
                       padding: "3px 9px", borderRadius: 8, fontSize: 11.5, fontWeight: 600 }}>{t.lifecycle}</span>
                   </div>
                 ))}
               </div>
 
-              <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)", borderRadius: 14, padding: 20, marginBottom: 16 }}>
+              <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18, padding: 20, marginBottom: 16 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.inkSecondary, marginBottom: 10 }}>Wave 2 · Dependent Applications — Blocked Until Wave 1 Is Resolved</div>
                 {migrationWaves.dependentApps.length === 0 ? (
                   <div style={{ fontSize: 13, color: COLORS.inkSecondary }}>No applications currently blocked on foundation decisions.</div>
@@ -4438,7 +4625,7 @@ function APMDashboardLive() {
                 )}
               </div>
 
-              <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)", borderRadius: 14, padding: 20 }}>
+              <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18, padding: 20 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.inkSecondary, marginBottom: 10 }}>Standalone — On-Prem, but Not Blocked by Any Foundation Dependency</div>
                 {migrationWaves.standaloneApps.length === 0 ? (
                   <div style={{ fontSize: 13, color: COLORS.inkSecondary }}>None.</div>
@@ -4470,15 +4657,15 @@ function APMDashboardLive() {
           )}
           {view === "landing" && (() => {
             const cards = [
-              { key: "brief", title: "Executive Brief", desc: "The five numbers that matter most, at a glance.", color: "#1E7A4C",
+              { key: "brief", title: "Executive Brief", desc: "The five numbers that matter most, at a glance.", color: "#0EA968",
                 icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8"><path d="M4 19V5M4 19h16M9 19V11M14 19V7M19 19v-5" /></svg> },
               { key: "portfolio", title: "Portfolio Overview", desc: "Every application — TIME quadrant, 6R disposition, full inventory.", color: "#3E7A9B",
                 icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8"><rect x="3" y="4" width="7" height="7" rx="1" /><rect x="14" y="4" width="7" height="7" rx="1" /><rect x="3" y="15" width="7" height="5" rx="1" /><rect x="14" y="15" width="7" height="5" rx="1" /></svg> },
               { key: "canvas", title: "Modelling Canvas", desc: "Sketch freely, formalise deliberately — or ask AI to draw it for you.", color: "#7B5EA7",
                 icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8"><circle cx="6" cy="6" r="2.5" /><circle cx="18" cy="6" r="2.5" /><circle cx="12" cy="18" r="2.5" /><path d="M8.2 7.2l7.6 1.2M13 16l-2-6M11 16l2-6" /></svg> },
-              { key: "ontology", title: "Ontology Manager", desc: "All 21 concept types, managed directly — add, edit, delete.", color: "#B08A3E",
+              { key: "ontology", title: "Ontology Manager", desc: "All 21 concept types, managed directly — add, edit, delete.", color: "#D97706",
                 icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8"><rect x="4" y="4" width="16" height="16" rx="3" /><path d="M4 10h16M10 4v16" /></svg> },
-              { key: "decisionlog", title: "Decision Log", desc: "Every architecture decision — consequences, and what superseded what.", color: "#D64530",
+              { key: "decisionlog", title: "Decision Log", desc: "Every architecture decision — consequences, and what superseded what.", color: "#F0384D",
                 icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8"><path d="M7 3h8l4 4v14H7z" /><path d="M15 3v4h4" /><line x1="9.5" y1="12" x2="16" y2="12" /><line x1="9.5" y1="16" x2="16" y2="16" /></svg> },
               { key: "ai", title: "AI Opportunity", desc: "Where AI would help most, mapped against data readiness.", color: "#2C7A8C",
                 icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8"><path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8" /><circle cx="12" cy="12" r="3" /></svg> },
@@ -4519,8 +4706,8 @@ function APMDashboardLive() {
 
                 {(chatMessages.length > 0 || chatLoading) && (
                   <div style={{ marginBottom: 36 }}>
-                    <div ref={chatScrollRef} style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`,
-                      boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)", borderRadius: 14,
+                    <div ref={chatScrollRef} className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`,
+                      boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18,
                       maxHeight: 480, overflowY: "auto", padding: 20, marginBottom: 14 }}>
                       {chatMessages.map((m, i) => (
                         <div key={i} style={{ marginBottom: 16 }}>
@@ -4569,15 +4756,17 @@ function APMDashboardLive() {
                   Jump straight in
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 18 }}>
-                  {cards.map((c) => (
+                  {cards.map((c, i) => (
                     <div key={c.key} className="landing-card" onClick={() => setView(c.key)}
-                      style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 16,
-                        padding: 22, cursor: "pointer" }}>
-                      <div style={{ width: 42, height: 42, borderRadius: 10, background: c.color, display: "flex",
-                        alignItems: "center", justifyContent: "center", marginBottom: 14 }}>
+                      style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 18,
+                        padding: 22, cursor: "pointer", boxShadow: "var(--shadow-sm)", animationDelay: `${i * 60}ms` }}>
+                      <div style={{ width: 44, height: 44, borderRadius: 13,
+                        background: `linear-gradient(135deg, ${c.color}, ${c.color}CC)`, display: "flex",
+                        alignItems: "center", justifyContent: "center", marginBottom: 16,
+                        boxShadow: `0 8px 18px ${c.color}55` }}>
                         {c.icon}
                       </div>
-                      <div style={{ fontSize: 15.5, fontWeight: 700, marginBottom: 5 }}>{c.title}</div>
+                      <div style={{ fontSize: 15.5, fontWeight: 700, marginBottom: 5, fontFamily: "var(--font-display)" }}>{c.title}</div>
                       <div style={{ fontSize: 12.5, color: COLORS.inkSecondary, lineHeight: 1.5 }}>{c.desc}</div>
                     </div>
                   ))}
@@ -4588,7 +4777,7 @@ function APMDashboardLive() {
 
           {view === "brief" && (
             <div>
-              <div style={{ background: "linear-gradient(135deg, #141F30 0%, #16342A 100%)", borderRadius: 20, padding: "36px 40px", marginBottom: 28,
+              <div style={{ background: "linear-gradient(135deg, #0A0E1A 0%, #16342A 100%)", borderRadius: 20, padding: "36px 40px", marginBottom: 28,
                 position: "relative", overflow: "hidden" }}>
                 <div style={{ position: "absolute", top: -80, right: -80, width: 300, height: 300, borderRadius: "50%",
                   background: "radial-gradient(circle, rgba(95,163,125,0.28) 0%, rgba(95,163,125,0) 70%)" }} />
@@ -4624,9 +4813,9 @@ function APMDashboardLive() {
 
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 18 }}>
                 <div className="brief-card" onClick={() => setView("blocked")} style={{ cursor: "pointer", background: COLORS.card,
-                  border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)",
+                  border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)",
                   borderRadius: 16, padding: 22 }}>
-                  <div style={{ width: 40, height: 40, borderRadius: 10, background: "#FBE0D8", color: COLORS.risk,
+                  <div style={{ width: 40, height: 40, borderRadius: 12, background: "#FBE0D8", color: COLORS.risk,
                     display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}>{ICONS.blocked}</div>
                   <div style={{ fontSize: 26, fontWeight: 700, color: COLORS.risk }}>{fmtGBP(totalBlockedCost)}</div>
                   <div style={{ fontSize: 14, fontWeight: 600, marginTop: 6, lineHeight: 1.4 }}>blocked this year because a system couldn't bend</div>
@@ -4634,9 +4823,9 @@ function APMDashboardLive() {
                 </div>
 
                 <div className="brief-card" onClick={() => setView("redundancy")} style={{ cursor: "pointer", background: COLORS.card,
-                  border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)",
+                  border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)",
                   borderRadius: 16, padding: 22 }}>
-                  <div style={{ width: 40, height: 40, borderRadius: 10, background: "#FBE0D8", color: COLORS.risk,
+                  <div style={{ width: 40, height: 40, borderRadius: 12, background: "#FBE0D8", color: COLORS.risk,
                     display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}>{ICONS.redundancy}</div>
                   <div style={{ fontSize: 26, fontWeight: 700, color: COLORS.risk }}>{fmtGBP(redundancyWaste)}</div>
                   <div style={{ fontSize: 14, fontWeight: 600, marginTop: 6, lineHeight: 1.4 }}>still being spent on a system you've already decided to replace</div>
@@ -4644,9 +4833,9 @@ function APMDashboardLive() {
                 </div>
 
                 <div className="brief-card" onClick={() => setBriefDRExpanded(!briefDRExpanded)} style={{ cursor: "pointer", background: COLORS.card,
-                  border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)",
+                  border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)",
                   borderRadius: 16, padding: 22 }}>
-                  <div style={{ width: 40, height: 40, borderRadius: 10, background: "#FBE0D8", color: COLORS.risk,
+                  <div style={{ width: 40, height: 40, borderRadius: 12, background: "#FBE0D8", color: COLORS.risk,
                     display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}>{ICONS.obsolescence}</div>
                   <div style={{ fontSize: 26, fontWeight: 700, color: COLORS.risk }}>{criticalNoDR.length}</div>
                   <div style={{ fontSize: 14, fontWeight: 600, marginTop: 6, lineHeight: 1.4 }}>
@@ -4664,9 +4853,9 @@ function APMDashboardLive() {
                 </div>
 
                 <div className="brief-card" onClick={() => setView("blocked")} style={{ cursor: "pointer", background: COLORS.card,
-                  border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)",
+                  border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)",
                   borderRadius: 16, padding: 22 }}>
-                  <div style={{ width: 40, height: 40, borderRadius: 10, background: "#FBEAD0", color: "#B08A3E",
+                  <div style={{ width: 40, height: 40, borderRadius: 12, background: "#FBEAD0", color: "#D97706",
                     display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}>{ICONS.costrisk}</div>
                   <div style={{ fontSize: 26, fontWeight: 700 }}>{ageFlaggedNotBlocking.length}</div>
                   <div style={{ fontSize: 14, fontWeight: 600, marginTop: 6, lineHeight: 1.4 }}>
@@ -4676,9 +4865,9 @@ function APMDashboardLive() {
                 </div>
 
                 <div className="brief-card" onClick={() => setView("health")} style={{ cursor: "pointer", background: COLORS.card,
-                  border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)",
+                  border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)",
                   borderRadius: 16, padding: 22 }}>
-                  <div style={{ width: 40, height: 40, borderRadius: 10, background: "#DCEAE1", color: COLORS.accent,
+                  <div style={{ width: 40, height: 40, borderRadius: 12, background: "#DCEAE1", color: COLORS.accent,
                     display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}>{ICONS.datatrust}</div>
                   <div style={{ fontSize: 26, fontWeight: 700 }}>{healthStats.completenessScore}%</div>
                   <div style={{ fontSize: 14, fontWeight: 600, marginTop: 6, lineHeight: 1.4 }}>of this portfolio's data can actually be trusted</div>
@@ -4743,9 +4932,9 @@ function APMDashboardLive() {
                   <div style={{ fontSize: 13, color: COLORS.inkSecondary }}>Loading…</div>
                 ) : omInstances.length === 0 ? (
                   <div style={{ fontSize: 13, color: COLORS.inkSecondary, background: COLORS.card, border: `1px solid ${COLORS.border}`,
-                    borderRadius: 12, padding: 20 }}>No {omSelectedType} instances found.</div>
+                    borderRadius: 14, padding: 20 }}>No {omSelectedType} instances found.</div>
                 ) : (
-                  <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 12, overflow: "hidden" }}>
+                  <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, overflow: "hidden" }}>
                     <table>
                       <thead><tr><th>Name</th><th>ID</th><th></th></tr></thead>
                       <tbody>
@@ -4770,7 +4959,7 @@ function APMDashboardLive() {
 
                 {omEditingId && (
                   <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: 360, background: COLORS.card,
-                    borderLeft: `1px solid ${COLORS.border}`, boxShadow: "-8px 0 24px rgba(28,42,58,0.1)", padding: 22,
+                    borderLeft: `1px solid ${COLORS.border}`, boxShadow: "-12px 0 32px rgba(10,14,26,0.12)", padding: 22,
                     zIndex: 60, overflowY: "auto" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
                       <div style={{ fontSize: 14, fontWeight: 600 }}>{omEditingId === "new" ? `New ${omSelectedType}` : `Edit ${omSelectedType}`}</div>
@@ -4846,7 +5035,7 @@ function APMDashboardLive() {
               </div>
 
               <div style={{ display: "flex", gap: 4, marginBottom: 14, alignItems: "center", flexWrap: "wrap", position: "relative",
-                background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: "6px 8px", width: "fit-content" }}>
+                background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: "6px 8px", width: "fit-content" }}>
                 <button onClick={addSticky} title="Sticky note" style={iconToolBtnStyle}>{TOOLBAR_ICONS.sticky}</button>
                 <button onClick={addText} title="Text" style={iconToolBtnStyle}>{TOOLBAR_ICONS.text}</button>
 
@@ -4858,11 +5047,11 @@ function APMDashboardLive() {
                   {showConceptPicker && (
                     <div style={conceptPickerPos
                       ? { position: "fixed", left: conceptPickerPos.left, top: conceptPickerPos.top, background: COLORS.card, border: `1px solid ${COLORS.border}`,
-                          boxShadow: "0 8px 24px rgba(28,42,58,0.15)", borderRadius: 12, padding: 14, zIndex: 50,
+                          boxShadow: "0 16px 40px rgba(10,14,26,0.18)", borderRadius: 14, padding: 14, zIndex: 50,
                           display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gridAutoRows: "auto", gap: 8, width: 440,
                           height: "auto", overflow: "visible", boxSizing: "border-box" }
                       : { position: "absolute", top: "110%", left: 0, background: COLORS.card, border: `1px solid ${COLORS.border}`,
-                          boxShadow: "0 8px 24px rgba(28,42,58,0.15)", borderRadius: 12, padding: 14, zIndex: 50,
+                          boxShadow: "0 16px 40px rgba(10,14,26,0.18)", borderRadius: 14, padding: 14, zIndex: 50,
                           display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gridAutoRows: "auto", gap: 8, width: 440,
                           height: "auto", overflow: "visible", boxSizing: "border-box" }}>
                       {CANVAS_CONCEPT_TYPES.map((t) => {
@@ -4885,7 +5074,7 @@ function APMDashboardLive() {
                   <button onClick={() => setShowImportPanel(!showImportPanel)} title="Add From Graph" style={iconToolBtnStyle}>{TOOLBAR_ICONS.importGraph}</button>
                   {showImportPanel && (
                     <div style={{ position: "absolute", top: "110%", left: 0, background: COLORS.card, border: `1px solid ${COLORS.border}`,
-                      boxShadow: "0 8px 24px rgba(28,42,58,0.15)", borderRadius: 12, padding: 14, zIndex: 50, width: 300 }}>
+                      boxShadow: "0 16px 40px rgba(10,14,26,0.18)", borderRadius: 14, padding: 14, zIndex: 50, width: 300 }}>
                       <label style={{ fontSize: 11.5, display: "block", marginBottom: 8 }}>Concept Type
                         <select value={importType} onChange={(e) => { setImportType(e.target.value); setImportOptions([]); }}
                           style={{ display: "block", width: "100%", marginTop: 4, padding: "6px 7px", border: `1px solid ${COLORS.border}`, borderRadius: 6, fontSize: 12.5 }}>
@@ -4916,7 +5105,7 @@ function APMDashboardLive() {
                   <button onClick={() => setShowShapePalette(!showShapePalette)} title="Shape" style={iconToolBtnStyle}>{TOOLBAR_ICONS.shape}</button>
                   {showShapePalette && (
                     <div style={{ position: "absolute", top: "110%", left: 0, background: COLORS.card, border: `1px solid ${COLORS.border}`,
-                      boxShadow: "0 8px 24px rgba(28,42,58,0.15)", borderRadius: 12, padding: 12, zIndex: 50, width: 400 }}>
+                      boxShadow: "0 16px 40px rgba(10,14,26,0.18)", borderRadius: 14, padding: 12, zIndex: 50, width: 400 }}>
                       <div style={{ display: "flex", gap: 4, marginBottom: 10, flexWrap: "wrap" }}>
                         {Object.keys(SHAPE_LIBRARY).map((cat) => (
                           <button key={cat} onClick={() => setShapePaletteCategory(cat)}
@@ -4983,7 +5172,7 @@ function APMDashboardLive() {
                 {canvasStatus && <span style={{ fontSize: 12.5, color: COLORS.inkSecondary, marginLeft: 6 }}>{canvasStatus}</span>}
               </div>
 
-              <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: 12, marginBottom: 14 }}>
+              <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: 12, marginBottom: 14 }}>
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                   <span style={{ color: COLORS.accent, flexShrink: 0 }}>{TOOLBAR_ICONS.organize}</span>
                   <input value={canvasChatInput} onChange={(e) => setCanvasChatInput(e.target.value)}
@@ -5195,7 +5384,7 @@ function APMDashboardLive() {
                             onMouseDown={(e) => handleArrowLineMouseDown(e, a.id)}
                             onMouseEnter={() => setHoveredEdgeId(a.id)} onMouseLeave={() => setHoveredEdgeId(null)} />
                           <polyline points={a.points.map((p) => `${p.x},${p.y}`).join(" ")}
-                            fill="none" stroke="#5A6B80" strokeWidth="2" markerEnd="url(#canvasArrow)" style={{ pointerEvents: "none" }} />
+                            fill="none" stroke="#64748B" strokeWidth="2" markerEnd="url(#canvasArrow)" style={{ pointerEvents: "none" }} />
                           {/* Small dim handle at each segment's midpoint — dragging it inserts
                               a real new bend point there, for routing around something after
                               the arrow already exists rather than only when first drawing it.
@@ -5210,7 +5399,7 @@ function APMDashboardLive() {
                             );
                           })}
                           {isHovered && a.points.map((p, i) => (
-                            <circle key={i} cx={p.x} cy={p.y} r="5" fill="#fff" stroke="#5A6B80" strokeWidth="1.5"
+                            <circle key={i} cx={p.x} cy={p.y} r="5" fill="#fff" stroke="#64748B" strokeWidth="1.5"
                               style={{ cursor: "move", pointerEvents: "auto" }}
                               onMouseDown={(e) => handleArrowPointMouseDown(e, a.id, i)} />
                           ))}
@@ -5236,7 +5425,7 @@ function APMDashboardLive() {
                   {stickies.map((s) => (
                     <div key={s.id} onMouseDown={(e) => handleItemMouseDown(e, s.id)} onContextMenu={(e) => openContextMenu(e, "sticky", s.id)}
                       style={{ position: "absolute", left: s.x, top: s.y, width: s.width || 160, height: s.height || 120, zIndex: s.zIndex || 0,
-                        background: s.color, borderRadius: 6, padding: 10, boxShadow: "0 3px 8px rgba(28,42,58,0.15)",
+                        background: s.color, borderRadius: 6, padding: 10, boxShadow: "0 6px 16px rgba(10,14,26,0.16)",
                         cursor: "grab", display: "flex", flexDirection: "column", justifyContent: "space-between", overflow: "hidden" }}>
                       <span onMouseDown={(e) => e.stopPropagation()} onClick={() => deleteSticky(s.id)}
                         style={{ position: "absolute", top: 4, right: 6, cursor: "pointer", fontSize: 12, color: "rgba(28,42,58,0.5)" }}>✕</span>
@@ -5275,10 +5464,10 @@ function APMDashboardLive() {
                     <div key={c.id}
                       onMouseDown={(e) => handleItemMouseDown(e, c.id)} onContextMenu={(e) => openContextMenu(e, "concept", c.id)}
                       style={{ position: "absolute", left: c.x, top: c.y, width: cw, minHeight: ch, zIndex: c.zIndex || 0,
-                        background: "#fff", borderRadius: 10, padding: 12, overflow: "visible",
+                        background: "#fff", borderRadius: 12, padding: 12, overflow: "visible",
                         borderTop: `4px solid ${style.color}`,
                         borderLeft: `1px solid ${COLORS.border}`, borderRight: `1px solid ${COLORS.border}`, borderBottom: `1px solid ${COLORS.border}`,
-                        boxShadow: "0 3px 10px rgba(28,42,58,0.12)", cursor: "grab" }}>
+                        boxShadow: "0 6px 18px rgba(10,14,26,0.14)", cursor: "grab" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                           <div style={{ width: 22, height: 22, borderRadius: 6, background: style.color,
@@ -5417,7 +5606,7 @@ function APMDashboardLive() {
                   fontSize: 12.5, background: "transparent", border: "none", cursor: "pointer", color: COLORS.ink, borderRadius: 6 };
                 return (
                   <div style={{ position: "fixed", left: contextMenu.x, top: contextMenu.y, background: COLORS.card,
-                    border: `1px solid ${COLORS.border}`, boxShadow: "0 8px 24px rgba(28,42,58,0.18)", borderRadius: 10,
+                    border: `1px solid ${COLORS.border}`, boxShadow: "0 16px 40px rgba(10,14,26,0.2)", borderRadius: 12,
                     padding: 4, zIndex: 100, width: 190 }}>
                     {(contextMenu.kind === "concept" || contextMenu.kind === "text") && (
                       <>
@@ -5457,7 +5646,7 @@ function APMDashboardLive() {
                 return (
                   <div style={{ position: "fixed", left: Math.min(panelLeft, window.innerWidth - 300), top: Math.max(panelTop - 60, 80),
                     background: COLORS.card, border: `1px solid ${COLORS.border}`,
-                    boxShadow: "0 8px 24px rgba(28,42,58,0.15)", borderRadius: 12, padding: 16, zIndex: 50, width: 280 }}>
+                    boxShadow: "0 16px 40px rgba(10,14,26,0.18)", borderRadius: 14, padding: 16, zIndex: 50, width: 280 }}>
                     <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 4 }}>
                       {srcConcept && tgtConcept ? `${srcConcept.conceptType} → ${tgtConcept.conceptType}` : "Choose a verb"}
                     </div>
@@ -5504,7 +5693,7 @@ function APMDashboardLive() {
                 const availableAttrs = schemaAttributes[c.conceptType] || [];
                 return (
                   <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: 340, background: COLORS.card,
-                    borderLeft: `1px solid ${COLORS.border}`, boxShadow: "-8px 0 24px rgba(28,42,58,0.1)", padding: 22,
+                    borderLeft: `1px solid ${COLORS.border}`, boxShadow: "-12px 0 32px rgba(10,14,26,0.12)", padding: 22,
                     zIndex: 60, overflowY: "auto" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
                       <div style={{ fontSize: 14, fontWeight: 600 }}>Edit Concept</div>
@@ -5583,7 +5772,7 @@ function APMDashboardLive() {
                   border: `1px solid ${active ? COLORS.ink : COLORS.border}`, background: active ? COLORS.ink : "#fff", color: active ? "#fff" : COLORS.ink });
                 return (
                   <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: 300, background: COLORS.card,
-                    borderLeft: `1px solid ${COLORS.border}`, boxShadow: "-8px 0 24px rgba(28,42,58,0.1)", padding: 22,
+                    borderLeft: `1px solid ${COLORS.border}`, boxShadow: "-12px 0 32px rgba(10,14,26,0.12)", padding: 22,
                     zIndex: 60, overflowY: "auto" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
                       <div style={{ fontSize: 14, fontWeight: 600 }}>Edit Text</div>
@@ -5645,8 +5834,8 @@ function APMDashboardLive() {
                   ← Back to Applications
                 </div>
 
-                <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)",
-                  borderRadius: 14, padding: 22, marginBottom: 20 }}>
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)",
+                  borderRadius: 18, padding: 22, marginBottom: 20 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
                     <div>
                       <div style={{ fontSize: 13, color: COLORS.inkSecondary, fontWeight: 500 }}>{app.category} · {app.hosting}</div>
@@ -5682,31 +5871,31 @@ function APMDashboardLive() {
                   if (!app.vendor || app.vendor === "Undisclosed") gaps.push("Vendor unconfirmed");
                   let verdict, verdictColor;
                   if (dispo.code === "Retire") { verdict = "Clear removal candidate"; verdictColor = COLORS.accent; }
-                  else if (dispo.code === "Replace" && blocking.length === 0) { verdict = "Replace, but not urgently blocking anything"; verdictColor = "#B08A3E"; }
+                  else if (dispo.code === "Replace" && blocking.length === 0) { verdict = "Replace, but not urgently blocking anything"; verdictColor = "#D97706"; }
                   else if (blocking.length > 0) { verdict = "Keep, or replace deliberately — it's actively blocking real decisions"; verdictColor = COLORS.risk; }
                   else { verdict = "No strong case either way from this data"; verdictColor = COLORS.inkSecondary; }
                   return (
-                    <div style={{ background: "#EFEDE5", border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: 20, marginBottom: 20 }}>
+                    <div style={{ background: "#EFEDE5", border: `1px solid ${COLORS.border}`, borderRadius: 18, padding: 20, marginBottom: 20 }}>
                       <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Rationalization Readiness</div>
                       <div style={{ fontSize: 15, fontWeight: 600, color: verdictColor, marginBottom: 14 }}>{verdict}</div>
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 14, fontSize: 12.5 }}>
-                        <div style={{ background: "#fff", borderRadius: 10, padding: 12 }}>
+                        <div style={{ background: "#fff", borderRadius: 12, padding: 12 }}>
                           <b>6R Disposition</b>
                           <div style={{ color: COLORS.inkSecondary, marginTop: 3 }}>{dispo.code} — {dispo.reason}</div>
                         </div>
-                        <div style={{ background: "#fff", borderRadius: 10, padding: 12 }}>
+                        <div style={{ background: "#fff", borderRadius: 12, padding: 12 }}>
                           <b>Impact If Changed</b>
                           <div style={{ color: COLORS.inkSecondary, marginTop: 3 }}>
                             {computeBlastRadius(app, apps, depLinks, depNodes, processes, orgsByProcess, controls).severity} blast radius
                           </div>
                         </div>
-                        <div style={{ background: "#fff", borderRadius: 10, padding: 12 }}>
+                        <div style={{ background: "#fff", borderRadius: 12, padding: 12 }}>
                           <b>Data Completeness</b>
                           <div style={{ color: COLORS.inkSecondary, marginTop: 3 }}>
                             {gaps.length === 0 ? "No gaps — owner and vendor confirmed" : gaps.join("; ")}
                           </div>
                         </div>
-                        <div style={{ background: "#fff", borderRadius: 10, padding: 12 }}>
+                        <div style={{ background: "#fff", borderRadius: 12, padding: 12 }}>
                           <b>Blocking Real Decisions?</b>
                           <div style={{ color: COLORS.inkSecondary, marginTop: 3 }}>
                             {blocking.length === 0 ? "No — not linked to any blocked decision" : `Yes — ${blocking.map((b) => b.name).join(", ")}`}
@@ -5718,16 +5907,16 @@ function APMDashboardLive() {
                 })()}
 
                 {showBlastRadius && (
-                  <div style={{ background: "#FBF3EC", border: `1px solid #E0C9A6`, borderRadius: 14, padding: 20, marginBottom: 20 }}>
+                  <div style={{ background: "#FBF3EC", border: `1px solid #E0C9A6`, borderRadius: 18, padding: 20, marginBottom: 20 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
                       <div>
-                        <div style={{ fontSize: 11.5, fontWeight: 600, color: "#B08A3E", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                        <div style={{ fontSize: 11.5, fontWeight: 600, color: "#D97706", textTransform: "uppercase", letterSpacing: "0.04em" }}>
                           {app.criticality} Criticality
                         </div>
                         <div style={{ fontSize: 16, fontWeight: 600 }}>If {app.name} goes offline — what breaks, who's affected</div>
                       </div>
                       <div style={{ textAlign: "center" }}>
-                        <div style={{ width: 56, height: 56, borderRadius: "50%", border: `4px solid #B08A3E`,
+                        <div style={{ width: 56, height: 56, borderRadius: "50%", border: `4px solid #D97706`,
                           display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, fontWeight: 700 }}>
                           {br.score}
                         </div>
@@ -5753,7 +5942,7 @@ function APMDashboardLive() {
                         { label: "Capabilities Degraded", value: br.degradedCapabilities.length },
                         { label: "Apps in Ripple", value: br.downstreamApps.length },
                       ].map((k, i) => (
-                        <div key={i} style={{ background: "#fff", borderRadius: 10, padding: "10px 14px" }}>
+                        <div key={i} style={{ background: "#fff", borderRadius: 12, padding: "10px 14px" }}>
                           <div style={{ fontSize: 20, fontWeight: 700 }}>{k.value}</div>
                           <div style={{ fontSize: 11, color: COLORS.inkSecondary }}>{k.label}</div>
                         </div>
@@ -5774,7 +5963,7 @@ function APMDashboardLive() {
                         <b>Degraded:</b> {br.degradedCapabilities.map((d) => `${d.cap} (also covered by ${d.coveredBy.join(", ")})`).join("; ")}
                       </div>
                     )}
-                    <div style={{ background: "#fff", borderRadius: 10, padding: 14, marginTop: 12 }}>
+                    <div style={{ background: "#fff", borderRadius: 12, padding: 14, marginTop: 12 }}>
                       <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 6 }}>Recovery Considerations</div>
                       {br.recovery.map((r, i) => (
                         <div key={i} style={{ fontSize: 12, color: COLORS.inkSecondary, marginBottom: 4 }}>• {r}</div>
@@ -5790,16 +5979,16 @@ function APMDashboardLive() {
                     { label: "Users", value: app.userCount || "—" },
                     { label: "Annual Cost", value: fmtGBP(app.tco) },
                   ].map((k, i) => (
-                    <div key={i} style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`,
-                      boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)", borderRadius: 14, padding: "14px 16px" }}>
+                    <div key={i} className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`,
+                      boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18, padding: "14px 16px" }}>
                       <div style={{ fontSize: 11, color: COLORS.inkSecondary, marginBottom: 4 }}>{k.label}</div>
                       <div style={{ fontSize: 17, fontWeight: 600 }}>{k.value}</div>
                     </div>
                   ))}
                 </div>
 
-                <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)",
-                  borderRadius: 14, padding: 20, marginBottom: 20 }}>
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)",
+                  borderRadius: 18, padding: 20, marginBottom: 20 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 16 }}>
                     Lifecycle{daysSinceGoLive != null && <span style={{ fontWeight: 400, color: COLORS.inkSecondary }}> · Day {daysSinceGoLive} since go-live</span>}
                   </div>
@@ -5808,7 +5997,7 @@ function APMDashboardLive() {
                     {LIFECYCLE_STAGES.map((s, i) => (
                       <div key={s.key} style={{ flex: 1, textAlign: "center", position: "relative", zIndex: 1 }}>
                         <div style={{ width: 18, height: 18, borderRadius: "50%", margin: "0 auto",
-                          background: i <= stageIdx ? (i === stageIdx ? COLORS.accent : "#5FA37D") : "#fff",
+                          background: i <= stageIdx ? (i === stageIdx ? COLORS.accent : "#22D3A6") : "#fff",
                           border: `2px solid ${i <= stageIdx ? COLORS.accent : COLORS.border}` }} />
                         <div style={{ fontSize: 11.5, fontWeight: i === stageIdx ? 600 : 400, marginTop: 6 }}>{s.label}</div>
                         {app[s.key] && <div style={{ fontSize: 10.5, color: COLORS.inkSecondary }}>{app[s.key]}</div>}
@@ -5819,8 +6008,8 @@ function APMDashboardLive() {
                 </div>
 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-                  <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)",
-                    borderRadius: 14, padding: 20 }}>
+                  <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)",
+                    borderRadius: 18, padding: 20 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>At a Glance</div>
                     {[["Hosting", app.hosting], ["Vendor", app.vendor || "—"], ["Owner", app.owner || "—"],
                       ["Architecture Style", app.architectureStyle], ["Est. Annual TCO", fmtGBP(app.tco)]].map(([k, v]) => (
@@ -5846,8 +6035,8 @@ function APMDashboardLive() {
                       </span>
                     </div>
                   </div>
-                  <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)",
-                    borderRadius: 14, padding: 20 }}>
+                  <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)",
+                    borderRadius: 18, padding: 20 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Capabilities Supported ({app.capabilities.length})</div>
                     {app.capabilities.length === 0
                       ? <div style={{ fontSize: 12.5, color: COLORS.inkSecondary }}>None mapped.</div>
@@ -5872,7 +6061,7 @@ function APMDashboardLive() {
             const maxCount = Math.max(1, ...Object.values(r.dist));
             return (
               <div>
-                <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)",
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)",
                   borderRadius: 16, padding: 22, marginBottom: 22, maxWidth: 820 }}>
                   <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 6 }}>What is this page?</div>
                   <div style={{ fontSize: 13, color: COLORS.inkSecondary, lineHeight: 1.6 }}>
@@ -5901,7 +6090,7 @@ function APMDashboardLive() {
                 </div>
 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1.4fr", gap: 20 }}>
-                  <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)",
+                  <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)",
                     borderRadius: 16, padding: 22, alignSelf: "start" }}>
                     <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 14 }}>Distribution</div>
                     {Object.entries(r.dist).map(([val, count]) => (
@@ -5914,7 +6103,7 @@ function APMDashboardLive() {
                       </div>
                     ))}
                   </div>
-                  <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)",
+                  <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)",
                     borderRadius: 16, padding: 22 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 2 }}>Flagged for Review ({r.flagged.length})</div>
                     <div style={{ fontSize: 12, color: COLORS.inkSecondary, marginBottom: 14 }}>
@@ -5940,20 +6129,20 @@ function APMDashboardLive() {
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 18, marginBottom: 26 }}>
-                <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)", borderRadius: 16, padding: 22 }}>
-                  <div style={{ width: 40, height: 40, borderRadius: 10, background: "#FBE0D8", color: COLORS.risk,
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 16, padding: 22 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 12, background: "#FBE0D8", color: COLORS.risk,
                     display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}>{ICONS.blocked}</div>
                   <div style={{ fontSize: 30, fontWeight: 700 }}>{rankedBlockedDecisions.length}</div>
                   <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginTop: 4 }}>Decisions Blocked</div>
                 </div>
-                <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)", borderRadius: 16, padding: 22 }}>
-                  <div style={{ width: 40, height: 40, borderRadius: 10, background: "#FBE0D8", color: COLORS.risk,
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 16, padding: 22 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 12, background: "#FBE0D8", color: COLORS.risk,
                     display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}>{ICONS.costrisk}</div>
                   <div style={{ fontSize: 30, fontWeight: 700, color: COLORS.risk }}>{fmtGBP(rankedBlockedDecisions.reduce((s, d) => s + (d.cost || 0), 0))}</div>
                   <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginTop: 4 }}>Total Cost of Workarounds</div>
                 </div>
-                <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)", borderRadius: 16, padding: 22 }}>
-                  <div style={{ width: 40, height: 40, borderRadius: 10, background: "#DCEAE1", color: COLORS.accent,
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 16, padding: 22 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 12, background: "#DCEAE1", color: COLORS.accent,
                     display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}>{ICONS.portfolio}</div>
                   <div style={{ fontSize: 30, fontWeight: 700 }}>{blockingAppIds.size}</div>
                   <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginTop: 4 }}>Applications Implicated</div>
@@ -5962,9 +6151,9 @@ function APMDashboardLive() {
 
               <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16, marginBottom: 20 }}>
                 {rankedBlockedDecisions.map((d) => (
-                  <div key={d.id} className="brief-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`,
+                  <div key={d.id} className="brief-card" className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`,
                     borderLeft: `4px solid ${COLORS.risk}`,
-                    boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)", borderRadius: 16,
+                    boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 16,
                     padding: 20 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                       <div>
@@ -6039,7 +6228,7 @@ function APMDashboardLive() {
                   const colApps = appsWithDisposition.filter((a) => a.capabilities.includes(cap.capability));
                   return (
                     <div key={cap.capability} style={{ minWidth: 230, width: 230, flexShrink: 0, background: "#EFEDE5",
-                      borderRadius: 12, padding: 12 }}>
+                      borderRadius: 14, padding: 12 }}>
                       <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 2 }}>{cap.capability}</div>
                       <div style={{ fontSize: 11.5, color: COLORS.inkSecondary, marginBottom: 10 }}>{colApps.length} application{colApps.length === 1 ? "" : "s"}</div>
                       {colApps.length === 0 ? (
@@ -6047,13 +6236,13 @@ function APMDashboardLive() {
                       ) : colApps.map((a) => {
                         const aiTimeMatch = scoredAppsForAITime.find((x) => x.id === a.id);
                         const color = capBoardColorBy === "disposition" ? DISPOSITION_INFO[a.disposition.code].color
-                          : capBoardColorBy === "criticality" ? ({ Critical: COLORS.risk, High: "#B08A3E", Medium: COLORS.accentMuted, Low: COLORS.inkSecondary }[a.criticality] || COLORS.inkSecondary)
+                          : capBoardColorBy === "criticality" ? ({ Critical: COLORS.risk, High: "#D97706", Medium: COLORS.accentMuted, Low: COLORS.inkSecondary }[a.criticality] || COLORS.inkSecondary)
                           : aiTimeMatch ? AI_TIME_INFO[aiTimeMatch.aiQuadrant].color : COLORS.border;
                         return (
                           <div key={a.id} onClick={() => { setProfileAppId(a.id); setView("profile"); }}
                             style={{ background: "#fff", borderLeft: `4px solid ${color}`, borderRadius: 8,
                               padding: "8px 10px", marginBottom: 8, cursor: "pointer",
-                              boxShadow: "0 1px 2px rgba(28,42,58,0.04)" }}>
+                              boxShadow: "0 1px 2px rgba(10,14,26,0.05)" }}>
                             <div style={{ fontSize: 12.5, fontWeight: 500 }}>{a.name}</div>
                             <div style={{ fontSize: 10.5, color: COLORS.inkSecondary, marginTop: 2 }}>
                               {capBoardColorBy === "disposition" ? a.disposition.code
@@ -6068,8 +6257,8 @@ function APMDashboardLive() {
                 })}
               </div>
 
-              <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)",
-                borderRadius: 14, padding: 20, marginTop: 24 }}>
+              <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)",
+                borderRadius: 18, padding: 20, marginTop: 24 }}>
                 <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 2 }}>Capability Realization Review</div>
                 <div style={{ fontSize: 12, color: COLORS.inkSecondary, marginBottom: 14, maxWidth: 600 }}>
                   Different question from the board above: not "does an application support this" but "is there
@@ -6082,7 +6271,7 @@ function APMDashboardLive() {
                       <div style={{ fontSize: 13, fontWeight: 500 }}>{c.capability}</div>
                       <div style={{ fontSize: 12, color: COLORS.inkSecondary, marginTop: 2 }}>{c.reason}</div>
                     </div>
-                    <span style={{ background: c.health === "Realized" ? COLORS.accent : c.health === "Weakly Realized" ? "#B08A3E" : COLORS.risk,
+                    <span style={{ background: c.health === "Realized" ? COLORS.accent : c.health === "Weakly Realized" ? "#D97706" : COLORS.risk,
                       color: "#fff", padding: "3px 10px", borderRadius: 8, fontSize: 11, fontWeight: 600, flexShrink: 0, marginLeft: 12 }}>
                       {c.health}
                     </span>
@@ -6102,8 +6291,8 @@ function APMDashboardLive() {
               </div>
               {askBox("techradar", "Ask in plain language, e.g. which technologies are approaching end of life…")}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 24 }}>
-                <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)",
-                  borderRadius: 14, padding: 20 }}>
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)",
+                  borderRadius: 18, padding: 20 }}>
                   <svg viewBox="0 0 520 480" width="100%" height="460">
                     {[...RADAR_RING_ORDER].reverse().map((ring) => (
                       <circle key={ring} cx={radarData.cx} cy={radarData.cy} r={RADAR_BAND_RADII[ring] + 24}
@@ -6137,8 +6326,8 @@ function APMDashboardLive() {
                     ))}
                   </svg>
                 </div>
-                <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)",
-                  borderRadius: 14, padding: 18 }}>
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)",
+                  borderRadius: 18, padding: 18 }}>
                   {hoveredTech ? (() => {
                     const t = radarData.items.find((x) => x.id === hoveredTech);
                     if (!t) return null;
@@ -6165,7 +6354,7 @@ function APMDashboardLive() {
           )}
 
           {view === "decisionlog" && (() => {
-            const STATUS_COLOR = { Proposed: "#8A93A0", Approved: COLORS.accent, Rejected: COLORS.risk, Deprecated: "#B08A3E", Superseded: "#7B5EA7" };
+            const STATUS_COLOR = { Proposed: "#8A93A0", Approved: COLORS.accent, Rejected: COLORS.risk, Deprecated: "#D97706", Superseded: "#7B5EA7" };
             const types = ["All", ...Array.from(new Set(decisions.map((d) => d.type)))];
             const statuses = ["All", "Proposed", "Approved", "Rejected", "Deprecated", "Superseded"];
             const filtered = decisions.filter((d) =>
@@ -6212,7 +6401,7 @@ function APMDashboardLive() {
                 ) : (
                   <div style={{ columnCount: 2, columnGap: 20 }}>
                     {filtered.map((d) => (
-                      <div key={d.id} style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14,
+                      <div key={d.id} className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 18,
                         padding: 20, marginBottom: 16, borderLeft: `4px solid ${STATUS_COLOR[d.status] || COLORS.border}`,
                         breakInside: "avoid", WebkitColumnBreakInside: "avoid" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
@@ -6296,8 +6485,8 @@ function APMDashboardLive() {
                   const avg = scores.reduce((s, v) => s + v, 0) / (scores.filter((v) => v > 0).length || 1);
                   const cx = 110, cy = 105, maxR = 82;
                   return (
-                    <div key={cap.capability} style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`,
-                      boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)", borderRadius: 14, padding: 18 }}>
+                    <div key={cap.capability} className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`,
+                      boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18, padding: 18 }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
                         <div style={{ fontSize: 13.5, fontWeight: 600, maxWidth: 180 }}>{cap.capability}</div>
                         <div style={{ fontSize: 18, fontWeight: 700, color: CONCEPT_TYPE_STYLE.Capability.color }}>{avg.toFixed(1)}</div>
@@ -6369,7 +6558,7 @@ function APMDashboardLive() {
                           <div style={{ flex: 1, paddingBottom: 24 }}>
                             <div style={{ fontSize: 14.5, fontWeight: 600, marginBottom: 2 }}>{stage.name}</div>
                             <div style={{ fontSize: 11, color: COLORS.inkSecondary, marginBottom: 10 }}>{stage.type}</div>
-                            <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: 14 }}>
+                            <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: 14 }}>
                               {noCapability ? (
                                 <div style={{ fontSize: 12.5, color: COLORS.risk, fontWeight: 600 }}>⚠ No capability or process linked to this stage</div>
                               ) : (
@@ -6391,7 +6580,7 @@ function APMDashboardLive() {
                                     </div>
                                   )}
                                   {noApp ? (
-                                    <div style={{ fontSize: 12, color: "#B08A3E", fontWeight: 600 }}>⚠ Capability linked, but no application supports it</div>
+                                    <div style={{ fontSize: 12, color: "#D97706", fontWeight: 600 }}>⚠ Capability linked, but no application supports it</div>
                                   ) : stage.applications.length > 0 && (
                                     <div style={{ marginBottom: stage.technologies.length > 0 ? 8 : 0 }}>
                                       <span style={{ fontSize: 10.5, fontWeight: 700, color: CONCEPT_TYPE_STYLE.Application.color, textTransform: "uppercase" }}>Applications: </span>
@@ -6442,19 +6631,19 @@ function APMDashboardLive() {
                     const stop = decisionShortlist.find((a) => a.verdict === "Replace" || a.verdict === "Retire");
                     return (
                       <>
-                        <div style={{ background: "#DCEAE1", border: `1px solid ${COLORS.accent}`, borderRadius: 14, padding: "16px 20px" }}>
+                        <div style={{ background: "#DCEAE1", border: `1px solid ${COLORS.accent}`, borderRadius: 18, padding: "16px 20px" }}>
                           <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.accent, marginBottom: 4 }}>Fund With Confidence</div>
                           <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>{fund.name}</div>
                           <div style={{ fontSize: 12.5, color: COLORS.inkSecondary }}>{fund.reason}</div>
                         </div>
                         {stop ? (
-                          <div style={{ background: "#FBE0D8", border: `1px solid ${COLORS.risk}`, borderRadius: 14, padding: "16px 20px" }}>
+                          <div style={{ background: "#FBE0D8", border: `1px solid ${COLORS.risk}`, borderRadius: 18, padding: "16px 20px" }}>
                             <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.risk, marginBottom: 4 }}>Stop or Pause Early</div>
                             <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>{stop.name}</div>
                             <div style={{ fontSize: 12.5, color: COLORS.inkSecondary }}>{stop.reason}</div>
                           </div>
                         ) : (
-                          <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)", borderRadius: 14, padding: "16px 20px" }}>
+                          <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18, padding: "16px 20px" }}>
                             <div style={{ fontSize: 12.5, color: COLORS.inkSecondary }}>No clear stop/pause candidate in this data.</div>
                           </div>
                         )}
@@ -6465,7 +6654,7 @@ function APMDashboardLive() {
               )}
 
               {decisionShortlist.map((a, i) => (
-                <div key={a.id} style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(28,42,58,0.04), 0 8px 20px rgba(28,42,58,0.05)", borderRadius: 14,
+                <div key={a.id} className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18,
                   padding: 20, marginBottom: 16 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
                     <div>
@@ -6503,7 +6692,7 @@ function APMDashboardLive() {
               ))}
             </div>
           )}
-        </>
+        </div>
       )}
 
       <div style={{ fontSize: 11.5, color: COLORS.inkSecondary, marginTop: 20, lineHeight: 1.6 }}>
