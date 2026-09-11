@@ -142,6 +142,11 @@ nodes:
 - {id: js10, concept_type: JourneyStage, name: Complete payment and receive confirmation, status: Active, sequence: 3, customer_need: Complete the donation securely and receive confirmation, channel: Public
     website and payment channel, importance: Critical, criticality: Critical, pain_point: Payment or confirmation failure can undermine supporter trust, performance_measure: Successful payment rate and
     confirmation time, risk_level: High, stereotype: Fulfilment}
+- {id: vs1, concept_type: ValueStream, name: "Donor Gives to RBL", status: Active, stereotype: Core, trigger_event: "A member of the public decides to donate", value_delivered: "Donor receives confirmation, a tax receipt if Gift Aid eligible, and is retained for future engagement", stakeholder: "Individual donor", strategic_importance: Critical}
+- {id: vss1, concept_type: ValueStreamStage, name: "Donor Discovers Giving Opportunity", status: Active, sequence: 1, value_item: "Awareness of a specific way to give"}
+- {id: vss2, concept_type: ValueStreamStage, name: "Donor Makes Donation", status: Active, sequence: 2, value_item: "Donation captured and payment confirmed"}
+- {id: vss3, concept_type: ValueStreamStage, name: "Donation Processed & Receipted", status: Active, sequence: 3, value_item: "Donation recorded, receipted, Gift Aid claimed if eligible"}
+- {id: vss4, concept_type: ValueStreamStage, name: "Donor Retained & Re-engaged", status: Active, sequence: 4, value_item: "Donor relationship maintained for future giving"}
 - {id: loc1, concept_type: Location, name: United Kingdom, status: Active, country: United Kingdom, data_residency_zone: UK, stereotype: Country}
 - {id: loc2, concept_type: Location, name: London, status: Active, country: United Kingdom, time_zone: Europe/London, data_residency_zone: UK, stereotype: City}
 - {id: loc3, concept_type: Location, name: Edinburgh, status: Active, country: United Kingdom, time_zone: Europe/London, data_residency_zone: UK, stereotype: City}
@@ -515,6 +520,18 @@ relationships:
 - {source: j3, verb: contains, target: js10, criticality: Critical, status: Active, strength: 100}
 - {source: js8, verb: precedes, target: js9, criticality: High, status: Active, strength: 100}
 - {source: js9, verb: precedes, target: js10, criticality: High, status: Active, strength: 100}
+- {source: vs1, verb: contains, target: vss1, criticality: Critical, status: Active, strength: 100}
+- {source: vs1, verb: contains, target: vss2, criticality: Critical, status: Active, strength: 100}
+- {source: vs1, verb: contains, target: vss3, criticality: Critical, status: Active, strength: 100}
+- {source: vs1, verb: contains, target: vss4, criticality: Critical, status: Active, strength: 100}
+- {source: c3a, verb: enables, target: vss1, criticality: Critical, status: Active, strength: 90}
+- {source: c3b, verb: enables, target: vss2, criticality: Critical, status: Active, strength: 90}
+- {source: a4, verb: supports, target: vss2, criticality: Critical, status: Active, strength: 85}
+- {source: c7, verb: enables, target: vss3, criticality: High, status: Active, strength: 85}
+- {source: a12, verb: supports, target: vss3, criticality: High, status: Active, strength: 80}
+- {source: c3c, verb: enables, target: vss4, criticality: High, status: Active, strength: 75}
+- {source: a1, verb: supports, target: vss4, criticality: High, status: Active, strength: 75}
+- {source: vs1, verb: contributes to, target: s1, criticality: Critical, status: Active, strength: 85}
 - {source: c1, verb: enables, target: js1, criticality: Critical, status: Active, strength: 85}
 - {source: c1, verb: enables, target: js2, criticality: Critical, status: Active, strength: 90}
 - {source: c1, verb: enables, target: js3, criticality: Critical, status: Active, strength: 95}

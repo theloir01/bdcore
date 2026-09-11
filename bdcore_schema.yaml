@@ -212,6 +212,25 @@ concept_types:
       - {name: AIAutomationPotential, type: enum, options: [Not Assessed, Low, Medium, High]}
       - {name: HumanInteraction, type: enum, options: [Required, Optional, None]}
 
+  - name: ValueStream
+    category: Structural
+    attributes:
+      - *base
+      - {name: Status, type: enum, options: [Active, Proposed, Retired]}
+      - {name: Stereotype, type: enum, options: [Core, Support, Management], purpose: "standard value-stream classification — Core creates direct stakeholder value, Support enables Core streams, Management governs and steers"}
+      - {name: TriggerEvent, type: string, purpose: "what starts this value stream"}
+      - {name: ValueDelivered, type: string, purpose: "what value is delivered at completion"}
+      - {name: Stakeholder, type: string, purpose: "who triggers or receives the value"}
+      - {name: StrategicImportance, type: enum, options: [Critical, High, Medium, Low]}
+
+  - name: ValueStreamStage
+    category: Structural
+    attributes:
+      - *base
+      - {name: Status, type: enum, options: [Active, Proposed, Retired]}
+      - {name: Sequence, type: number}
+      - {name: ValueItem, type: string, purpose: "the specific incremental value this stage adds — the core BIZBOK concept for value stream stages"}
+
   - name: Application
     category: Technology
     attributes:
@@ -417,6 +436,11 @@ relationship_types:
   - {verb: based at, source: Organisation, target: Location, category: Structural}
   - {verb: constrains, source: Control, target: Location, category: GRC, purpose: "a control that only applies within a given jurisdiction — the actual reason this usually gets asked for"}
   - {verb: contains, source: Journey, target: JourneyStage, category: Structural}
+  - {verb: contains, source: ValueStream, target: ValueStreamStage, category: Structural}
+  - {verb: enables, source: Capability, target: ValueStreamStage, category: Structural}
+  - {verb: supports, source: Process, target: ValueStreamStage, category: Structural}
+  - {verb: supports, source: Application, target: ValueStreamStage, category: Structural}
+  - {verb: contributes to, source: ValueStream, target: Strategy, category: Strategic}
   - {verb: realises, source: Process, target: Capability, category: Structural}
   - {verb: supports, source: Application, target: Capability, category: Structural}
   - {verb: supports, source: Application, target: Process, category: Structural}
