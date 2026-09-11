@@ -21,12 +21,16 @@ Idempotent: safe to re-run after editing the YAML.
 import os
 import re
 import sys
+from dotenv import load_dotenv
 import yaml
 from neo4j import GraphDatabase
 
+load_dotenv()
+
 # ---------------------------------------------------------------------------
-# Set these as environment variables before running — same as load_schema.py.
-# Never hard-code credentials in this file.
+# Set these as environment variables before running (or in a local .env
+# file, loaded automatically above) — same as load_schema.py. Never
+# hard-code credentials in this file.
 #   NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD
 # ---------------------------------------------------------------------------
 REQUIRED_ENV_VARS = ["NEO4J_URI", "NEO4J_USERNAME", "NEO4J_PASSWORD"]

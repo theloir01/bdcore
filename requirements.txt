@@ -1,0 +1,5 @@
+flask
+neo4j
+requests
+pyyaml
+python-dotenv
