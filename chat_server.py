@@ -34,13 +34,16 @@ import json
 import os
 import re
 import sys
+from dotenv import load_dotenv
 from flask import Flask, request, jsonify
 from neo4j import GraphDatabase
 import requests
 
+load_dotenv()
+
 # ---------------------------------------------------------------------------
 # Set these as environment variables before running (or in a local .env
-# file loaded by your shell) — never hard-code secrets in this file.
+# file, loaded automatically above) — never hard-code secrets in this file.
 #   ANTHROPIC_API_KEY, NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD
 # ---------------------------------------------------------------------------
 REQUIRED_ENV_VARS = ["ANTHROPIC_API_KEY", "NEO4J_URI", "NEO4J_USERNAME", "NEO4J_PASSWORD"]

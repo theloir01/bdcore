@@ -23,13 +23,17 @@ unaffected by re-running this.
 
 import os
 import sys
+from dotenv import load_dotenv
 import yaml
 from neo4j import GraphDatabase
 
+load_dotenv()
+
 # ---------------------------------------------------------------------------
-# Set these as environment variables before running — copy the values from
-# your Aura instance's connection details (downloaded when you created the
-# Free instance). Never hard-code credentials in this file.
+# Set these as environment variables before running (or in a local .env
+# file, loaded automatically above) — copy the values from your Aura
+# instance's connection details (downloaded when you created the Free
+# instance). Never hard-code credentials in this file.
 #   NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD
 # ---------------------------------------------------------------------------
 REQUIRED_ENV_VARS = ["NEO4J_URI", "NEO4J_USERNAME", "NEO4J_PASSWORD"]
