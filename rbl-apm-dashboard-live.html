@@ -202,6 +202,32 @@ const CANVAS_CONCEPT_TYPES = [
   "Outcome", "Process", "Product", "Requirement", "Risk", "SoftwareTechnology", "Strategy",
   "ValueStream", "ValueStreamStage",
 ];
+
+// Mirrors the `category` field each concept type carries in bdcore_schema.yaml —
+// kept in sync by hand, same as CANVAS_CONCEPT_TYPES itself. A type missing here
+// (e.g. added to the whitelist above but not yet given a category) falls back to
+// an "Other" bucket in groupConceptTypesByCategory rather than silently vanishing.
+const CONCEPT_TYPE_CATEGORY = {
+  Strategy: "Strategic", Goal: "Strategic", Decision: "Strategic", Initiative: "Strategic", Outcome: "Strategic",
+  Requirement: "Structural", Capability: "Structural", Process: "Structural", Location: "Structural",
+  Organisation: "Structural", Product: "Structural", Journey: "Structural", JourneyStage: "Structural",
+  ValueStream: "Structural", ValueStreamStage: "Structural",
+  Application: "Technology", Data: "Technology", SoftwareTechnology: "Technology", HardwareTechnology: "Technology",
+  AIModel: "Technology", Interface: "Technology",
+  Risk: "GRC", Control: "GRC",
+};
+const CONCEPT_CATEGORY_ORDER = ["Strategic", "Structural", "Technology", "GRC"];
+const CONCEPT_CATEGORY_LABEL = { Strategic: "Strategic", Structural: "Structural", Technology: "Technology", GRC: "Governance, Risk & Compliance" };
+function groupConceptTypesByCategory(types) {
+  const groups = {};
+  types.forEach((t) => {
+    const cat = CONCEPT_TYPE_CATEGORY[t] || "Other";
+    (groups[cat] = groups[cat] || []).push(t);
+  });
+  return [...CONCEPT_CATEGORY_ORDER, "Other"]
+    .filter((cat) => groups[cat])
+    .map((cat) => ({ key: cat, label: CONCEPT_CATEGORY_LABEL[cat] || cat, types: groups[cat] }));
+}
 const CANVAS_VERBS = [
   "accepts", "affects", "approves investment in", "belongs to", "constrains",
   "consumes investment from", "contains", "contributes to", "delivers", "depends on",
@@ -4905,28 +4931,36 @@ function APMDashboardLive() {
             return (
               <div>
                 <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginBottom: 18, maxWidth: 780, lineHeight: 1.6 }}>
-                  Manage the raw graph directly, across all 15 concept types — not just what the APM views happen to
+                  Manage the raw graph directly, across all 23 concept types — not just what the APM views happen to
                   surface. Useful for cleaning up test data (like anything pushed from Modelling Canvas testing) or
                   making changes that don't have a dedicated screen yet.
                 </div>
 
-                <div style={{ display: "flex", gap: 6, marginBottom: 18, flexWrap: "wrap" }}>
-                  {CANVAS_CONCEPT_TYPES.map((t) => {
-                    const s = CONCEPT_TYPE_STYLE[t];
-                    return (
-                      <button key={t} onClick={() => { setOmSelectedType(t); loadOmInstances(t); }}
-                        style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", fontSize: 12, fontWeight: 600,
-                          borderRadius: 8, cursor: "pointer", border: `1px solid ${omSelectedType === t ? s.color : COLORS.border}`,
-                          background: omSelectedType === t ? s.color : COLORS.card, color: omSelectedType === t ? "#fff" : COLORS.ink }}>
-                        <span style={{ width: 16, height: 16, borderRadius: 4, background: omSelectedType === t ? "rgba(255,255,255,0.25)" : s.color,
-                          display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                          {React.cloneElement(s.icon, { width: 11, height: 11 })}
-                        </span>
-                        {t}
-                      </button>
-                    );
-                  })}
-                </div>
+                {groupConceptTypesByCategory(CANVAS_CONCEPT_TYPES).map((group) => (
+                  <div key={group.key} style={{ marginBottom: 14 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.inkSecondary, textTransform: "uppercase",
+                      letterSpacing: "0.05em", marginBottom: 6 }}>
+                      {group.label}
+                    </div>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {group.types.map((t) => {
+                        const s = CONCEPT_TYPE_STYLE[t];
+                        return (
+                          <button key={t} onClick={() => { setOmSelectedType(t); loadOmInstances(t); }}
+                            style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", fontSize: 12, fontWeight: 600,
+                              borderRadius: 8, cursor: "pointer", border: `1px solid ${omSelectedType === t ? s.color : COLORS.border}`,
+                              background: omSelectedType === t ? s.color : COLORS.card, color: omSelectedType === t ? "#fff" : COLORS.ink }}>
+                            <span style={{ width: 16, height: 16, borderRadius: 4, background: omSelectedType === t ? "rgba(255,255,255,0.25)" : s.color,
+                              display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                              {React.cloneElement(s.icon, { width: 11, height: 11 })}
+                            </span>
+                            {humanizeLabel(t)}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
 
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
                   <div style={{ fontSize: 14, fontWeight: 600 }}>{omInstances.length} {omSelectedType}{omInstances.length === 1 ? "" : "s"}</div>
@@ -5062,24 +5096,32 @@ function APMDashboardLive() {
                     <div style={conceptPickerPos
                       ? { position: "fixed", left: conceptPickerPos.left, top: conceptPickerPos.top, background: COLORS.card, border: `1px solid ${COLORS.border}`,
                           boxShadow: "0 16px 40px rgba(10,14,26,0.18)", borderRadius: 14, padding: 14, zIndex: 50,
-                          display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gridAutoRows: "auto", gap: 8, width: 440,
-                          height: "auto", overflow: "visible", boxSizing: "border-box" }
+                          width: 440, maxHeight: 420, overflowY: "auto", boxSizing: "border-box" }
                       : { position: "absolute", top: "110%", left: 0, background: COLORS.card, border: `1px solid ${COLORS.border}`,
                           boxShadow: "0 16px 40px rgba(10,14,26,0.18)", borderRadius: 14, padding: 14, zIndex: 50,
-                          display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gridAutoRows: "auto", gap: 8, width: 440,
-                          height: "auto", overflow: "visible", boxSizing: "border-box" }}>
-                      {CANVAS_CONCEPT_TYPES.map((t) => {
-                        const style = CONCEPT_TYPE_STYLE[t];
-                        return (
-                          <button key={t} onClick={() => { handleConceptTypeChosen(t); setConceptPickerPos(null); }} title={t}
-                            style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 8px", background: "#F6F4EF",
-                              border: "none", borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 500, textAlign: "left", minWidth: 0 }}>
-                            <span style={{ width: 20, height: 20, borderRadius: 5, background: style.color, flexShrink: 0,
-                              display: "flex", alignItems: "center", justifyContent: "center" }}>{style.icon}</span>
-                            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{t}</span>
-                          </button>
-                        );
-                      })}
+                          width: 440, maxHeight: 420, overflowY: "auto", boxSizing: "border-box" }}>
+                      {groupConceptTypesByCategory(CANVAS_CONCEPT_TYPES).map((group, gi) => (
+                        <div key={group.key} style={{ marginTop: gi === 0 ? 0 : 10 }}>
+                          <div style={{ fontSize: 10.5, fontWeight: 700, color: COLORS.inkSecondary, textTransform: "uppercase",
+                            letterSpacing: "0.05em", marginBottom: 6 }}>
+                            {group.label}
+                          </div>
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+                            {group.types.map((t) => {
+                              const style = CONCEPT_TYPE_STYLE[t];
+                              return (
+                                <button key={t} onClick={() => { handleConceptTypeChosen(t); setConceptPickerPos(null); }} title={humanizeLabel(t)}
+                                  style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 8px", background: "#F6F4EF",
+                                    border: "none", borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 500, textAlign: "left", minWidth: 0 }}>
+                                  <span style={{ width: 20, height: 20, borderRadius: 5, background: style.color, flexShrink: 0,
+                                    display: "flex", alignItems: "center", justifyContent: "center" }}>{style.icon}</span>
+                                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{humanizeLabel(t)}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -5092,7 +5134,11 @@ function APMDashboardLive() {
                       <label style={{ fontSize: 11.5, display: "block", marginBottom: 8 }}>Concept Type
                         <select value={importType} onChange={(e) => { setImportType(e.target.value); setImportOptions([]); }}
                           style={{ display: "block", width: "100%", marginTop: 4, padding: "6px 7px", border: `1px solid ${COLORS.border}`, borderRadius: 6, fontSize: 12.5 }}>
-                          {CANVAS_CONCEPT_TYPES.map((t) => <option key={t} value={t}>{humanizeLabel(t)}</option>)}
+                          {groupConceptTypesByCategory(CANVAS_CONCEPT_TYPES).map((group) => (
+                            <optgroup key={group.key} label={group.label}>
+                              {group.types.map((t) => <option key={t} value={t}>{humanizeLabel(t)}</option>)}
+                            </optgroup>
+                          ))}
                         </select>
                       </label>
                       <button onClick={loadImportOptions} disabled={importLoading}
@@ -5717,7 +5763,11 @@ function APMDashboardLive() {
                       <select value={c.conceptType} onChange={(e) => updateConcept({ conceptType: e.target.value, attributes: {} })}
                         disabled={c.pushed}
                         style={{ display: "block", width: "100%", marginTop: 4, padding: "7px 8px", border: `1px solid ${COLORS.border}`, borderRadius: 6, fontSize: 12.5 }}>
-                        {CANVAS_CONCEPT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                        {groupConceptTypesByCategory(CANVAS_CONCEPT_TYPES).map((group) => (
+                          <optgroup key={group.key} label={group.label}>
+                            {group.types.map((t) => <option key={t} value={t}>{humanizeLabel(t)}</option>)}
+                          </optgroup>
+                        ))}
                       </select>
                     </label>
                     <label style={{ fontSize: 12, display: "block", marginBottom: 18 }}>Name
