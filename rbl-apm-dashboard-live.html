@@ -1239,7 +1239,7 @@ function APMDashboardLive() {
   const [selectedNode, setSelectedNode] = useState(null);
   const [hoveredEdge, setHoveredEdge] = useState(null);
   const [view, setView] = useState("landing");
-  const [openGroups, setOpenGroups] = useState({ costrisk: true, datatrust: true, ai: true, modernisation: true });
+  const [openGroups, setOpenGroups] = useState({ costrisk: false, datatrust: false, ai: false, modernisation: false, journeys: false });
   const [chatMessages, setChatMessages] = useState([]);
   const [canvasChatInput, setCanvasChatInput] = useState("");
   const [canvasChatLoading, setCanvasChatLoading] = useState(false);
@@ -3537,12 +3537,17 @@ function APMDashboardLive() {
 
               {NAV_GROUPS.map((group) => (
                 <div key={group.key}>
-                  <div onClick={() => setOpenGroups((prev) => ({ ...prev, [group.key]: !prev[group.key] }))}
+                  <div className="ds-nav-pill" onClick={() => setOpenGroups((prev) => ({ ...prev, [group.key]: !prev[group.key] }))}
                     style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer",
-                      padding: "9px 14px", fontSize: 12, fontWeight: 600, color: "#7E8A96", marginTop: 10,
+                      padding: "9px 14px", fontSize: 12, fontWeight: 600, color: "#9AA5B1", marginTop: 10, borderRadius: 10,
                       textTransform: "uppercase", letterSpacing: "0.05em" }}>
                     <span style={{ display: "flex", alignItems: "center", gap: 8 }}>{ICONS[group.icon]}{group.label}</span>
-                    <span style={{ fontSize: 10 }}>{openGroups[group.key] ? "▾" : "▸"}</span>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+                      strokeLinecap="round" strokeLinejoin="round"
+                      style={{ flexShrink: 0, transition: "transform 0.2s ease",
+                        transform: openGroups[group.key] ? "rotate(0deg)" : "rotate(-90deg)" }}>
+                      <polyline points="6,9 12,15 18,9" />
+                    </svg>
                   </div>
                   {openGroups[group.key] && group.items.map(([key, label, icon]) => (
                     <button key={key} className={view === key ? "ds-nav-pill ds-nav-pill-active" : "ds-nav-pill"} onClick={() => { setView(key); setSelectedNode(null); }}
