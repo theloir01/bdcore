@@ -344,6 +344,17 @@ function toSnakeCase(name) {
 function humanizeLabel(name) {
   return name.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2");
 }
+function pluralizeWord(word) {
+  if (word === "Data") return word; // uncountable — "Datas" is wrong
+  if (/[^aeiouAEIOU]y$/.test(word)) return word.slice(0, -1) + "ies"; // Strategy -> Strategies
+  if (/(s|x|z|ch|sh)$/i.test(word)) return word + "es"; // Process -> Processes
+  return word + "s"; // Journey -> Journeys (vowel before "y")
+}
+function pluralizeConceptLabel(conceptType) {
+  const words = humanizeLabel(conceptType).split(" ");
+  words[words.length - 1] = pluralizeWord(words[words.length - 1]);
+  return words.join(" ");
+}
 const CONCEPT_ICON_COMMON = { width: 15, height: 15, viewBox: "0 0 24 24", fill: "none", stroke: "#fff", strokeWidth: 1.8, strokeLinecap: "round", strokeLinejoin: "round" };
 const CONCEPT_TYPE_STYLE = {
   Strategy: { color: "#8A6B82", icon: <svg {...CONCEPT_ICON_COMMON}><polygon points="13,2 4,14 12,14 11,22 20,10 12,10 13,2" /></svg> },
@@ -5078,12 +5089,12 @@ function APMDashboardLive() {
                       <label style={{ fontSize: 11.5, display: "block", marginBottom: 8 }}>Concept Type
                         <select value={importType} onChange={(e) => { setImportType(e.target.value); setImportOptions([]); }}
                           style={{ display: "block", width: "100%", marginTop: 4, padding: "6px 7px", border: `1px solid ${COLORS.border}`, borderRadius: 6, fontSize: 12.5 }}>
-                          {CANVAS_CONCEPT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                          {CANVAS_CONCEPT_TYPES.map((t) => <option key={t} value={t}>{humanizeLabel(t)}</option>)}
                         </select>
                       </label>
                       <button onClick={loadImportOptions} disabled={importLoading}
                         style={{ fontSize: 11.5, padding: "6px 10px", background: "#EFEDE5", border: "none", borderRadius: 6, cursor: "pointer", marginBottom: 10 }}>
-                        {importLoading ? "Loading…" : `Browse ${importType}s`}
+                        {importLoading ? "Loading…" : `Browse ${pluralizeConceptLabel(importType)}`}
                       </button>
                       {importOptions.length > 0 && (
                         <div style={{ maxHeight: 220, overflowY: "auto" }}>
