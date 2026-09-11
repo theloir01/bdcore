@@ -18,16 +18,25 @@ exist and will fail fast if they don't.
 Idempotent: safe to re-run after editing the YAML.
 """
 
+import os
 import re
+import sys
 import yaml
 from neo4j import GraphDatabase
 
 # ---------------------------------------------------------------------------
-# EDIT THESE THREE VALUES — same as load_schema.py
+# Set these as environment variables before running — same as load_schema.py.
+# Never hard-code credentials in this file.
+#   NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD
 # ---------------------------------------------------------------------------
-NEO4J_URI = "neo4j+s://745d653e.databases.neo4j.io"
-NEO4J_USERNAME = "neo4j"
-NEO4J_PASSWORD = "9iizTzGOGMw6EvEgVyeohXpeufJgnHgN_ExQblJpe_k"
+REQUIRED_ENV_VARS = ["NEO4J_URI", "NEO4J_USERNAME", "NEO4J_PASSWORD"]
+missing = [name for name in REQUIRED_ENV_VARS if not os.environ.get(name)]
+if missing:
+    sys.exit(f"Missing required environment variable(s): {', '.join(missing)}")
+
+NEO4J_URI = os.environ["NEO4J_URI"]
+NEO4J_USERNAME = os.environ["NEO4J_USERNAME"]
+NEO4J_PASSWORD = os.environ["NEO4J_PASSWORD"]
 # ---------------------------------------------------------------------------
 
 INSTANCE_FILE = "bdcore_rbl_instances.yaml"
