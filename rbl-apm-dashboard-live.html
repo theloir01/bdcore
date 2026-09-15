@@ -818,10 +818,10 @@ const healthLabel = { 1: "Poor", 2: "Adequate", 3: "Good", 4: "Good" };
 const valueLabel = { 1: "Low", 2: "Medium", 3: "High" };
 const fmtGBP = (n) => n == null ? "—" : `£${Number(n).toLocaleString("en-GB", { maximumFractionDigits: 0 })}`;
 
-function deriveQueryApiUrl(uri) {
+function deriveQueryApiUrl(uri, dbName) {
   const host = uri.trim().replace(/^neo4j\+s:\/\//, "").replace(/^neo4j:\/\//, "")
     .replace(/^bolt\+s:\/\//, "").replace(/^bolt:\/\//, "").replace(/\/$/, "");
-  return `https://${host}/db/neo4j/query/v2`;
+  return `https://${host}/db/${(dbName || "neo4j").trim()}/query/v2`;
 }
 
 async function runCypher(apiUrl, authHeader, statement, parameters = {}) {
@@ -1093,6 +1093,15 @@ function APMDashboardLive() {
   const [uri, setUri] = useState(() => localStorage.getItem("bdcore_neo4j_uri") || "");
   const [username, setUsername] = useState(() => localStorage.getItem("bdcore_neo4j_username") || "neo4j");
   const [password, setPassword] = useState(() => localStorage.getItem("bdcore_neo4j_password") || "");
+  // Older Aura instances use the fixed database name "neo4j" for everyone. Newer
+  // ones (check the NEO4J_DATABASE line in the credentials file Aura gives you at
+  // creation) instead name the default database after the instance itself — e.g.
+  // an instance whose URI is f814e978.databases.neo4j.io may have a database
+  // literally named "f814e978", not "neo4j". The Query API needs the real name in
+  // its URL path, unlike the Bolt driver load_schema.py/load_instances.py use,
+  // which resolves the default database automatically — that's why those scripts
+  // can work fine with credentials that still 404 here until this field is right.
+  const [dbName, setDbName] = useState(() => localStorage.getItem("bdcore_neo4j_dbname") || "neo4j");
   const [status, setStatus] = useState("idle");
   const [errorMsg, setErrorMsg] = useState("");
   const [apps, setApps] = useState([]);
@@ -1265,7 +1274,7 @@ function APMDashboardLive() {
     setEditSaving(true);
     setEditError("");
     try {
-      const apiUrl = deriveQueryApiUrl(uri);
+      const apiUrl = deriveQueryApiUrl(uri, dbName);
       const authHeader = "Basic " + btoa(`${username}:${password}`);
       await runCypher(apiUrl, authHeader,
         `MATCH (n {id: $id}) SET n.owner = $owner, n.vendor = $vendor, n.criticality = $criticality,
@@ -1584,7 +1593,7 @@ function APMDashboardLive() {
   // the whole point of remembering them is to skip the manual click too.
   useEffect(() => {
     if (uri && password) {
-      fetchData(deriveQueryApiUrl(uri), "Basic " + btoa(`${username}:${password}`));
+      fetchData(deriveQueryApiUrl(uri, dbName), "Basic " + btoa(`${username}:${password}`));
     }
   }, []);
 
@@ -1617,7 +1626,7 @@ function APMDashboardLive() {
     setOmLoading(true);
     setOmEditingId(null);
     try {
-      const apiUrl = deriveQueryApiUrl(uri);
+      const apiUrl = deriveQueryApiUrl(uri, dbName);
       const authHeader = "Basic " + btoa(`${username}:${password}`);
       const rows = await runCypher(apiUrl, authHeader,
         `MATCH (n:Instance:${type}) RETURN properties(n) AS props ORDER BY n.name`
@@ -1642,7 +1651,7 @@ function APMDashboardLive() {
     setEnumManagerRemoveConfirm(null);
     setEnumManagerStatus("");
     try {
-      const apiUrl = deriveQueryApiUrl(uri);
+      const apiUrl = deriveQueryApiUrl(uri, dbName);
       const authHeader = "Basic " + btoa(`${username}:${password}`);
       const snakeKey = toSnakeCase(attr.name);
       const rows = await runCypher(apiUrl, authHeader,
@@ -1675,7 +1684,7 @@ function APMDashboardLive() {
   const saveEnumOptions = async () => {
     setEnumManagerStatus("Saving…");
     try {
-      const apiUrl = deriveQueryApiUrl(uri);
+      const apiUrl = deriveQueryApiUrl(uri, dbName);
       const authHeader = "Basic " + btoa(`${username}:${password}`);
       await runCypher(apiUrl, authHeader,
         `MATCH (a:AttributeDefinition {concept_type: $type, name: $name}) SET a.options = $options`,
@@ -1702,7 +1711,7 @@ function APMDashboardLive() {
     if (!omEditForm.name || !omEditForm.name.trim()) { setOmStatus("Name is required."); return; }
     setOmStatus("Saving…");
     try {
-      const apiUrl = deriveQueryApiUrl(uri);
+      const apiUrl = deriveQueryApiUrl(uri, dbName);
       const authHeader = "Basic " + btoa(`${username}:${password}`);
       const { id, ...rest } = omEditForm;
       if (omEditingId === "new") {
@@ -1724,7 +1733,7 @@ function APMDashboardLive() {
   const omDeleteInstance = async (instance) => {
     if (!window.confirm(`Permanently delete "${instance.name}" (${omSelectedType}) from the graph? This removes the node and all its relationships — it can't be undone.`)) return;
     try {
-      const apiUrl = deriveQueryApiUrl(uri);
+      const apiUrl = deriveQueryApiUrl(uri, dbName);
       const authHeader = "Basic " + btoa(`${username}:${password}`);
       await runCypher(apiUrl, authHeader, `MATCH (n:Instance:${omSelectedType} {id: $id}) DETACH DELETE n`, { id: instance.id });
       setOmInstances((prev) => prev.filter((x) => x.id !== instance.id));
@@ -1737,7 +1746,7 @@ function APMDashboardLive() {
   const deleteApplication = async (app) => {
     if (!window.confirm(`Permanently delete "${app.name}" from the graph? This removes the real node and all its relationships in Neo4j — it can't be undone, and it's separate from anything on the Modelling Canvas.`)) return;
     try {
-      const apiUrl = deriveQueryApiUrl(uri);
+      const apiUrl = deriveQueryApiUrl(uri, dbName);
       const authHeader = "Basic " + btoa(`${username}:${password}`);
       await runCypher(apiUrl, authHeader, `MATCH (n:Instance:Application {id: $id}) DETACH DELETE n`, { id: app.id });
       setApps((prev) => prev.filter((a) => a.id !== app.id));
@@ -1759,14 +1768,16 @@ function APMDashboardLive() {
     localStorage.setItem("bdcore_neo4j_uri", uri);
     localStorage.setItem("bdcore_neo4j_username", username);
     localStorage.setItem("bdcore_neo4j_password", password);
-    fetchData(deriveQueryApiUrl(uri), "Basic " + btoa(`${username}:${password}`));
+    localStorage.setItem("bdcore_neo4j_dbname", dbName);
+    fetchData(deriveQueryApiUrl(uri, dbName), "Basic " + btoa(`${username}:${password}`));
   };
-  const handleRefresh = () => fetchData(deriveQueryApiUrl(uri), "Basic " + btoa(`${username}:${password}`));
+  const handleRefresh = () => fetchData(deriveQueryApiUrl(uri, dbName), "Basic " + btoa(`${username}:${password}`));
   const forgetSavedLogin = () => {
     localStorage.removeItem("bdcore_neo4j_uri");
     localStorage.removeItem("bdcore_neo4j_username");
     localStorage.removeItem("bdcore_neo4j_password");
-    setUri(""); setUsername("neo4j"); setPassword("");
+    localStorage.removeItem("bdcore_neo4j_dbname");
+    setUri(""); setUsername("neo4j"); setPassword(""); setDbName("neo4j");
   };
 
   const appsWithDisposition = useMemo(
@@ -2279,7 +2290,7 @@ function APMDashboardLive() {
     if (!targetId) return;
     setCanvasStatus("Saving…");
     try {
-      const apiUrl = deriveQueryApiUrl(uri);
+      const apiUrl = deriveQueryApiUrl(uri, dbName);
       const authHeader = "Basic " + btoa(`${username}:${password}`);
       const data = JSON.stringify({
         stickies: stickiesArg !== undefined ? stickiesArg : stickies,
@@ -2305,7 +2316,7 @@ function APMDashboardLive() {
     setCanvasLoading(true);
     setCanvasStatus("Loading canvas…");
     try {
-      const apiUrl = deriveQueryApiUrl(uri);
+      const apiUrl = deriveQueryApiUrl(uri, dbName);
       const authHeader = "Basic " + btoa(`${username}:${password}`);
       const rows = await runCypher(apiUrl, authHeader, `MATCH (c:Canvas {id: $id}) RETURN c.data AS data`, { id: canvasId });
       const raw = rows[0] && rows[0].data;
@@ -2340,7 +2351,7 @@ function APMDashboardLive() {
     const name = window.prompt("Name this workspace:", "New Workspace");
     if (!name) return;
     try {
-      const apiUrl = deriveQueryApiUrl(uri);
+      const apiUrl = deriveQueryApiUrl(uri, dbName);
       const authHeader = "Basic " + btoa(`${username}:${password}`);
       const wsId = newCanvasId("workspace");
       await runCypher(apiUrl, authHeader, `CREATE (w:Workspace {id: $id, name: $name})`, { id: wsId, name });
@@ -2355,7 +2366,7 @@ function APMDashboardLive() {
     const name = window.prompt("Name this canvas:", "New Canvas");
     if (!name) return;
     try {
-      const apiUrl = deriveQueryApiUrl(uri);
+      const apiUrl = deriveQueryApiUrl(uri, dbName);
       const authHeader = "Basic " + btoa(`${username}:${password}`);
       const canvasId = newCanvasId("pcanvas");
       const emptyData = JSON.stringify({ stickies: [], concepts: [], edges: [], texts: [] });
@@ -2374,7 +2385,7 @@ function APMDashboardLive() {
     const name = window.prompt("Rename workspace:", ws.name);
     if (!name || name === ws.name) return;
     try {
-      const apiUrl = deriveQueryApiUrl(uri);
+      const apiUrl = deriveQueryApiUrl(uri, dbName);
       const authHeader = "Basic " + btoa(`${username}:${password}`);
       await runCypher(apiUrl, authHeader, `MATCH (w:Workspace {id: $id}) SET w.name = $name`, { id: ws.id, name });
       setWorkspaces((prev) => prev.map((w) => w.id === ws.id ? { ...w, name } : w));
@@ -2387,7 +2398,7 @@ function APMDashboardLive() {
     const name = window.prompt("Rename canvas:", c.name);
     if (!name || name === c.name) return;
     try {
-      const apiUrl = deriveQueryApiUrl(uri);
+      const apiUrl = deriveQueryApiUrl(uri, dbName);
       const authHeader = "Basic " + btoa(`${username}:${password}`);
       await runCypher(apiUrl, authHeader, `MATCH (c:Canvas {id: $id}) SET c.name = $name`, { id: c.id, name });
       setCanvasList((prev) => prev.map((x) => x.id === c.id ? { ...x, name } : x));
@@ -2399,7 +2410,7 @@ function APMDashboardLive() {
   const deleteCanvas = async (c) => {
     if (!window.confirm(`Delete canvas "${c.name}"? This can't be undone. Anything already pushed to Neo4j from it is untouched.`)) return;
     try {
-      const apiUrl = deriveQueryApiUrl(uri);
+      const apiUrl = deriveQueryApiUrl(uri, dbName);
       const authHeader = "Basic " + btoa(`${username}:${password}`);
       await runCypher(apiUrl, authHeader, `MATCH (c:Canvas {id: $id}) DETACH DELETE c`, { id: c.id });
       const remaining = canvasList.filter((x) => x.id !== c.id);
@@ -2421,7 +2432,7 @@ function APMDashboardLive() {
       : `Delete workspace "${ws.name}"?`;
     if (!window.confirm(warning)) return;
     try {
-      const apiUrl = deriveQueryApiUrl(uri);
+      const apiUrl = deriveQueryApiUrl(uri, dbName);
       const authHeader = "Basic " + btoa(`${username}:${password}`);
       await runCypher(apiUrl, authHeader, `MATCH (c:Canvas {workspaceId: $id}) DETACH DELETE c`, { id: ws.id });
       await runCypher(apiUrl, authHeader, `MATCH (w:Workspace {id: $id}) DETACH DELETE w`, { id: ws.id });
@@ -2441,7 +2452,7 @@ function APMDashboardLive() {
     if (toPush.length === 0) { setCanvasStatus("Nothing new to push."); setTimeout(() => setCanvasStatus(""), 1500); return; }
     setCanvasStatus("Pushing to graph…");
     try {
-      const apiUrl = deriveQueryApiUrl(uri);
+      const apiUrl = deriveQueryApiUrl(uri, dbName);
       const authHeader = "Basic " + btoa(`${username}:${password}`);
       const idMap = {};
       for (const c of toPush) {
@@ -2486,7 +2497,7 @@ function APMDashboardLive() {
   const loadImportOptions = async () => {
     setImportLoading(true);
     try {
-      const apiUrl = deriveQueryApiUrl(uri);
+      const apiUrl = deriveQueryApiUrl(uri, dbName);
       const authHeader = "Basic " + btoa(`${username}:${password}`);
       const rows = await runCypher(apiUrl, authHeader,
         `MATCH (n:Instance:${importType}) RETURN n.id AS id, n.name AS name ORDER BY n.name`
@@ -2503,7 +2514,7 @@ function APMDashboardLive() {
     setShowImportPanel(false);
     setCanvasStatus("Importing…");
     try {
-      const apiUrl = deriveQueryApiUrl(uri);
+      const apiUrl = deriveQueryApiUrl(uri, dbName);
       const authHeader = "Basic " + btoa(`${username}:${password}`);
       const nodeRows = await runCypher(apiUrl, authHeader,
         `MATCH (n:Instance:${importType} {id: $id}) RETURN properties(n) AS props`,
@@ -2538,7 +2549,7 @@ function APMDashboardLive() {
     if (!concept.realId) return;
     setCanvasStatus("Expanding relationships…");
     try {
-      const apiUrl = deriveQueryApiUrl(uri);
+      const apiUrl = deriveQueryApiUrl(uri, dbName);
       const authHeader = "Basic " + btoa(`${username}:${password}`);
       const relRows = await runCypher(apiUrl, authHeader,
         `MATCH (n:Instance {id: $id})-[r]->(m:Instance)
@@ -2780,7 +2791,7 @@ function APMDashboardLive() {
       ...localStickies.map((s) => ({ x: s.x, y: s.y, w: s.width || 160, h: s.height || 120 })),
     ];
     const center = canvasCenter();
-    const apiUrl = deriveQueryApiUrl(uri);
+    const apiUrl = deriveQueryApiUrl(uri, dbName);
     const authHeader = "Basic " + btoa(`${username}:${password}`);
 
     // 1. Real entities pulled from the graph — same shape as manual "Add From Graph"
@@ -3694,6 +3705,15 @@ function APMDashboardLive() {
                 <input placeholder="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)}
                   style={{ flex: 1, padding: "10px 12px", border: "1px solid rgba(255,255,255,0.16)", background: "rgba(255,255,255,0.06)",
                     color: "#fff", borderRadius: 10, fontSize: 13.5, outline: "none" }} />
+              </div>
+              <div>
+                <input placeholder="database name" value={dbName} onChange={(e) => setDbName(e.target.value)}
+                  style={{ width: "100%", padding: "10px 12px", border: "1px solid rgba(255,255,255,0.16)", background: "rgba(255,255,255,0.06)",
+                    color: "#fff", borderRadius: 10, fontSize: 13.5, outline: "none" }} />
+                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", marginTop: 5, lineHeight: 1.4 }}>
+                  Usually "neo4j" — but some newer Aura instances name it after the instance itself instead.
+                  Check the NEO4J_DATABASE line in the credentials file Aura gave you if you're not sure.
+                </div>
               </div>
               <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 4 }}>
                 <button className="ds-btn-primary" onClick={handleConnect} disabled={status === "loading"}
