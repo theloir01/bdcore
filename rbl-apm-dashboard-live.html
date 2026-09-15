@@ -3237,6 +3237,15 @@ function APMDashboardLive() {
     setConnectingFrom(null); setPendingEdgeTarget(null); setConnectDrag(null); setPendingVerb("");
     setPendingSourceAnchor(null); setPendingTargetAnchor(null);
   };
+  // Swaps source/target (and their anchors, since anchor points are directional
+  // too) without dropping the pending connection — used when the ontology only
+  // defines the relationship the other way round, so "reverse it" is one click
+  // instead of cancel-and-redraw-the-arrow-backwards.
+  const reverseEdgeDirection = () => {
+    setConnectingFrom(pendingEdgeTarget); setPendingEdgeTarget(connectingFrom);
+    setPendingSourceAnchor(pendingTargetAnchor); setPendingTargetAnchor(pendingSourceAnchor);
+    setPendingVerb("");
+  };
 
   const EditFormFields = () => (
     <>
@@ -5721,6 +5730,19 @@ function APMDashboardLive() {
                 );
                 const validVerbs = validRels.map((r) => r.verb);
                 const effectiveVerb = validVerbs.includes(pendingVerb) ? pendingVerb : (validVerbs[0] || "");
+                // Only computed when the direct pairing has no valid verb — this is the
+                // "self-healing" path: check whether swapping direction works, and if
+                // not, surface what actually IS connectable from/to each side so the
+                // user can course-correct instead of hitting a dead end.
+                const reverseRels = validVerbs.length === 0 && srcConcept && tgtConcept
+                  ? schemaRelationships.filter((r) => r.source === tgtConcept.conceptType && r.target === srcConcept.conceptType)
+                  : [];
+                const outboundTargets = validVerbs.length === 0 && srcConcept
+                  ? [...new Set(schemaRelationships.filter((r) => r.source === srcConcept.conceptType).map((r) => `${r.verb} → ${humanizeLabel(r.target)}`))]
+                  : [];
+                const inboundSources = validVerbs.length === 0 && tgtConcept
+                  ? [...new Set(schemaRelationships.filter((r) => r.target === tgtConcept.conceptType).map((r) => `${humanizeLabel(r.source)} → ${r.verb}`))]
+                  : [];
                 const rect = canvasRef.current ? canvasRef.current.getBoundingClientRect() : { left: 0, top: 0 };
                 const panelLeft = srcConcept && tgtConcept
                   ? rect.left + canvasOffset.x + ((srcConcept.x + tgtConcept.x) / 2 + CONCEPT_W / 2) * canvasScale
@@ -5728,19 +5750,59 @@ function APMDashboardLive() {
                 const panelTop = srcConcept && tgtConcept
                   ? rect.top + canvasOffset.y + ((srcConcept.y + tgtConcept.y) / 2 + CONCEPT_H / 2) * canvasScale
                   : rect.top + 40;
+                const panelWidth = validVerbs.length === 0 && (outboundTargets.length || inboundSources.length) ? 320 : 280;
                 return (
-                  <div style={{ position: "fixed", left: Math.min(panelLeft, window.innerWidth - 300), top: Math.max(panelTop - 60, 80),
+                  <div style={{ position: "fixed", left: Math.min(panelLeft, window.innerWidth - panelWidth - 20), top: Math.max(panelTop - 60, 80),
                     background: COLORS.card, border: `1px solid ${COLORS.border}`,
-                    boxShadow: "0 16px 40px rgba(10,14,26,0.18)", borderRadius: 14, padding: 16, zIndex: 50, width: 280 }}>
+                    boxShadow: "0 16px 40px rgba(10,14,26,0.18)", borderRadius: 14, padding: 16, zIndex: 50, width: panelWidth,
+                    maxHeight: "70vh", overflowY: "auto" }}>
                     <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 4 }}>
-                      {srcConcept && tgtConcept ? `${srcConcept.conceptType} → ${tgtConcept.conceptType}` : "Choose a verb"}
+                      {srcConcept && tgtConcept ? `${humanizeLabel(srcConcept.conceptType)} → ${humanizeLabel(tgtConcept.conceptType)}` : "Choose a verb"}
                     </div>
                     {validVerbs.length === 0 ? (
                       <>
-                        <div style={{ fontSize: 12, color: COLORS.risk, lineHeight: 1.5, marginBottom: 12 }}>
-                          No relationship is defined from {srcConcept && srcConcept.conceptType} to {tgtConcept && tgtConcept.conceptType} in your
-                          ontology. Try reversing the direction, or check bdcore_schema.yaml.
+                        <div style={{ fontSize: 12, color: COLORS.ink, lineHeight: 1.5, marginBottom: 12 }}>
+                          Your ontology doesn't define <b>{srcConcept && humanizeLabel(srcConcept.conceptType)}</b> → <b>{tgtConcept && humanizeLabel(tgtConcept.conceptType)}</b>.
                         </div>
+
+                        {reverseRels.length > 0 && (
+                          <div style={{ background: `${COLORS.accent}14`, border: `1px solid ${COLORS.accent}44`, borderRadius: 10,
+                            padding: 10, marginBottom: 12 }}>
+                            <div style={{ fontSize: 11.5, color: COLORS.ink, lineHeight: 1.5, marginBottom: 8 }}>
+                              But the reverse direction is — <b>{humanizeLabel(tgtConcept.conceptType)}</b> can {reverseRels.map((r) => `"${r.verb}"`).join(" or ")} <b>{humanizeLabel(srcConcept.conceptType)}</b>.
+                            </div>
+                            <button onClick={reverseEdgeDirection}
+                              style={{ width: "100%", padding: "7px", background: COLORS.accent, color: "#fff",
+                                border: "none", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                              ↺ Reverse & Connect
+                            </button>
+                          </div>
+                        )}
+
+                        {(outboundTargets.length > 0 || inboundSources.length > 0) && (
+                          <div style={{ fontSize: 11, color: COLORS.inkSecondary, lineHeight: 1.6, marginBottom: 12 }}>
+                            {outboundTargets.length > 0 && (
+                              <div style={{ marginBottom: 8 }}>
+                                <b style={{ color: COLORS.ink }}>{humanizeLabel(srcConcept.conceptType)} can connect to:</b>
+                                <div>{outboundTargets.slice(0, 8).join(" · ")}{outboundTargets.length > 8 ? " · …" : ""}</div>
+                              </div>
+                            )}
+                            {inboundSources.length > 0 && (
+                              <div>
+                                <b style={{ color: COLORS.ink }}>{humanizeLabel(tgtConcept.conceptType)} can be connected from:</b>
+                                <div>{inboundSources.slice(0, 8).join(" · ")}{inboundSources.length > 8 ? " · …" : ""}</div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {reverseRels.length === 0 && outboundTargets.length === 0 && inboundSources.length === 0 && (
+                          <div style={{ fontSize: 11.5, color: COLORS.inkSecondary, lineHeight: 1.5, marginBottom: 12 }}>
+                            Neither type has any defined relationship in either direction — this may be a genuine
+                            gap in bdcore_schema.yaml rather than just the wrong pairing.
+                          </div>
+                        )}
+
                         <button onClick={cancelEdge}
                           style={{ width: "100%", padding: "7px", background: "transparent", color: COLORS.inkSecondary,
                             border: `1px solid ${COLORS.border}`, borderRadius: 6, fontSize: 12, cursor: "pointer" }}>Close</button>
