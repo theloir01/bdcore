@@ -1081,6 +1081,13 @@ function APMDashboardLive() {
   const [enumManagerCounts, setEnumManagerCounts] = useState({});
   const [enumManagerRemoveConfirm, setEnumManagerRemoveConfirm] = useState(null);
   const [enumManagerStatus, setEnumManagerStatus] = useState("");
+  const [showAttributeManager, setShowAttributeManager] = useState(false);
+  const [newAttrName, setNewAttrName] = useState("");
+  const [newAttrType, setNewAttrType] = useState("string");
+  const [newAttrOptions, setNewAttrOptions] = useState([]);
+  const [newAttrOptionDraft, setNewAttrOptionDraft] = useState("");
+  const [newAttrRequired, setNewAttrRequired] = useState(false);
+  const [attributeManagerStatus, setAttributeManagerStatus] = useState("");
   // Keeps the pervasive COLORS.ink/COLORS.accent in sync with the saved brand
   // on every render — a deliberate exception to "side effects belong in
   // useEffect": COLORS is a plain module-level object read by hundreds of
@@ -1701,6 +1708,55 @@ function APMDashboardLive() {
       setEnumManagerStatus("Saved.");
     } catch (e) {
       setEnumManagerStatus(`Couldn't save: ${e.message}`);
+    }
+  };
+
+  const addCustomAttrOption = () => {
+    const val = newAttrOptionDraft.trim();
+    if (!val || newAttrOptions.includes(val)) return;
+    setNewAttrOptions((prev) => [...prev, val]);
+    setNewAttrOptionDraft("");
+  };
+  const removeCustomAttrOption = (val) => setNewAttrOptions((prev) => prev.filter((v) => v !== val));
+  const closeAttributeManager = () => {
+    setShowAttributeManager(false);
+    setNewAttrName(""); setNewAttrType("string"); setNewAttrOptions([]); setNewAttrOptionDraft("");
+    setNewAttrRequired(false); setAttributeManagerStatus("");
+  };
+  // Mirrors exactly what load_schema.py's create_concept_types() does for each
+  // attribute in the YAML — same MERGE-on-{concept_type,name} key, same
+  // HAS_ATTRIBUTE relationship — so an attribute added here looks, to every
+  // other part of the app (the dynamic Add/Edit forms, the canvas, the AI
+  // chat's schema description), identical to one that shipped in the YAML.
+  const createCustomAttribute = async () => {
+    const name = newAttrName.trim();
+    if (!name) { setAttributeManagerStatus("Give it a name first."); return; }
+    const isEnumLike = newAttrType === "enum" || newAttrType === "multi_enum";
+    const alreadyExists = (schemaAttributes[omSelectedType] || []).some((a) => a.name.toLowerCase() === name.toLowerCase());
+    if (alreadyExists) { setAttributeManagerStatus(`${omSelectedType} already has an attribute called "${name}".`); return; }
+    if (isEnumLike && newAttrOptions.length === 0) { setAttributeManagerStatus("Add at least one option first."); return; }
+    setAttributeManagerStatus("Saving…");
+    try {
+      const apiUrl = deriveQueryApiUrl(uri, dbName);
+      const authHeader = "Basic " + btoa(`${username}:${password}`);
+      await runCypher(apiUrl, authHeader,
+        `MERGE (a:AttributeDefinition {concept_type: $type, name: $name})
+         SET a.type = $attrType, a.options = $options, a.required = $required
+         WITH a
+         MATCH (c:ConceptType {name: $type})
+         MERGE (c)-[:HAS_ATTRIBUTE]->(a)`,
+        { type: omSelectedType, name, attrType: newAttrType, options: isEnumLike ? newAttrOptions : null, required: newAttrRequired }
+      );
+      // Same local-cache patch as saveEnumOptions — the new field shows up in
+      // the Add/Edit form immediately, no reconnect needed.
+      setSchemaAttributes((prev) => ({
+        ...prev,
+        [omSelectedType]: [...(prev[omSelectedType] || []), { name, type: newAttrType, options: isEnumLike ? newAttrOptions : null }],
+      }));
+      setAttributeManagerStatus(`Added "${name}" to ${omSelectedType}.`);
+      setNewAttrName(""); setNewAttrType("string"); setNewAttrOptions([]); setNewAttrOptionDraft(""); setNewAttrRequired(false);
+    } catch (e) {
+      setAttributeManagerStatus(`Couldn't save: ${e.message}`);
     }
   };
 
@@ -3500,6 +3556,82 @@ function APMDashboardLive() {
         );
       })()}
 
+      {showAttributeManager && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(20,31,48,0.5)", zIndex: 200,
+          display: "flex", alignItems: "center", justifyContent: "center" }}
+          onClick={closeAttributeManager}>
+          <div onClick={(e) => e.stopPropagation()}
+            style={{ background: "#fff", borderRadius: 16, padding: 26, width: 460, maxHeight: "80vh", overflowY: "auto",
+              boxShadow: "0 24px 60px rgba(10,14,26,0.38)" }}>
+            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>Add a custom attribute</div>
+            <div style={{ fontSize: 12, color: COLORS.inkSecondary, marginBottom: 14 }}>{omSelectedType}</div>
+
+            <div style={{ background: "#F3F4FA", border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 10,
+              fontSize: 11.5, color: COLORS.inkSecondary, lineHeight: 1.5, marginBottom: 16 }}>
+              This writes straight to your graph's schema — every {omSelectedType}, present and future, gets this field
+              immediately, including in the AI chat's understanding of your data. It does <b>not</b> update
+              bdcore_schema.yaml: if you rerun load_schema.py later, this won't survive its clear-and-rebuild unless
+              you also add it to the YAML file.
+            </div>
+
+            <label style={{ fontSize: 12, display: "block", marginBottom: 12 }}>Attribute name
+              <input value={newAttrName} onChange={(e) => setNewAttrName(e.target.value)}
+                placeholder="e.g. DataClassification"
+                style={{ display: "block", width: "100%", marginTop: 4, padding: "7px 8px", border: `1px solid ${COLORS.border}`, borderRadius: 6, fontSize: 12.5 }} />
+            </label>
+
+            <label style={{ fontSize: 12, display: "block", marginBottom: 12 }}>Type
+              <select value={newAttrType} onChange={(e) => { setNewAttrType(e.target.value); setNewAttrOptions([]); }}
+                style={{ display: "block", width: "100%", marginTop: 4, padding: "7px 8px", border: `1px solid ${COLORS.border}`, borderRadius: 6, fontSize: 12.5 }}>
+                <option value="string">Text</option>
+                <option value="number">Number</option>
+                <option value="date">Date</option>
+                <option value="currency">Currency</option>
+                <option value="enum">Single choice (pick one)</option>
+                <option value="multi_enum">Multiple choice (pick several)</option>
+              </select>
+            </label>
+
+            {(newAttrType === "enum" || newAttrType === "multi_enum") && (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 12, marginBottom: 6 }}>Options</div>
+                {newAttrOptions.map((opt) => (
+                  <div key={opt} style={{ display: "flex", justifyContent: "space-between", alignItems: "center",
+                    padding: "6px 0", borderTop: `1px solid ${COLORS.border}` }}>
+                    <span style={{ fontSize: 13 }}>{opt}</span>
+                    <span onClick={() => removeCustomAttrOption(opt)} style={{ color: COLORS.risk, cursor: "pointer", fontSize: 12 }}>Remove</span>
+                  </div>
+                ))}
+                <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                  <input value={newAttrOptionDraft} onChange={(e) => setNewAttrOptionDraft(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustomAttrOption(); } }}
+                    placeholder="Add an option…"
+                    style={{ flex: 1, padding: "8px 10px", border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 13 }} />
+                  <button onClick={addCustomAttrOption}
+                    style={{ padding: "8px 14px", background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.border}`,
+                      borderRadius: 8, fontSize: 12.5, cursor: "pointer" }}>Add</button>
+                </div>
+              </div>
+            )}
+
+            <label style={{ fontSize: 12.5, display: "flex", alignItems: "center", gap: 7, marginBottom: 18, cursor: "pointer" }}>
+              <input type="checkbox" checked={newAttrRequired} onChange={(e) => setNewAttrRequired(e.target.checked)} />
+              Required on every new {omSelectedType}
+            </label>
+
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={createCustomAttribute}
+                style={{ flex: 1, padding: "9px", background: COLORS.ink, color: "#fff", border: "none", borderRadius: 8,
+                  fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>Add Attribute</button>
+              <button onClick={closeAttributeManager}
+                style={{ padding: "9px 14px", background: "transparent", color: COLORS.inkSecondary, border: `1px solid ${COLORS.border}`,
+                  borderRadius: 8, fontSize: 12.5, cursor: "pointer" }}>Close</button>
+            </div>
+            {attributeManagerStatus && <div style={{ fontSize: 11.5, color: COLORS.accent, marginTop: 8 }}>{attributeManagerStatus}</div>}
+          </div>
+        </div>
+      )}
+
       {status === "connected" && (
         <div style={{ width: 226, flexShrink: 0,
           background: "linear-gradient(190deg, #0D1220 0%, #0A0E1A 55%, #081410 100%)",
@@ -5000,6 +5132,11 @@ function APMDashboardLive() {
                   <div style={{ fontSize: 14, fontWeight: 600 }}>{omInstances.length} {omSelectedType}{omInstances.length === 1 ? "" : "s"}</div>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     {omStatus && <span style={{ fontSize: 12, color: COLORS.inkSecondary }}>{omStatus}</span>}
+                    <button onClick={() => setShowAttributeManager(true)}
+                      style={{ padding: "7px 14px", background: COLORS.card, color: COLORS.ink,
+                        border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 12.5, cursor: "pointer" }}>
+                      + Add Attribute
+                    </button>
                     <button onClick={() => { setShowEnumManager(true); setEnumManagerAttrName(null); }}
                       style={{ padding: "7px 14px", background: COLORS.card, color: COLORS.ink,
                         border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 12.5, cursor: "pointer" }}>
