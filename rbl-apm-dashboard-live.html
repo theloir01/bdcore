@@ -1290,6 +1290,11 @@ function APMDashboardLive() {
     try { localStorage.setItem("bdcore_sidebar_collapsed", next ? "1" : "0"); } catch {}
     return next;
   });
+  // Which of the two expandable top-level sections (APM's own view list, or the
+  // Workspaces/canvas tree) is showing its children — accordion-style, one at a
+  // time, so the sidebar doesn't show everything at once. Ontology Manager has
+  // no children of its own, so it isn't part of this.
+  const [openTopSection, setOpenTopSection] = useState("apm");
   const [chatMessages, setChatMessages] = useState([]);
   const [canvasChatInput, setCanvasChatInput] = useState("");
   const [canvasChatLoading, setCanvasChatLoading] = useState(false);
@@ -3758,62 +3763,58 @@ function APMDashboardLive() {
             </button>
           )}
 
-          {/* APM / Workspaces / Ontology — a normal vertical nav list, not a squeezed
-              3-way segmented pill, so "Workspaces" has room to breathe like every
-              other nav row below it. */}
-          {[
-            { key: "apm", label: "APM", active: view !== "canvas" && view !== "ontology", onClick: () => setView("brief"),
-              icon: <path d="M4 19V5M4 19h16M9 19V11M14 19V7M19 19v-5" /> },
-            { key: "canvas", label: "Workspaces", active: view === "canvas", onClick: () => setView("canvas"),
-              icon: <><circle cx="6" cy="6" r="2.2" /><circle cx="18" cy="6" r="2.2" /><circle cx="12" cy="18" r="2.2" />
-                <line x1="7.6" y1="7.6" x2="10.7" y2="16.1" /><line x1="16.4" y1="7.6" x2="13.3" y2="16.1" /><line x1="8.2" y1="6" x2="15.8" y2="6" /></> },
-            { key: "ontology", label: "Ontology", active: view === "ontology", onClick: () => { setView("ontology"); loadOmInstances(omSelectedType); },
-              icon: <><rect x="4" y="4" width="16" height="16" rx="3" /><path d="M4 10h16M10 4v16" /></> },
-          ].map((item) => (
-            <button key={item.key} onClick={item.onClick} title={item.label}
-              style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left",
-                justifyContent: sidebarCollapsed ? "center" : "flex-start",
-                padding: sidebarCollapsed ? "9px 0" : "9px 12px", fontSize: 13, fontWeight: 700, borderRadius: 9,
-                cursor: "pointer", border: "none", marginBottom: 3,
-                background: item.active ? `${COLORS.accent}14` : "transparent",
-                color: item.active ? COLORS.accent : COLORS.inkSecondary }}>
+          {/* APM and Workspaces are collapsible sections (their children — the
+              APM view list, the workspace/canvas tree — nest and indent under
+              them, accordion-style); Ontology Manager is a single destination
+              with no children, so it's a plain nav row like the ones below it. */}
+          <div className="ds-nav-pill" title="APM"
+            onClick={() => {
+              if (sidebarCollapsed) { toggleSidebarCollapsed(); if (view === "canvas" || view === "ontology") setView("brief"); setOpenTopSection("apm"); return; }
+              if (view === "canvas" || view === "ontology") setView("brief");
+              setOpenTopSection((prev) => prev === "apm" ? null : "apm");
+            }}
+            style={{ display: "flex", justifyContent: sidebarCollapsed ? "center" : "space-between", alignItems: "center", cursor: "pointer",
+              padding: sidebarCollapsed ? "9px 0" : "9px 12px", fontSize: 13, fontWeight: 700, borderRadius: 9, marginBottom: 3,
+              background: (view !== "canvas" && view !== "ontology") ? `${COLORS.accent}14` : "transparent",
+              color: (view !== "canvas" && view !== "ontology") ? COLORS.accent : COLORS.inkSecondary }}>
+            <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
-                strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>{item.icon}</svg>
-              {!sidebarCollapsed && <span>{item.label}</span>}
-            </button>
-          ))}
-          <div style={{ height: 1, background: COLORS.border, margin: sidebarCollapsed ? "10px 2px 14px" : "10px 8px 14px" }} />
-
-          {view !== "canvas" && view !== "ontology" ? (
-            <>
+                strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d="M4 19V5M4 19h16M9 19V11M14 19V7M19 19v-5" /></svg>
+              {!sidebarCollapsed && "APM"}
+            </span>
+            {!sidebarCollapsed && (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+                strokeLinecap="round" strokeLinejoin="round"
+                style={{ flexShrink: 0, transition: "transform 0.2s ease", transform: openTopSection === "apm" ? "rotate(0deg)" : "rotate(-90deg)" }}>
+                <polyline points="6,9 12,15 18,9" />
+              </svg>
+            )}
+          </div>
+          {!sidebarCollapsed && openTopSection === "apm" && (
+            <div style={{ paddingLeft: 10, borderLeft: `1px solid ${COLORS.border}`, marginLeft: 12, marginBottom: 6 }}>
               {NAV_ITEMS.map(([key, label, icon]) => (
                 <button key={key} className={view === key ? "ds-nav-pill ds-nav-pill-active" : "ds-nav-pill"} title={label}
-                  onClick={() => { setView(key); setSelectedNode(null); }} style={navButtonStyle(key, sidebarCollapsed)}>
-                  {ICONS[icon]}{!sidebarCollapsed && <span>{label}</span>}
+                  onClick={() => { setView(key); setSelectedNode(null); }} style={navButtonStyle(key, false)}>
+                  {ICONS[icon]}<span>{label}</span>
                 </button>
               ))}
 
               {NAV_GROUPS.map((group) => (
                 <div key={group.key}>
                   <div className="ds-nav-pill" title={group.label}
-                    onClick={() => {
-                      if (sidebarCollapsed) { toggleSidebarCollapsed(); setOpenGroups((prev) => ({ ...prev, [group.key]: true })); }
-                      else setOpenGroups((prev) => ({ ...prev, [group.key]: !prev[group.key] }));
-                    }}
-                    style={{ display: "flex", justifyContent: sidebarCollapsed ? "center" : "space-between", alignItems: "center", cursor: "pointer",
-                      padding: sidebarCollapsed ? "9px 0" : "9px 14px", fontSize: 12, fontWeight: 600, color: COLORS.inkSecondary, marginTop: 10, borderRadius: 9,
+                    onClick={() => setOpenGroups((prev) => ({ ...prev, [group.key]: !prev[group.key] }))}
+                    style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer",
+                      padding: "9px 14px", fontSize: 12, fontWeight: 600, color: COLORS.inkSecondary, marginTop: 10, borderRadius: 9,
                       textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                    <span style={{ display: "flex", alignItems: "center", gap: 8 }}>{ICONS[group.icon]}{!sidebarCollapsed && group.label}</span>
-                    {!sidebarCollapsed && (
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
-                        strokeLinecap="round" strokeLinejoin="round"
-                        style={{ flexShrink: 0, transition: "transform 0.2s ease",
-                          transform: openGroups[group.key] ? "rotate(0deg)" : "rotate(-90deg)" }}>
-                        <polyline points="6,9 12,15 18,9" />
-                      </svg>
-                    )}
+                    <span style={{ display: "flex", alignItems: "center", gap: 8 }}>{ICONS[group.icon]}{group.label}</span>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+                      strokeLinecap="round" strokeLinejoin="round"
+                      style={{ flexShrink: 0, transition: "transform 0.2s ease",
+                        transform: openGroups[group.key] ? "rotate(0deg)" : "rotate(-90deg)" }}>
+                      <polyline points="6,9 12,15 18,9" />
+                    </svg>
                   </div>
-                  {!sidebarCollapsed && openGroups[group.key] && group.items.map(([key, label, icon]) => (
+                  {openGroups[group.key] && group.items.map(([key, label, icon]) => (
                     <button key={key} className={view === key ? "ds-nav-pill ds-nav-pill-active" : "ds-nav-pill"} onClick={() => { setView(key); setSelectedNode(null); }}
                       style={{ ...navButtonStyle(key, false), paddingLeft: 20, fontSize: 13 }}>
                       {ICONS[icon]}<span>{label}</span>
@@ -3821,12 +3822,40 @@ function APMDashboardLive() {
                   ))}
                 </div>
               ))}
-            </>
-          ) : sidebarCollapsed ? null : view === "canvas" ? (
-            <>
+            </div>
+          )}
+
+          <div className="ds-nav-pill" title="Workspaces"
+            onClick={() => {
+              if (sidebarCollapsed) { toggleSidebarCollapsed(); if (view !== "canvas") setView("canvas"); setOpenTopSection("workspaces"); return; }
+              if (view !== "canvas") setView("canvas");
+              setOpenTopSection((prev) => prev === "workspaces" ? null : "workspaces");
+            }}
+            style={{ display: "flex", justifyContent: sidebarCollapsed ? "center" : "space-between", alignItems: "center", cursor: "pointer",
+              padding: sidebarCollapsed ? "9px 0" : "9px 12px", fontSize: 13, fontWeight: 700, borderRadius: 9, marginBottom: 3,
+              background: view === "canvas" ? `${COLORS.accent}14` : "transparent",
+              color: view === "canvas" ? COLORS.accent : COLORS.inkSecondary }}>
+            <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
+                strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                <circle cx="6" cy="6" r="2.2" /><circle cx="18" cy="6" r="2.2" /><circle cx="12" cy="18" r="2.2" />
+                <line x1="7.6" y1="7.6" x2="10.7" y2="16.1" /><line x1="16.4" y1="7.6" x2="13.3" y2="16.1" /><line x1="8.2" y1="6" x2="15.8" y2="6" />
+              </svg>
+              {!sidebarCollapsed && "Workspaces"}
+            </span>
+            {!sidebarCollapsed && (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+                strokeLinecap="round" strokeLinejoin="round"
+                style={{ flexShrink: 0, transition: "transform 0.2s ease", transform: openTopSection === "workspaces" ? "rotate(0deg)" : "rotate(-90deg)" }}>
+                <polyline points="6,9 12,15 18,9" />
+              </svg>
+            )}
+          </div>
+          {!sidebarCollapsed && openTopSection === "workspaces" && (
+            <div style={{ paddingLeft: 10, borderLeft: `1px solid ${COLORS.border}`, marginLeft: 12, marginBottom: 6 }}>
               {workspaces.map((ws) => (
                 <div key={ws.id}>
-                  <div style={{ display: "flex", alignItems: "center", padding: "9px 10px 9px 14px" }}>
+                  <div style={{ display: "flex", alignItems: "center", padding: "9px 10px 9px 4px" }}>
                     <span onClick={() => setOpenWorkspaces((prev) => ({ ...prev, [ws.id]: !prev[ws.id] }))}
                       style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, cursor: "pointer",
                         fontSize: 12.5, fontWeight: 600, color: COLORS.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -3846,7 +3875,7 @@ function APMDashboardLive() {
                       {canvasList.filter((c) => c.workspaceId === ws.id).map((c) => (
                         <div key={c.id} style={{ display: "flex", alignItems: "center", marginBottom: 2 }}>
                           <button onClick={() => switchCanvas(c.id)}
-                            style={{ flex: 1, textAlign: "left", padding: "7px 8px 7px 30px", fontSize: 12.5, borderRadius: 8,
+                            style={{ flex: 1, textAlign: "left", padding: "7px 8px 7px 20px", fontSize: 12.5, borderRadius: 8,
                               border: "none", cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                               background: activeCanvasId === c.id ? `${COLORS.accent}14` : "transparent",
                               color: activeCanvasId === c.id ? COLORS.accent : COLORS.inkSecondary }}>
@@ -3859,7 +3888,7 @@ function APMDashboardLive() {
                         </div>
                       ))}
                       <button onClick={() => createCanvasInWorkspace(ws.id)}
-                        style={{ display: "block", width: "100%", textAlign: "left", padding: "6px 14px 6px 30px",
+                        style={{ display: "block", width: "100%", textAlign: "left", padding: "6px 14px 6px 20px",
                           fontSize: 12, border: "none", background: "transparent", color: COLORS.inkSecondary, cursor: "pointer" }}>
                         + New Canvas
                       </button>
@@ -3868,17 +3897,27 @@ function APMDashboardLive() {
                 </div>
               ))}
               <button onClick={createWorkspace}
-                style={{ display: "block", width: "calc(100% - 16px)", margin: "10px 8px 0", textAlign: "left",
-                  padding: "8px 14px", fontSize: 12.5, fontWeight: 600, borderRadius: 8,
+                style={{ display: "block", width: "100%", margin: "10px 0 0", textAlign: "left",
+                  padding: "8px 10px", fontSize: 12.5, fontWeight: 600, borderRadius: 8,
                   border: `1px dashed ${COLORS.border}`, background: "transparent", color: COLORS.inkSecondary, cursor: "pointer" }}>
                 + New Workspace
               </button>
-            </>
-          ) : view === "ontology" ? (
-            <div style={{ padding: "10px 14px", fontSize: 11.5, color: COLORS.inkSecondary, lineHeight: 1.6 }}>
+            </div>
+          )}
+
+          <button className={view === "ontology" ? "ds-nav-pill ds-nav-pill-active" : "ds-nav-pill"} title="Ontology Manager"
+            onClick={() => { setView("ontology"); loadOmInstances(omSelectedType); }} style={navButtonStyle("ontology", sidebarCollapsed)}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
+              strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+              <rect x="4" y="4" width="16" height="16" rx="3" /><path d="M4 10h16M10 4v16" />
+            </svg>
+            {!sidebarCollapsed && <span>Ontology Manager</span>}
+          </button>
+          {!sidebarCollapsed && view === "ontology" && (
+            <div style={{ padding: "8px 14px 0", fontSize: 11.5, color: COLORS.inkSecondary, lineHeight: 1.6 }}>
               Pick a concept type and manage its instances directly — the type selector and table are in the main panel.
             </div>
-          ) : null}
+          )}
 
           {!sidebarCollapsed && (
             <div style={{ marginTop: 28, paddingTop: 14, borderTop: `1px solid ${COLORS.border}` }}>
