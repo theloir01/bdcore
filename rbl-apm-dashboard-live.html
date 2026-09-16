@@ -341,6 +341,32 @@ function rectTrimDistance(ux, uy, halfW, halfH) {
   return Math.min(tx, ty);
 }
 
+// Anchors an edge to whatever point on each box's perimeter actually faces
+// the other end — not one of 4 fixed midpoints, so edges fan out naturally
+// instead of every edge into/out of a node converging on the same pixel.
+// Aims at the nearest waypoint rather than the other box's raw center when
+// the edge has been manually bent, so the exit/entry point still faces the
+// bend instead of pointing through it.
+function computeEdgeEndpoints(src, srcW, srcH, tgt, tgtW, tgtH, waypoints) {
+  const cx1 = src.x + srcW / 2, cy1 = src.y + srcH / 2;
+  const cx2 = tgt.x + tgtW / 2, cy2 = tgt.y + tgtH / 2;
+  const aim1 = waypoints && waypoints.length ? waypoints[0] : { x: cx2, y: cy2 };
+  const aim2 = waypoints && waypoints.length ? waypoints[waypoints.length - 1] : { x: cx1, y: cy1 };
+  const d1x = aim1.x - cx1, d1y = aim1.y - cy1;
+  const dist1 = Math.sqrt(d1x * d1x + d1y * d1y) || 1;
+  const ux1 = d1x / dist1, uy1 = d1y / dist1;
+  const d2x = aim2.x - cx2, d2y = aim2.y - cy2;
+  const dist2 = Math.sqrt(d2x * d2x + d2y * d2y) || 1;
+  const ux2 = d2x / dist2, uy2 = d2y / dist2;
+  const GAP = 6;
+  const trim1 = rectTrimDistance(ux1, uy1, srcW / 2, srcH / 2) + GAP;
+  const trim2 = rectTrimDistance(ux2, uy2, tgtW / 2, tgtH / 2) + GAP;
+  return {
+    x1: cx1 + ux1 * trim1, y1: cy1 + uy1 * trim1,
+    x2: cx2 + ux2 * trim2, y2: cy2 + uy2 * trim2,
+  };
+}
+
 function findFreePosition(desiredX, desiredY, existingItems, w, h) {
   const pad = 24;
   const overlaps = (x, y) => existingItems.some((it) => {
@@ -2650,9 +2676,20 @@ function APMDashboardLive() {
         if (!dup) newEdges.push({ id: newCanvasId("edge"), sourceId, targetId, verb, pushed: true, expandedFrom: concept.id });
       });
 
-      if (newConcepts.length) setCanvasConcepts((prev) => [...prev, ...newConcepts]);
-      if (newEdges.length) setCanvasEdges((prev) => [...prev, ...newEdges]);
-      setCanvasConcepts((prev) => prev.map((c) => c.id === concept.id ? { ...c, expanded: true } : c));
+      // Build the merged arrays synchronously (rather than two separate setState
+      // calls) so they can be handed straight to autoOrganizeCanvas below — React
+      // hasn't necessarily re-rendered with a setCanvasConcepts call yet, so reading
+      // canvasConcepts/canvasEdges back out of state here wouldn't see the new nodes.
+      const mergedConcepts = canvasConcepts
+        .map((c) => c.id === concept.id ? { ...c, expanded: true } : c)
+        .concat(newConcepts);
+      const mergedEdges = [...canvasEdges, ...newEdges];
+      setCanvasConcepts(mergedConcepts);
+      setCanvasEdges(mergedEdges);
+      // Newly expanded nodes land in a radial scatter above — auto-organize into a
+      // clean tree with elbow-routed edges instead, same as the AI "draw on canvas"
+      // flow does after its own bulk adds.
+      if (newConcepts.length) autoOrganizeCanvas(mergedConcepts, mergedEdges);
       setCanvasStatus(relRows.length === 0
         ? `${concept.name} has no relationships to expand.`
         : `Expanded ${concept.name}: ${relRows.length} relationship${relRows.length === 1 ? "" : "s"} added.`);
@@ -5387,7 +5424,7 @@ function APMDashboardLive() {
 
                 <button onClick={() => saveCanvas()} title="Save Canvas" style={iconToolBtnStyle}>{TOOLBAR_ICONS.save}</button>
                 <button onClick={() => { setCanvasScale(1); setCanvasOffset({ x: 400, y: 300 }); }} title="Reset View" style={iconToolBtnStyle}>{TOOLBAR_ICONS.resetView}</button>
-                <button onClick={autoOrganizeCanvas} title="Organize — auto-arrange concepts into a tree" style={iconToolBtnStyle}>{TOOLBAR_ICONS.organize}</button>
+                <button onClick={() => autoOrganizeCanvas()} title="Organize — auto-arrange concepts into a tree" style={iconToolBtnStyle}>{TOOLBAR_ICONS.organize}</button>
                 <button onClick={() => {
                     if (!window.confirm("Clear everything on the canvas? This only affects the canvas — nothing already pushed to Neo4j is touched.")) return;
                     setStickies([]); setCanvasConcepts([]); setCanvasEdges([]); setCanvasTexts([]); setShapes([]); setShapeEdges([]); setFreeArrows([]);
@@ -5449,30 +5486,8 @@ function APMDashboardLive() {
                       if (!src || !tgt) return null;
                       const srcW = src.width || CONCEPT_W, srcH = src.height || CONCEPT_H;
                       const tgtW = tgt.width || CONCEPT_W, tgtH = tgt.height || CONCEPT_H;
-                      let x1, y1, x2, y2, srcAnchor = e.sourceAnchor, tgtAnchor = e.targetAnchor;
-                      if (e.sourceAnchor && e.targetAnchor) {
-                        const p1 = getAnchorPoint(src, srcW, srcH, e.sourceAnchor);
-                        const p2 = getAnchorPoint(tgt, tgtW, tgtH, e.targetAnchor);
-                        const n1 = ANCHOR_NORMAL[e.sourceAnchor] || { x: 1, y: 0 };
-                        const n2 = ANCHOR_NORMAL[e.targetAnchor] || { x: -1, y: 0 };
-                        x1 = p1.x + n1.x * 6; y1 = p1.y + n1.y * 6; // small pull-back off the exact anchor for visual breathing room
-                        x2 = p2.x + n2.x * 6; y2 = p2.y + n2.y * 6;
-                      } else {
-                        // Older edges saved before anchors existed — fall back to the
-                        // original centre-to-centre trim so nothing breaks on reload.
-                        const cx1 = src.x + srcW / 2, cy1 = src.y + srcH / 2;
-                        const cx2 = tgt.x + tgtW / 2, cy2 = tgt.y + tgtH / 2;
-                        const dx = cx2 - cx1, dy = cy2 - cy1;
-                        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-                        const ux = dx / dist, uy = dy / dist;
-                        const GAP = 8;
-                        const trim1 = rectTrimDistance(ux, uy, srcW / 2, srcH / 2) + GAP;
-                        const trim2 = rectTrimDistance(-ux, -uy, tgtW / 2, tgtH / 2) + GAP;
-                        x1 = cx1 + ux * trim1; y1 = cy1 + uy * trim1;
-                        x2 = cx2 - ux * trim2; y2 = cy2 - uy * trim2;
-                        srcAnchor = srcAnchor || "right"; tgtAnchor = tgtAnchor || "left";
-                      }
                       const hasWaypoints = e.waypoints && e.waypoints.length > 0;
+                      const { x1, y1, x2, y2 } = computeEdgeEndpoints(src, srcW, srcH, tgt, tgtW, tgtH, e.waypoints);
                       const path = hasWaypoints
                         ? [{ x: x1, y: y1 }, ...e.waypoints, { x: x2, y: y2 }]
                         : [{ x: x1, y: y1 }, { x: x2, y: y2 }]; // straight by default — bending is opt-in via the drag handles, not automatic
@@ -5528,27 +5543,8 @@ function APMDashboardLive() {
                       if (!src || !tgt) return null;
                       const srcW = src.width || SHAPE_W, srcH = src.height || SHAPE_H;
                       const tgtW = tgt.width || SHAPE_W, tgtH = tgt.height || SHAPE_H;
-                      let x1, y1, x2, y2, srcAnchor = e.sourceAnchor, tgtAnchor = e.targetAnchor;
-                      if (e.sourceAnchor && e.targetAnchor) {
-                        const p1 = getAnchorPoint(src, srcW, srcH, e.sourceAnchor);
-                        const p2 = getAnchorPoint(tgt, tgtW, tgtH, e.targetAnchor);
-                        const n1 = ANCHOR_NORMAL[e.sourceAnchor] || { x: 1, y: 0 };
-                        const n2 = ANCHOR_NORMAL[e.targetAnchor] || { x: -1, y: 0 };
-                        x1 = p1.x + n1.x * 6; y1 = p1.y + n1.y * 6;
-                        x2 = p2.x + n2.x * 6; y2 = p2.y + n2.y * 6;
-                      } else {
-                        const cx1 = src.x + srcW / 2, cy1 = src.y + srcH / 2;
-                        const cx2 = tgt.x + tgtW / 2, cy2 = tgt.y + tgtH / 2;
-                        const dx = cx2 - cx1, dy = cy2 - cy1;
-                        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-                        const ux = dx / dist, uy = dy / dist;
-                        const trim1 = rectTrimDistance(ux, uy, srcW / 2, srcH / 2) + 6;
-                        const trim2 = rectTrimDistance(-ux, -uy, tgtW / 2, tgtH / 2) + 6;
-                        x1 = cx1 + ux * trim1; y1 = cy1 + uy * trim1;
-                        x2 = cx2 - ux * trim2; y2 = cy2 - uy * trim2;
-                        srcAnchor = srcAnchor || "right"; tgtAnchor = tgtAnchor || "left";
-                      }
                       const hasWaypoints = e.waypoints && e.waypoints.length > 0;
+                      const { x1, y1, x2, y2 } = computeEdgeEndpoints(src, srcW, srcH, tgt, tgtW, tgtH, e.waypoints);
                       const path = hasWaypoints
                         ? [{ x: x1, y: y1 }, ...e.waypoints, { x: x2, y: y2 }]
                         : [{ x: x1, y: y1 }, { x: x2, y: y2 }]; // straight by default — bending is opt-in via the drag handles, not automatic
