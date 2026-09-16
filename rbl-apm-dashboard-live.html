@@ -1282,6 +1282,14 @@ function APMDashboardLive() {
   const [hoveredEdge, setHoveredEdge] = useState(null);
   const [view, setView] = useState("landing");
   const [openGroups, setOpenGroups] = useState({ costrisk: false, datatrust: false, ai: false, modernisation: false, journeys: false });
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try { return localStorage.getItem("bdcore_sidebar_collapsed") === "1"; } catch { return false; }
+  });
+  const toggleSidebarCollapsed = () => setSidebarCollapsed((prev) => {
+    const next = !prev;
+    try { localStorage.setItem("bdcore_sidebar_collapsed", next ? "1" : "0"); } catch {}
+    return next;
+  });
   const [chatMessages, setChatMessages] = useState([]);
   const [canvasChatInput, setCanvasChatInput] = useState("");
   const [canvasChatLoading, setCanvasChatLoading] = useState(false);
@@ -2340,8 +2348,10 @@ function APMDashboardLive() {
   const iconToolBtnStyle = { width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center",
     background: "transparent", color: COLORS.ink, border: "none", borderRadius: 8, cursor: "pointer" };
 
-  const navButtonStyle = (key) => ({
-    display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", padding: "9px 14px", fontSize: 13.5,
+  const navButtonStyle = (key, collapsed) => ({
+    display: "flex", alignItems: "center", gap: 10, width: "100%",
+    textAlign: "left", justifyContent: collapsed ? "center" : "flex-start",
+    padding: collapsed ? "9px 0" : "9px 14px", fontSize: 13.5,
     cursor: "pointer", borderRadius: 9, border: "none", marginBottom: 2,
     background: view === key ? `${COLORS.accent}14` : "transparent",
     color: view === key ? COLORS.accent : COLORS.inkSecondary,
@@ -3708,81 +3718,111 @@ function APMDashboardLive() {
       })()}
 
       {status === "connected" && (
-        <div style={{ width: 240, flexShrink: 0,
+        <div style={{ width: sidebarCollapsed ? 68 : 240, flexShrink: 0,
           background: "#FFFFFF", borderRight: `1px solid ${COLORS.border}`,
-          padding: "22px 14px", minHeight: "100vh", position: "relative" }}>
-          <div onClick={() => setView("landing")}
-            style={{ display: "flex", alignItems: "center", gap: 9, padding: "0 8px", marginBottom: 24, cursor: "pointer" }}>
-            <div style={{ width: 28, height: 28, borderRadius: 8, background: COLORS.gradientAccent,
-              display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#06170F" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="6" cy="6" r="2.2" /><circle cx="18" cy="6" r="2.2" /><circle cx="12" cy="18" r="2.2" />
-                <line x1="7.6" y1="7.6" x2="10.7" y2="16.1" /><line x1="16.4" y1="7.6" x2="13.3" y2="16.1" /><line x1="8.2" y1="6" x2="15.8" y2="6" />
-              </svg>
+          padding: sidebarCollapsed ? "22px 10px" : "22px 14px", minHeight: "100vh", position: "relative",
+          transition: "width 0.18s ease, padding 0.18s ease" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: sidebarCollapsed ? "center" : "space-between", marginBottom: 20 }}>
+            <div onClick={() => setView("landing")}
+              style={{ display: "flex", alignItems: "center", gap: 9, cursor: "pointer", overflow: "hidden", minWidth: 0 }}>
+              <div style={{ width: 28, height: 28, borderRadius: 8, background: COLORS.gradientAccent,
+                display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#06170F" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="6" cy="6" r="2.2" /><circle cx="18" cy="6" r="2.2" /><circle cx="12" cy="18" r="2.2" />
+                  <line x1="7.6" y1="7.6" x2="10.7" y2="16.1" /><line x1="16.4" y1="7.6" x2="13.3" y2="16.1" /><line x1="8.2" y1="6" x2="15.8" y2="6" />
+                </svg>
+              </div>
+              {!sidebarCollapsed && (
+                <div style={{ color: COLORS.ink, fontSize: 14, fontWeight: 700, letterSpacing: "0.01em", fontFamily: "var(--font-display)",
+                  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Unify Workspace</div>
+              )}
             </div>
-            <div style={{ color: COLORS.ink, fontSize: 14, fontWeight: 700, letterSpacing: "0.01em", fontFamily: "var(--font-display)" }}>Unify Workspace</div>
+            {!sidebarCollapsed && (
+              <button onClick={toggleSidebarCollapsed} title="Collapse sidebar"
+                style={{ width: 24, height: 24, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
+                  background: "transparent", border: "none", borderRadius: 6, cursor: "pointer", color: COLORS.inkSecondary }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="15,6 9,12 15,18" />
+                </svg>
+              </button>
+            )}
           </div>
+          {sidebarCollapsed && (
+            <button onClick={toggleSidebarCollapsed} title="Expand sidebar"
+              style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 18,
+                background: "transparent", border: `1px solid ${COLORS.border}`, borderRadius: 8, cursor: "pointer",
+                color: COLORS.inkSecondary, padding: "6px 0" }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9,6 15,12 9,18" />
+              </svg>
+            </button>
+          )}
 
-          <div style={{ display: "flex", gap: 3, marginBottom: 24, padding: 3, background: COLORS.paper,
-            borderRadius: 10, border: `1px solid ${COLORS.border}` }}>
-            <button onClick={() => setView("brief")}
-              style={{ flex: 1, padding: "7px 0", fontSize: 11.5, fontWeight: 700, borderRadius: 8, cursor: "pointer",
-                border: "none", transition: "background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease",
-                background: (view !== "canvas" && view !== "ontology") ? COLORS.card : "transparent",
-                color: (view !== "canvas" && view !== "ontology") ? COLORS.accent : COLORS.inkSecondary,
-                boxShadow: (view !== "canvas" && view !== "ontology") ? "0 1px 3px rgba(10,14,26,0.12)" : "none" }}>
-              APM
+          {/* APM / Workspaces / Ontology — a normal vertical nav list, not a squeezed
+              3-way segmented pill, so "Workspaces" has room to breathe like every
+              other nav row below it. */}
+          {[
+            { key: "apm", label: "APM", active: view !== "canvas" && view !== "ontology", onClick: () => setView("brief"),
+              icon: <path d="M4 19V5M4 19h16M9 19V11M14 19V7M19 19v-5" /> },
+            { key: "canvas", label: "Workspaces", active: view === "canvas", onClick: () => setView("canvas"),
+              icon: <><circle cx="6" cy="6" r="2.2" /><circle cx="18" cy="6" r="2.2" /><circle cx="12" cy="18" r="2.2" />
+                <line x1="7.6" y1="7.6" x2="10.7" y2="16.1" /><line x1="16.4" y1="7.6" x2="13.3" y2="16.1" /><line x1="8.2" y1="6" x2="15.8" y2="6" /></> },
+            { key: "ontology", label: "Ontology", active: view === "ontology", onClick: () => { setView("ontology"); loadOmInstances(omSelectedType); },
+              icon: <><rect x="4" y="4" width="16" height="16" rx="3" /><path d="M4 10h16M10 4v16" /></> },
+          ].map((item) => (
+            <button key={item.key} onClick={item.onClick} title={item.label}
+              style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left",
+                justifyContent: sidebarCollapsed ? "center" : "flex-start",
+                padding: sidebarCollapsed ? "9px 0" : "9px 12px", fontSize: 13, fontWeight: 700, borderRadius: 9,
+                cursor: "pointer", border: "none", marginBottom: 3,
+                background: item.active ? `${COLORS.accent}14` : "transparent",
+                color: item.active ? COLORS.accent : COLORS.inkSecondary }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
+                strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>{item.icon}</svg>
+              {!sidebarCollapsed && <span>{item.label}</span>}
             </button>
-            <button onClick={() => setView("canvas")}
-              style={{ flex: 1, padding: "7px 0", fontSize: 11.5, fontWeight: 700, borderRadius: 8, cursor: "pointer",
-                border: "none", transition: "background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease",
-                background: view === "canvas" ? COLORS.card : "transparent",
-                color: view === "canvas" ? COLORS.accent : COLORS.inkSecondary,
-                boxShadow: view === "canvas" ? "0 1px 3px rgba(10,14,26,0.12)" : "none" }}>
-              Workspaces
-            </button>
-            <button onClick={() => { setView("ontology"); loadOmInstances(omSelectedType); }}
-              style={{ flex: 1, padding: "7px 0", fontSize: 11.5, fontWeight: 700, borderRadius: 8, cursor: "pointer",
-                border: "none", transition: "background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease",
-                background: view === "ontology" ? COLORS.card : "transparent",
-                color: view === "ontology" ? COLORS.accent : COLORS.inkSecondary,
-                boxShadow: view === "ontology" ? "0 1px 3px rgba(10,14,26,0.12)" : "none" }}>
-              Ontology
-            </button>
-          </div>
+          ))}
+          <div style={{ height: 1, background: COLORS.border, margin: sidebarCollapsed ? "10px 2px 14px" : "10px 8px 14px" }} />
 
           {view !== "canvas" && view !== "ontology" ? (
             <>
               {NAV_ITEMS.map(([key, label, icon]) => (
-                <button key={key} className={view === key ? "ds-nav-pill ds-nav-pill-active" : "ds-nav-pill"} onClick={() => { setView(key); setSelectedNode(null); }} style={navButtonStyle(key)}>
-                  {ICONS[icon]}<span>{label}</span>
+                <button key={key} className={view === key ? "ds-nav-pill ds-nav-pill-active" : "ds-nav-pill"} title={label}
+                  onClick={() => { setView(key); setSelectedNode(null); }} style={navButtonStyle(key, sidebarCollapsed)}>
+                  {ICONS[icon]}{!sidebarCollapsed && <span>{label}</span>}
                 </button>
               ))}
 
               {NAV_GROUPS.map((group) => (
                 <div key={group.key}>
-                  <div className="ds-nav-pill" onClick={() => setOpenGroups((prev) => ({ ...prev, [group.key]: !prev[group.key] }))}
-                    style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer",
-                      padding: "9px 14px", fontSize: 12, fontWeight: 600, color: COLORS.inkSecondary, marginTop: 10, borderRadius: 9,
+                  <div className="ds-nav-pill" title={group.label}
+                    onClick={() => {
+                      if (sidebarCollapsed) { toggleSidebarCollapsed(); setOpenGroups((prev) => ({ ...prev, [group.key]: true })); }
+                      else setOpenGroups((prev) => ({ ...prev, [group.key]: !prev[group.key] }));
+                    }}
+                    style={{ display: "flex", justifyContent: sidebarCollapsed ? "center" : "space-between", alignItems: "center", cursor: "pointer",
+                      padding: sidebarCollapsed ? "9px 0" : "9px 14px", fontSize: 12, fontWeight: 600, color: COLORS.inkSecondary, marginTop: 10, borderRadius: 9,
                       textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                    <span style={{ display: "flex", alignItems: "center", gap: 8 }}>{ICONS[group.icon]}{group.label}</span>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
-                      strokeLinecap="round" strokeLinejoin="round"
-                      style={{ flexShrink: 0, transition: "transform 0.2s ease",
-                        transform: openGroups[group.key] ? "rotate(0deg)" : "rotate(-90deg)" }}>
-                      <polyline points="6,9 12,15 18,9" />
-                    </svg>
+                    <span style={{ display: "flex", alignItems: "center", gap: 8 }}>{ICONS[group.icon]}{!sidebarCollapsed && group.label}</span>
+                    {!sidebarCollapsed && (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+                        strokeLinecap="round" strokeLinejoin="round"
+                        style={{ flexShrink: 0, transition: "transform 0.2s ease",
+                          transform: openGroups[group.key] ? "rotate(0deg)" : "rotate(-90deg)" }}>
+                        <polyline points="6,9 12,15 18,9" />
+                      </svg>
+                    )}
                   </div>
-                  {openGroups[group.key] && group.items.map(([key, label, icon]) => (
+                  {!sidebarCollapsed && openGroups[group.key] && group.items.map(([key, label, icon]) => (
                     <button key={key} className={view === key ? "ds-nav-pill ds-nav-pill-active" : "ds-nav-pill"} onClick={() => { setView(key); setSelectedNode(null); }}
-                      style={{ ...navButtonStyle(key), paddingLeft: 20, fontSize: 13 }}>
+                      style={{ ...navButtonStyle(key, false), paddingLeft: 20, fontSize: 13 }}>
                       {ICONS[icon]}<span>{label}</span>
                     </button>
                   ))}
                 </div>
               ))}
             </>
-          ) : view === "canvas" ? (
+          ) : sidebarCollapsed ? null : view === "canvas" ? (
             <>
               {workspaces.map((ws) => (
                 <div key={ws.id}>
@@ -3840,15 +3880,17 @@ function APMDashboardLive() {
             </div>
           ) : null}
 
-          <div style={{ marginTop: 28, paddingTop: 14, borderTop: `1px solid ${COLORS.border}` }}>
-            <span onClick={() => setShowBrandSettings(true)}
-              style={{ display: "block", fontSize: 11.5, color: COLORS.inkSecondary, cursor: "pointer", padding: "0 8px 8px 8px" }}>
-              ⚙ Customize branding
-            </span>
-            <div style={{ fontSize: 10.5, color: "#9AA5B1", padding: "0 8px", letterSpacing: "0.02em" }}>
-              Powered by Bizzdesign
+          {!sidebarCollapsed && (
+            <div style={{ marginTop: 28, paddingTop: 14, borderTop: `1px solid ${COLORS.border}` }}>
+              <span onClick={() => setShowBrandSettings(true)}
+                style={{ display: "block", fontSize: 11.5, color: COLORS.inkSecondary, cursor: "pointer", padding: "0 8px 8px 8px" }}>
+                ⚙ Customize branding
+              </span>
+              <div style={{ fontSize: 10.5, color: "#9AA5B1", padding: "0 8px", letterSpacing: "0.02em" }}>
+                Powered by Bizzdesign
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
 
