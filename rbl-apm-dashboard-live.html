@@ -5785,8 +5785,7 @@ function APMDashboardLive() {
                               <div style={{ marginBottom: 10 }}>
                                 <b style={{ color: COLORS.ink, fontSize: 11.5 }}>{humanizeLabel(srcConcept.conceptType)} can connect to:</b>
                                 <ul style={{ margin: "4px 0 0", paddingLeft: 16, lineHeight: 1.5 }}>
-                                  {outboundTargets.slice(0, 8).map((t) => <li key={t}>{t}</li>)}
-                                  {outboundTargets.length > 8 && <li style={{ fontStyle: "italic" }}>+{outboundTargets.length - 8} more</li>}
+                                  {outboundTargets.map((t) => <li key={t}>{t}</li>)}
                                 </ul>
                               </div>
                             )}
@@ -5794,8 +5793,7 @@ function APMDashboardLive() {
                               <div>
                                 <b style={{ color: COLORS.ink, fontSize: 11.5 }}>{humanizeLabel(tgtConcept.conceptType)} can be connected from:</b>
                                 <ul style={{ margin: "4px 0 0", paddingLeft: 16, lineHeight: 1.5 }}>
-                                  {inboundSources.slice(0, 8).map((s) => <li key={s}>{s}</li>)}
-                                  {inboundSources.length > 8 && <li style={{ fontStyle: "italic" }}>+{inboundSources.length - 8} more</li>}
+                                  {inboundSources.map((s) => <li key={s}>{s}</li>)}
                                 </ul>
                               </div>
                             )}
