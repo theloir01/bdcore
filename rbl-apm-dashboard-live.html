@@ -5750,7 +5750,7 @@ function APMDashboardLive() {
                 const panelTop = srcConcept && tgtConcept
                   ? rect.top + canvasOffset.y + ((srcConcept.y + tgtConcept.y) / 2 + CONCEPT_H / 2) * canvasScale
                   : rect.top + 40;
-                const panelWidth = validVerbs.length === 0 && (outboundTargets.length || inboundSources.length) ? 320 : 280;
+                const panelWidth = validVerbs.length === 0 && (outboundTargets.length || inboundSources.length) ? 360 : 280;
                 return (
                   <div style={{ position: "fixed", left: Math.min(panelLeft, window.innerWidth - panelWidth - 20), top: Math.max(panelTop - 60, 80),
                     background: COLORS.card, border: `1px solid ${COLORS.border}`,
@@ -5780,17 +5780,23 @@ function APMDashboardLive() {
                         )}
 
                         {(outboundTargets.length > 0 || inboundSources.length > 0) && (
-                          <div style={{ fontSize: 11, color: COLORS.inkSecondary, lineHeight: 1.6, marginBottom: 12 }}>
+                          <div style={{ fontSize: 11, color: COLORS.inkSecondary, marginBottom: 12 }}>
                             {outboundTargets.length > 0 && (
-                              <div style={{ marginBottom: 8 }}>
-                                <b style={{ color: COLORS.ink }}>{humanizeLabel(srcConcept.conceptType)} can connect to:</b>
-                                <div>{outboundTargets.slice(0, 8).join(" · ")}{outboundTargets.length > 8 ? " · …" : ""}</div>
+                              <div style={{ marginBottom: 10 }}>
+                                <b style={{ color: COLORS.ink, fontSize: 11.5 }}>{humanizeLabel(srcConcept.conceptType)} can connect to:</b>
+                                <ul style={{ margin: "4px 0 0", paddingLeft: 16, lineHeight: 1.5 }}>
+                                  {outboundTargets.slice(0, 8).map((t) => <li key={t}>{t}</li>)}
+                                  {outboundTargets.length > 8 && <li style={{ fontStyle: "italic" }}>+{outboundTargets.length - 8} more</li>}
+                                </ul>
                               </div>
                             )}
                             {inboundSources.length > 0 && (
                               <div>
-                                <b style={{ color: COLORS.ink }}>{humanizeLabel(tgtConcept.conceptType)} can be connected from:</b>
-                                <div>{inboundSources.slice(0, 8).join(" · ")}{inboundSources.length > 8 ? " · …" : ""}</div>
+                                <b style={{ color: COLORS.ink, fontSize: 11.5 }}>{humanizeLabel(tgtConcept.conceptType)} can be connected from:</b>
+                                <ul style={{ margin: "4px 0 0", paddingLeft: 16, lineHeight: 1.5 }}>
+                                  {inboundSources.slice(0, 8).map((s) => <li key={s}>{s}</li>)}
+                                  {inboundSources.length > 8 && <li style={{ fontStyle: "italic" }}>+{inboundSources.length - 8} more</li>}
+                                </ul>
                               </div>
                             )}
                           </div>
