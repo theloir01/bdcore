@@ -847,6 +847,17 @@ function edgeStyle(relType) {
 const healthLabel = { 1: "Poor", 2: "Adequate", 3: "Good", 4: "Good" };
 const valueLabel = { 1: "Low", 2: "Medium", 3: "High" };
 const fmtGBP = (n) => n == null ? "—" : `£${Number(n).toLocaleString("en-GB", { maximumFractionDigits: 0 })}`;
+const fmtWhen = (iso) => {
+  if (!iso) return "—";
+  const then = new Date(iso), diffMs = Date.now() - then.getTime(), mins = Math.round(diffMs / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return then.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: then.getFullYear() === new Date().getFullYear() ? undefined : "numeric" });
+};
 
 function deriveQueryApiUrl(uri, dbName) {
   const host = uri.trim().replace(/^neo4j\+s:\/\//, "").replace(/^neo4j:\/\//, "")
@@ -1474,7 +1485,7 @@ function APMDashboardLive() {
         `MATCH (w:Workspace) RETURN w.id AS id, w.name AS name ORDER BY w.name`
       );
       const canvasSummaryRows = await runCypher(apiUrl, authHeader,
-        `MATCH (c:Canvas) RETURN c.id AS id, c.name AS name, c.workspaceId AS workspaceId ORDER BY c.name`
+        `MATCH (c:Canvas) RETURN c.id AS id, c.name AS name, c.workspaceId AS workspaceId, c.updatedAt AS updatedAt ORDER BY c.name`
       );
       let finalWorkspaces = workspaceRows;
       let finalCanvases = canvasSummaryRows;
@@ -1496,7 +1507,7 @@ function APMDashboardLive() {
             now: new Date().toISOString() }
         );
         finalWorkspaces = [{ id: wsId, name: "My Workspace" }];
-        finalCanvases = [{ id: canvasId, name: "Canvas 1", workspaceId: wsId }];
+        finalCanvases = [{ id: canvasId, name: "Canvas 1", workspaceId: wsId, updatedAt: new Date().toISOString() }];
       }
       setWorkspaces(finalWorkspaces);
       setCanvasList(finalCanvases);
@@ -2409,10 +2420,12 @@ function APMDashboardLive() {
         shapeEdges: shapeEdgesArg !== undefined ? shapeEdgesArg : shapeEdges,
         arrows: arrowsArg !== undefined ? arrowsArg : freeArrows,
       });
+      const now = new Date().toISOString();
       await runCypher(apiUrl, authHeader,
         `MERGE (c:Canvas {id: $id}) SET c.data = $data, c.updatedAt = $now`,
-        { id: targetId, data, now: new Date().toISOString() }
+        { id: targetId, data, now }
       );
+      setCanvasList((prev) => prev.map((c) => c.id === targetId ? { ...c, updatedAt: now } : c));
       setCanvasStatus("Saved");
       setTimeout(() => setCanvasStatus(""), 1500);
     } catch (e) {
@@ -2478,11 +2491,12 @@ function APMDashboardLive() {
       const authHeader = "Basic " + btoa(`${username}:${password}`);
       const canvasId = newCanvasId("pcanvas");
       const emptyData = JSON.stringify({ stickies: [], concepts: [], edges: [], texts: [] });
+      const now = new Date().toISOString();
       await runCypher(apiUrl, authHeader,
         `CREATE (c:Canvas {id: $id, name: $name, workspaceId: $wsId, data: $data, updatedAt: $now})`,
-        { id: canvasId, name, wsId: workspaceId, data: emptyData, now: new Date().toISOString() }
+        { id: canvasId, name, wsId: workspaceId, data: emptyData, now }
       );
-      setCanvasList((prev) => [...prev, { id: canvasId, name, workspaceId }]);
+      setCanvasList((prev) => [...prev, { id: canvasId, name, workspaceId, updatedAt: now }]);
       switchCanvas(canvasId);
     } catch (e) {
       setCanvasStatus(`Couldn't create canvas: ${e.message}`);
@@ -3462,7 +3476,7 @@ function APMDashboardLive() {
 
   const VIEW_TITLES = {
     brief: "Executive Brief", portfolio: "Portfolio Overview", blocked: "Blocked Decisions",
-    canvas: "Modelling Canvas",
+    canvas: "Modelling Canvas", workspaces: "Workspaces",
     capboard: "Capability Board", dependencies: "Dependencies & Impact", health: "Portfolio Health",
     redundancy: "Redundancy", shortlist: "Decision Shortlist", ai: "AI Opportunity", aitime: "AI-TIME",
     obsolescence: "Tech Obsolescence", cloudmigration: "Cloud Migration", techradar: "Tech Radar",
@@ -3773,14 +3787,14 @@ function APMDashboardLive() {
               with no children, so it's a plain nav row like the ones below it. */}
           <div className="ds-nav-pill" title="APM"
             onClick={() => {
-              if (sidebarCollapsed) { toggleSidebarCollapsed(); if (view === "canvas" || view === "ontology") setView("brief"); setOpenTopSection("apm"); return; }
-              if (view === "canvas" || view === "ontology") setView("brief");
+              if (sidebarCollapsed) { toggleSidebarCollapsed(); if (view === "canvas" || view === "workspaces" || view === "ontology") setView("brief"); setOpenTopSection("apm"); return; }
+              if (view === "canvas" || view === "workspaces" || view === "ontology") setView("brief");
               setOpenTopSection((prev) => prev === "apm" ? null : "apm");
             }}
             style={{ display: "flex", justifyContent: sidebarCollapsed ? "center" : "space-between", alignItems: "center", cursor: "pointer",
               padding: sidebarCollapsed ? "9px 0" : "9px 12px", fontSize: 13, fontWeight: 700, borderRadius: 9, marginBottom: 3,
-              background: (view !== "canvas" && view !== "ontology") ? `${COLORS.accent}14` : "transparent",
-              color: (view !== "canvas" && view !== "ontology") ? COLORS.accent : COLORS.inkSecondary }}>
+              background: (view !== "canvas" && view !== "workspaces" && view !== "ontology") ? `${COLORS.accent}14` : "transparent",
+              color: (view !== "canvas" && view !== "workspaces" && view !== "ontology") ? COLORS.accent : COLORS.inkSecondary }}>
             <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
                 strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d="M4 19V5M4 19h16M9 19V11M14 19V7M19 19v-5" /></svg>
@@ -3831,14 +3845,17 @@ function APMDashboardLive() {
 
           <div className="ds-nav-pill" title="Workspaces"
             onClick={() => {
-              if (sidebarCollapsed) { toggleSidebarCollapsed(); if (view !== "canvas") setView("canvas"); setOpenTopSection("workspaces"); return; }
-              if (view !== "canvas") setView("canvas");
+              // Clicking the row itself (not a specific canvas in the tree below) always
+              // goes to the Workspace Manager overview, not straight into whatever canvas
+              // happened to auto-load last — the whole point is to let you choose.
+              if (sidebarCollapsed) { toggleSidebarCollapsed(); setView("workspaces"); setOpenTopSection("workspaces"); return; }
+              setView("workspaces");
               setOpenTopSection((prev) => prev === "workspaces" ? null : "workspaces");
             }}
             style={{ display: "flex", justifyContent: sidebarCollapsed ? "center" : "space-between", alignItems: "center", cursor: "pointer",
               padding: sidebarCollapsed ? "9px 0" : "9px 12px", fontSize: 13, fontWeight: 700, borderRadius: 9, marginBottom: 3,
-              background: view === "canvas" ? `${COLORS.accent}14` : "transparent",
-              color: view === "canvas" ? COLORS.accent : COLORS.inkSecondary }}>
+              background: (view === "canvas" || view === "workspaces") ? `${COLORS.accent}14` : "transparent",
+              color: (view === "canvas" || view === "workspaces") ? COLORS.accent : COLORS.inkSecondary }}>
             <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
                 strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
@@ -5412,6 +5429,78 @@ function APMDashboardLive() {
               </div>
             );
           })()}
+
+          {view === "workspaces" && (
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+                <div style={{ fontSize: 13, color: COLORS.inkSecondary, maxWidth: 640, lineHeight: 1.6 }}>
+                  Pick a canvas to open it, or start something new. Nothing here is pushed to the real graph until
+                  you explicitly push a canvas to it.
+                </div>
+                <button onClick={createWorkspace} className="ds-btn-primary" style={{ padding: "9px 18px", borderRadius: 8,
+                  fontSize: 13, fontWeight: 700, flexShrink: 0 }}>
+                  + New Workspace
+                </button>
+              </div>
+
+              {workspaces.map((ws) => {
+                const wsCanvases = canvasList.filter((c) => c.workspaceId === ws.id);
+                return (
+                  <div key={ws.id} style={{ marginBottom: 28 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <div style={{ fontSize: 15.5, fontWeight: 700, fontFamily: "var(--font-display)" }}>{ws.name}</div>
+                        <div style={{ fontSize: 11.5, color: COLORS.inkSecondary }}>
+                          {wsCanvases.length} canvas{wsCanvases.length === 1 ? "" : "es"}
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", gap: 4 }}>
+                        <span onClick={() => renameWorkspace(ws)} title="Rename workspace"
+                          style={{ fontSize: 12, color: COLORS.inkSecondary, cursor: "pointer", padding: "2px 6px" }}>✎</span>
+                        <span onClick={() => deleteWorkspace(ws)} title="Delete workspace"
+                          style={{ fontSize: 13, color: COLORS.inkSecondary, cursor: "pointer", padding: "2px 6px" }}>✕</span>
+                      </div>
+                    </div>
+                    <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`,
+                      borderRadius: 14, overflow: "hidden" }}>
+                      {wsCanvases.length === 0 ? (
+                        <div style={{ padding: "18px 16px", fontSize: 12.5, color: COLORS.inkSecondary }}>No canvases in this workspace yet.</div>
+                      ) : (
+                        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                          <tbody>
+                            {wsCanvases.map((c) => (
+                              <tr key={c.id} onClick={() => switchCanvas(c.id)}
+                                style={{ cursor: "pointer", borderBottom: `1px solid ${COLORS.border}` }}>
+                                <td style={{ padding: "12px 16px", fontSize: 13.5, fontWeight: 600,
+                                  color: c.id === activeCanvasId ? COLORS.accent : COLORS.ink }}>
+                                  <span style={{ display: "flex", alignItems: "center", gap: 8 }}>{ICONS.canvas}{c.name}</span>
+                                </td>
+                                <td style={{ padding: "12px 16px", fontSize: 12, color: COLORS.inkSecondary, textAlign: "right", whiteSpace: "nowrap" }}>
+                                  Updated {fmtWhen(c.updatedAt)}
+                                </td>
+                                <td style={{ padding: "12px 16px", textAlign: "right", whiteSpace: "nowrap" }}>
+                                  <span onClick={(e) => { e.stopPropagation(); renameCanvas(c); }} title="Rename canvas"
+                                    style={{ fontSize: 12, color: COLORS.inkSecondary, cursor: "pointer", padding: "0 6px" }}>✎</span>
+                                  <span onClick={(e) => { e.stopPropagation(); deleteCanvas(c); }} title="Delete canvas"
+                                    style={{ fontSize: 13, color: COLORS.inkSecondary, cursor: "pointer", padding: "0 6px" }}>✕</span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                      <button onClick={() => createCanvasInWorkspace(ws.id)}
+                        style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 16px",
+                          fontSize: 12.5, fontWeight: 600, border: "none", borderTop: `1px solid ${COLORS.border}`,
+                          background: "transparent", color: COLORS.inkSecondary, cursor: "pointer" }}>
+                        + New Canvas
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
           {view === "canvas" && (
             <div>
