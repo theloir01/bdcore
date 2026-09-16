@@ -147,7 +147,7 @@
   .ds-btn-primary:active { transform: translateY(0); }
 
   .ds-nav-pill { transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease; }
-  .ds-nav-pill:not(.ds-nav-pill-active):hover { background: rgba(255,255,255,0.08) !important; color: #fff !important; }
+  .ds-nav-pill:not(.ds-nav-pill-active):hover { background: var(--paper) !important; color: var(--ink) !important; }
 
   .skeleton {
     background: linear-gradient(90deg, #EDEFF7 25%, #F7F8FC 37%, #EDEFF7 63%);
@@ -2342,11 +2342,10 @@ function APMDashboardLive() {
 
   const navButtonStyle = (key) => ({
     display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", padding: "9px 14px", fontSize: 13.5,
-    fontWeight: 500, cursor: "pointer", borderRadius: 10, border: "none", marginBottom: 2,
-    background: view === key ? "linear-gradient(135deg, rgba(14,169,104,0.9), rgba(34,211,166,0.85))" : "transparent",
-    color: view === key ? "#06170F" : "#AEB8CC",
+    cursor: "pointer", borderRadius: 9, border: "none", marginBottom: 2,
+    background: view === key ? `${COLORS.accent}14` : "transparent",
+    color: view === key ? COLORS.accent : COLORS.inkSecondary,
     fontWeight: view === key ? 700 : 500,
-    boxShadow: view === key ? "0 4px 14px rgba(14,169,104,0.35)" : "none",
   });
   const ICON_COMMON = { width: 16, height: 16, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round", strokeLinejoin: "round", style: { flexShrink: 0 } };
   const ICONS = {
@@ -3709,48 +3708,45 @@ function APMDashboardLive() {
       })()}
 
       {status === "connected" && (
-        <div style={{ width: 226, flexShrink: 0,
-          background: "linear-gradient(190deg, #0D1220 0%, #0A0E1A 55%, #081410 100%)",
-          padding: "22px 14px", minHeight: "100vh", position: "relative", overflow: "hidden" }}>
-          <div style={{ position: "absolute", top: -80, left: -60, width: 200, height: 200, borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(14,169,104,0.28), transparent 70%)", pointerEvents: "none" }} />
+        <div style={{ width: 240, flexShrink: 0,
+          background: "#FFFFFF", borderRight: `1px solid ${COLORS.border}`,
+          padding: "22px 14px", minHeight: "100vh", position: "relative" }}>
           <div onClick={() => setView("landing")}
-            style={{ display: "flex", alignItems: "center", gap: 9, padding: "0 8px", marginBottom: 20, cursor: "pointer", position: "relative" }}>
-            <div style={{ width: 26, height: 26, borderRadius: 8, background: COLORS.gradientAccent,
-              display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-              boxShadow: "0 4px 12px rgba(14,169,104,0.45)" }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#06170F" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            style={{ display: "flex", alignItems: "center", gap: 9, padding: "0 8px", marginBottom: 24, cursor: "pointer" }}>
+            <div style={{ width: 28, height: 28, borderRadius: 8, background: COLORS.gradientAccent,
+              display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#06170F" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="6" cy="6" r="2.2" /><circle cx="18" cy="6" r="2.2" /><circle cx="12" cy="18" r="2.2" />
                 <line x1="7.6" y1="7.6" x2="10.7" y2="16.1" /><line x1="16.4" y1="7.6" x2="13.3" y2="16.1" /><line x1="8.2" y1="6" x2="15.8" y2="6" />
               </svg>
             </div>
-            <div style={{ color: "#fff", fontSize: 14, fontWeight: 700, letterSpacing: "0.01em", fontFamily: "var(--font-display)" }}>Unify Workspace</div>
+            <div style={{ color: COLORS.ink, fontSize: 14, fontWeight: 700, letterSpacing: "0.01em", fontFamily: "var(--font-display)" }}>Unify Workspace</div>
           </div>
 
-          <div style={{ display: "flex", gap: 4, marginBottom: 22, padding: 3, background: "rgba(255,255,255,0.05)",
-            borderRadius: 12, position: "relative" }}>
+          <div style={{ display: "flex", gap: 3, marginBottom: 24, padding: 3, background: COLORS.paper,
+            borderRadius: 10, border: `1px solid ${COLORS.border}` }}>
             <button onClick={() => setView("brief")}
-              style={{ flex: 1, padding: "7px 0", fontSize: 11.5, fontWeight: 700, borderRadius: 9, cursor: "pointer",
-                border: "none", transition: "background 0.15s ease, color 0.15s ease",
-                background: (view !== "canvas" && view !== "ontology") ? COLORS.gradientAccent : "transparent",
-                color: (view !== "canvas" && view !== "ontology") ? "#06170F" : "#8891A6",
-                boxShadow: (view !== "canvas" && view !== "ontology") ? "0 3px 10px rgba(14,169,104,0.35)" : "none" }}>
+              style={{ flex: 1, padding: "7px 0", fontSize: 11.5, fontWeight: 700, borderRadius: 8, cursor: "pointer",
+                border: "none", transition: "background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease",
+                background: (view !== "canvas" && view !== "ontology") ? COLORS.card : "transparent",
+                color: (view !== "canvas" && view !== "ontology") ? COLORS.accent : COLORS.inkSecondary,
+                boxShadow: (view !== "canvas" && view !== "ontology") ? "0 1px 3px rgba(10,14,26,0.12)" : "none" }}>
               APM
             </button>
             <button onClick={() => setView("canvas")}
-              style={{ flex: 1, padding: "7px 0", fontSize: 11.5, fontWeight: 700, borderRadius: 9, cursor: "pointer",
-                border: "none", transition: "background 0.15s ease, color 0.15s ease",
-                background: view === "canvas" ? COLORS.gradientAccent : "transparent",
-                color: view === "canvas" ? "#06170F" : "#8891A6",
-                boxShadow: view === "canvas" ? "0 3px 10px rgba(14,169,104,0.35)" : "none" }}>
+              style={{ flex: 1, padding: "7px 0", fontSize: 11.5, fontWeight: 700, borderRadius: 8, cursor: "pointer",
+                border: "none", transition: "background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease",
+                background: view === "canvas" ? COLORS.card : "transparent",
+                color: view === "canvas" ? COLORS.accent : COLORS.inkSecondary,
+                boxShadow: view === "canvas" ? "0 1px 3px rgba(10,14,26,0.12)" : "none" }}>
               Workspaces
             </button>
             <button onClick={() => { setView("ontology"); loadOmInstances(omSelectedType); }}
-              style={{ flex: 1, padding: "7px 0", fontSize: 11.5, fontWeight: 700, borderRadius: 9, cursor: "pointer",
-                border: "none", transition: "background 0.15s ease, color 0.15s ease",
-                background: view === "ontology" ? COLORS.gradientAccent : "transparent",
-                color: view === "ontology" ? "#06170F" : "#8891A6",
-                boxShadow: view === "ontology" ? "0 3px 10px rgba(14,169,104,0.35)" : "none" }}>
+              style={{ flex: 1, padding: "7px 0", fontSize: 11.5, fontWeight: 700, borderRadius: 8, cursor: "pointer",
+                border: "none", transition: "background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease",
+                background: view === "ontology" ? COLORS.card : "transparent",
+                color: view === "ontology" ? COLORS.accent : COLORS.inkSecondary,
+                boxShadow: view === "ontology" ? "0 1px 3px rgba(10,14,26,0.12)" : "none" }}>
               Ontology
             </button>
           </div>
@@ -3767,7 +3763,7 @@ function APMDashboardLive() {
                 <div key={group.key}>
                   <div className="ds-nav-pill" onClick={() => setOpenGroups((prev) => ({ ...prev, [group.key]: !prev[group.key] }))}
                     style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer",
-                      padding: "9px 14px", fontSize: 12, fontWeight: 600, color: "#9AA5B1", marginTop: 10, borderRadius: 10,
+                      padding: "9px 14px", fontSize: 12, fontWeight: 600, color: COLORS.inkSecondary, marginTop: 10, borderRadius: 9,
                       textTransform: "uppercase", letterSpacing: "0.05em" }}>
                     <span style={{ display: "flex", alignItems: "center", gap: 8 }}>{ICONS[group.icon]}{group.label}</span>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
@@ -3793,15 +3789,15 @@ function APMDashboardLive() {
                   <div style={{ display: "flex", alignItems: "center", padding: "9px 10px 9px 14px" }}>
                     <span onClick={() => setOpenWorkspaces((prev) => ({ ...prev, [ws.id]: !prev[ws.id] }))}
                       style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, cursor: "pointer",
-                        fontSize: 12.5, fontWeight: 600, color: "#C5CDD4", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        fontSize: 12.5, fontWeight: 600, color: COLORS.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {ICONS.canvas} {ws.name}
                     </span>
                     <span onClick={() => renameWorkspace(ws)} title="Rename workspace"
-                      style={{ fontSize: 11, color: "#7E8A96", cursor: "pointer", padding: "0 5px" }}>✎</span>
+                      style={{ fontSize: 11, color: COLORS.inkSecondary, cursor: "pointer", padding: "0 5px" }}>✎</span>
                     <span onClick={() => deleteWorkspace(ws)} title="Delete workspace"
-                      style={{ fontSize: 12, color: "#7E8A96", cursor: "pointer", padding: "0 5px" }}>✕</span>
+                      style={{ fontSize: 12, color: COLORS.inkSecondary, cursor: "pointer", padding: "0 5px" }}>✕</span>
                     <span onClick={() => setOpenWorkspaces((prev) => ({ ...prev, [ws.id]: !prev[ws.id] }))}
-                      style={{ fontSize: 10, color: "#C5CDD4", cursor: "pointer", flexShrink: 0, paddingLeft: 2 }}>
+                      style={{ fontSize: 10, color: COLORS.inkSecondary, cursor: "pointer", flexShrink: 0, paddingLeft: 2 }}>
                       {openWorkspaces[ws.id] ? "▾" : "▸"}
                     </span>
                   </div>
@@ -3812,19 +3808,19 @@ function APMDashboardLive() {
                           <button onClick={() => switchCanvas(c.id)}
                             style={{ flex: 1, textAlign: "left", padding: "7px 8px 7px 30px", fontSize: 12.5, borderRadius: 8,
                               border: "none", cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                              background: activeCanvasId === c.id ? "rgba(255,255,255,0.12)" : "transparent",
-                              color: activeCanvasId === c.id ? "#fff" : "#9AA5B1" }}>
+                              background: activeCanvasId === c.id ? `${COLORS.accent}14` : "transparent",
+                              color: activeCanvasId === c.id ? COLORS.accent : COLORS.inkSecondary }}>
                             {c.name}
                           </button>
                           <span onClick={() => renameCanvas(c)} title="Rename canvas"
-                            style={{ fontSize: 11, color: "#7E8A96", cursor: "pointer", padding: "0 5px" }}>✎</span>
+                            style={{ fontSize: 11, color: COLORS.inkSecondary, cursor: "pointer", padding: "0 5px" }}>✎</span>
                           <span onClick={() => deleteCanvas(c)} title="Delete canvas"
-                            style={{ fontSize: 12, color: "#7E8A96", cursor: "pointer", padding: "0 8px 0 5px" }}>✕</span>
+                            style={{ fontSize: 12, color: COLORS.inkSecondary, cursor: "pointer", padding: "0 8px 0 5px" }}>✕</span>
                         </div>
                       ))}
                       <button onClick={() => createCanvasInWorkspace(ws.id)}
                         style={{ display: "block", width: "100%", textAlign: "left", padding: "6px 14px 6px 30px",
-                          fontSize: 12, border: "none", background: "transparent", color: "#7E8A96", cursor: "pointer" }}>
+                          fontSize: 12, border: "none", background: "transparent", color: COLORS.inkSecondary, cursor: "pointer" }}>
                         + New Canvas
                       </button>
                     </>
@@ -3834,22 +3830,22 @@ function APMDashboardLive() {
               <button onClick={createWorkspace}
                 style={{ display: "block", width: "calc(100% - 16px)", margin: "10px 8px 0", textAlign: "left",
                   padding: "8px 14px", fontSize: 12.5, fontWeight: 600, borderRadius: 8,
-                  border: "1px dashed rgba(255,255,255,0.25)", background: "transparent", color: "#9AA5B1", cursor: "pointer" }}>
+                  border: `1px dashed ${COLORS.border}`, background: "transparent", color: COLORS.inkSecondary, cursor: "pointer" }}>
                 + New Workspace
               </button>
             </>
           ) : view === "ontology" ? (
-            <div style={{ padding: "10px 14px", fontSize: 11.5, color: "#7E8A96", lineHeight: 1.6 }}>
+            <div style={{ padding: "10px 14px", fontSize: 11.5, color: COLORS.inkSecondary, lineHeight: 1.6 }}>
               Pick a concept type and manage its instances directly — the type selector and table are in the main panel.
             </div>
           ) : null}
 
-          <div style={{ marginTop: 28, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.1)" }}>
+          <div style={{ marginTop: 28, paddingTop: 14, borderTop: `1px solid ${COLORS.border}` }}>
             <span onClick={() => setShowBrandSettings(true)}
-              style={{ display: "block", fontSize: 11.5, color: "#7E8A96", cursor: "pointer", padding: "0 8px 8px 8px" }}>
+              style={{ display: "block", fontSize: 11.5, color: COLORS.inkSecondary, cursor: "pointer", padding: "0 8px 8px 8px" }}>
               ⚙ Customize branding
             </span>
-            <div style={{ fontSize: 10.5, color: "#5A6472", padding: "0 8px", letterSpacing: "0.02em" }}>
+            <div style={{ fontSize: 10.5, color: "#9AA5B1", padding: "0 8px", letterSpacing: "0.02em" }}>
               Powered by Bizzdesign
             </div>
           </div>
@@ -4940,51 +4936,69 @@ function APMDashboardLive() {
           {view === "landing" && (() => {
             const cards = [
               { key: "brief", title: "Executive Brief", desc: "The five numbers that matter most, at a glance.", color: "#0EA968",
-                icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8"><path d="M4 19V5M4 19h16M9 19V11M14 19V7M19 19v-5" /></svg> },
+                icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0EA968" strokeWidth="1.8"><path d="M4 19V5M4 19h16M9 19V11M14 19V7M19 19v-5" /></svg> },
               { key: "portfolio", title: "Portfolio Overview", desc: "Every application — TIME quadrant, 6R disposition, full inventory.", color: "#3E7A9B",
-                icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8"><rect x="3" y="4" width="7" height="7" rx="1" /><rect x="14" y="4" width="7" height="7" rx="1" /><rect x="3" y="15" width="7" height="5" rx="1" /><rect x="14" y="15" width="7" height="5" rx="1" /></svg> },
+                icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3E7A9B" strokeWidth="1.8"><rect x="3" y="4" width="7" height="7" rx="1" /><rect x="14" y="4" width="7" height="7" rx="1" /><rect x="3" y="15" width="7" height="5" rx="1" /><rect x="14" y="15" width="7" height="5" rx="1" /></svg> },
               { key: "canvas", title: "Modelling Canvas", desc: "Sketch freely, formalise deliberately — or ask AI to draw it for you.", color: "#7B5EA7",
-                icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8"><circle cx="6" cy="6" r="2.5" /><circle cx="18" cy="6" r="2.5" /><circle cx="12" cy="18" r="2.5" /><path d="M8.2 7.2l7.6 1.2M13 16l-2-6M11 16l2-6" /></svg> },
+                icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7B5EA7" strokeWidth="1.8"><circle cx="6" cy="6" r="2.5" /><circle cx="18" cy="6" r="2.5" /><circle cx="12" cy="18" r="2.5" /><path d="M8.2 7.2l7.6 1.2M13 16l-2-6M11 16l2-6" /></svg> },
               { key: "ontology", title: "Ontology Manager", desc: "All 23 concept types, managed directly — add, edit, delete.", color: "#D97706",
-                icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8"><rect x="4" y="4" width="16" height="16" rx="3" /><path d="M4 10h16M10 4v16" /></svg> },
+                icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="1.8"><rect x="4" y="4" width="16" height="16" rx="3" /><path d="M4 10h16M10 4v16" /></svg> },
               { key: "decisionlog", title: "Decision Log", desc: "Every architecture decision — consequences, and what superseded what.", color: "#F0384D",
-                icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8"><path d="M7 3h8l4 4v14H7z" /><path d="M15 3v4h4" /><line x1="9.5" y1="12" x2="16" y2="12" /><line x1="9.5" y1="16" x2="16" y2="16" /></svg> },
+                icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F0384D" strokeWidth="1.8"><path d="M7 3h8l4 4v14H7z" /><path d="M15 3v4h4" /><line x1="9.5" y1="12" x2="16" y2="12" /><line x1="9.5" y1="16" x2="16" y2="16" /></svg> },
               { key: "ai", title: "AI Opportunity", desc: "Where AI would help most, mapped against data readiness.", color: "#2C7A8C",
-                icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8"><path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8" /><circle cx="12" cy="12" r="3" /></svg> },
+                icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2C7A8C" strokeWidth="1.8"><path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8" /><circle cx="12" cy="12" r="3" /></svg> },
+            ];
+            const quickStats = [
+              { label: "Applications", count: apps.length },
+              { label: "Decisions", count: decisions.length },
+              { label: "Concept Types", count: 23 },
             ];
             return (
               <div>
-                <div className="hero-flashy" style={{ borderRadius: 24, padding: "64px 48px", marginBottom: 36, textAlign: "center",
-                  position: "relative", overflow: "hidden" }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase",
-                    color: "rgba(255,255,255,0.55)", marginBottom: 14 }}>
+                <div style={{ textAlign: "center", padding: "48px 20px 8px", maxWidth: 680, margin: "0 auto" }}>
+                  <div style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 11.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase",
+                    color: COLORS.inkSecondary, marginBottom: 18, padding: "5px 13px", background: COLORS.card,
+                    border: `1px solid ${COLORS.border}`, borderRadius: 999 }}>
+                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: COLORS.accent, flexShrink: 0 }} />
                     {brand.name} · {brand.subtitle}
                   </div>
                   {brand.logo && (
-                    <img src={brand.logo} alt={brand.name} style={{ height: 40, maxWidth: 220, objectFit: "contain", marginBottom: 18, filter: "brightness(0) invert(1)", opacity: 0.92 }} />
+                    <img src={brand.logo} alt={brand.name} style={{ height: 36, maxWidth: 200, objectFit: "contain", marginBottom: 16 }} />
                   )}
-                  <h1 className="hero-title" style={{ fontSize: 52, fontWeight: 700, margin: "0 0 16px 0", letterSpacing: "-0.02em", lineHeight: 1.1 }}>
+                  <h1 style={{ fontSize: 38, fontWeight: 700, margin: "0 0 14px 0", letterSpacing: "-0.02em", lineHeight: 1.15,
+                    color: COLORS.ink, fontFamily: "var(--font-display)" }}>
                     Enterprise Understanding
                   </h1>
-                  <div style={{ fontSize: 16, color: "rgba(255,255,255,0.75)", maxWidth: 560, margin: "0 auto 36px auto", lineHeight: 1.6 }}>
+                  <div style={{ fontSize: 15, color: COLORS.inkSecondary, maxWidth: 520, margin: "0 auto 28px auto", lineHeight: 1.6 }}>
                     One graph of your whole organisation — strategy, capabilities, applications, technology, risk —
                     queryable in plain English and navigable like a map.
                   </div>
-                  <div style={{ maxWidth: 640, margin: "0 auto", display: "flex", gap: 10, position: "relative", zIndex: 1 }}>
+                  <div style={{ maxWidth: 600, margin: "0 auto", display: "flex", gap: 8 }}>
                     <input value={chatInput} onChange={(e) => setChatInput(e.target.value)}
                       onKeyDown={(e) => { if (e.key === "Enter" && chatInput.trim() && !chatLoading) sendChatMessage(); }}
                       placeholder="Ask anything — e.g. &quot;which applications have no owner?&quot;"
                       className="landing-chat-input"
-                      style={{ flex: 1, padding: "16px 22px", borderRadius: 999, border: "none", outline: "none",
-                        fontSize: 15, background: "rgba(255,255,255,0.97)", color: COLORS.ink }} />
+                      style={{ flex: 1, padding: "13px 20px", borderRadius: 999, border: `1px solid ${COLORS.border}`, outline: "none",
+                        fontSize: 14, background: COLORS.card, color: COLORS.ink, boxShadow: "0 1px 2px rgba(10,14,26,0.04)" }} />
                     <button onClick={sendChatMessage} disabled={!chatInput.trim() || chatLoading}
-                      style={{ padding: "16px 28px", borderRadius: 999, border: "none", background: COLORS.accent, color: "#fff",
-                        fontSize: 15, fontWeight: 700, cursor: chatInput.trim() ? "pointer" : "default", flexShrink: 0,
+                      style={{ padding: "13px 24px", borderRadius: 999, border: "none", background: COLORS.accent, color: "#fff",
+                        fontSize: 14, fontWeight: 700, cursor: chatInput.trim() ? "pointer" : "default", flexShrink: 0,
                         opacity: chatInput.trim() ? 1 : 0.6 }}>
                       Ask →
                     </button>
                   </div>
+                  <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 20, flexWrap: "wrap" }}>
+                    {quickStats.map((s) => (
+                      <div key={s.label} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 600,
+                        color: COLORS.accent, padding: "6px 14px", borderRadius: 999, border: `1px solid ${COLORS.accent}33`,
+                        background: `${COLORS.accent}0A` }}>
+                        <span style={{ fontWeight: 700 }}>{s.count}</span>
+                        <span style={{ color: COLORS.inkSecondary, fontWeight: 500 }}>{s.label}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
+                <div style={{ height: 40 }} />
 
                 {(chatMessages.length > 0 || chatLoading) && (
                   <div style={{ marginBottom: 36 }}>
@@ -5037,19 +5051,18 @@ function APMDashboardLive() {
                   color: COLORS.inkSecondary, marginBottom: 14 }}>
                   Jump straight in
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 18 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16 }}>
                   {cards.map((c, i) => (
                     <div key={c.key} className="landing-card" onClick={() => setView(c.key)}
-                      style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 18,
-                        padding: 22, cursor: "pointer", boxShadow: "var(--shadow-sm)", animationDelay: `${i * 60}ms` }}>
-                      <div style={{ width: 44, height: 44, borderRadius: 13,
-                        background: `linear-gradient(135deg, ${c.color}, ${c.color}CC)`, display: "flex",
-                        alignItems: "center", justifyContent: "center", marginBottom: 16,
-                        boxShadow: `0 8px 18px ${c.color}55` }}>
+                      style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14,
+                        padding: 20, cursor: "pointer", position: "relative", overflow: "hidden", animationDelay: `${i * 60}ms` }}>
+                      <div style={{ position: "absolute", top: 0, left: 0, width: 3, height: "100%", background: c.color }} />
+                      <div style={{ width: 36, height: 36, borderRadius: 10, background: `${c.color}14`, display: "flex",
+                        alignItems: "center", justifyContent: "center", marginBottom: 14 }}>
                         {c.icon}
                       </div>
-                      <div style={{ fontSize: 15.5, fontWeight: 700, marginBottom: 5, fontFamily: "var(--font-display)" }}>{c.title}</div>
-                      <div style={{ fontSize: 12.5, color: COLORS.inkSecondary, lineHeight: 1.5 }}>{c.desc}</div>
+                      <div style={{ fontSize: 14.5, fontWeight: 700, marginBottom: 4, fontFamily: "var(--font-display)", color: COLORS.ink }}>{c.title}</div>
+                      <div style={{ fontSize: 12, color: COLORS.inkSecondary, lineHeight: 1.5 }}>{c.desc}</div>
                     </div>
                   ))}
                 </div>
