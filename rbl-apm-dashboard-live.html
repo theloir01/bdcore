@@ -166,11 +166,15 @@
 <body>
 <div id="root"></div>
 
-<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/marked/lib/marked.umd.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.5/dist/purify.min.js"></script>
+<!-- Vendored locally under vendor/ instead of loaded from a CDN — unpkg.com in
+     particular gets silently blocked by some ad/tracker blockers and corporate
+     firewalls, which broke the app for anyone behind one. These ship with the
+     repo, so nothing but the Neo4j Query API call itself needs network access. -->
+<script crossorigin src="vendor/react.production.min.js"></script>
+<script crossorigin src="vendor/react-dom.production.min.js"></script>
+<script src="vendor/babel.min.js"></script>
+<script src="vendor/marked.umd.js"></script>
+<script src="vendor/purify.min.js"></script>
 
 <script type="text/plain" id="app-source">
 const { useState, useMemo, useCallback, useEffect, useRef } = React;
@@ -7131,19 +7135,21 @@ ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(
   (function () {
     var root = document.getElementById('root');
     var missing = [];
-    if (typeof React === 'undefined') missing.push('React (unpkg.com)');
-    if (typeof ReactDOM === 'undefined') missing.push('ReactDOM (unpkg.com)');
-    if (typeof Babel === 'undefined') missing.push('Babel (unpkg.com)');
-    if (typeof marked === 'undefined') missing.push('marked (cdn.jsdelivr.net)');
-    if (typeof DOMPurify === 'undefined') missing.push('DOMPurify (cdn.jsdelivr.net)');
+    if (typeof React === 'undefined') missing.push('React');
+    if (typeof ReactDOM === 'undefined') missing.push('ReactDOM');
+    if (typeof Babel === 'undefined') missing.push('Babel');
+    if (typeof marked === 'undefined') missing.push('marked');
+    if (typeof DOMPurify === 'undefined') missing.push('DOMPurify');
     if (missing.length) {
       root.innerHTML =
         '<div style="font-family: sans-serif; padding: 40px; max-width: 700px; color: #1C2A3A;">' +
         '<h2 style="color:#9B3A2E;">' + missing.length + ' script(s) failed to load</h2>' +
         '<p style="line-height:1.6;">Missing: ' + missing.join(', ') + '</p>' +
-        '<p style="color:#5B6B7A; font-size: 13px; line-height: 1.6;">Almost always an ad/tracker blocker or ' +
-        'firewall silently blocking the CDN shown above. Check the shield icon in Vivaldi\'s address bar, or ' +
-        'Developer Tools \u2192 Network tab to see which specific request failed and why.</p></div>';
+        '<p style="color:#5B6B7A; font-size: 13px; line-height: 1.6;">These load from the vendor/ folder next to ' +
+        'this HTML file, not from a CDN, so this almost always means the vendor/ folder isn\'t sitting alongside ' +
+        'the file on whatever is serving it \u2014 check that it was copied/cloned along with the .html file, and that ' +
+        'the server (or Finder/Explorer, if opening the file directly) has it in the same directory. Developer ' +
+        'Tools \u2192 Network tab will show exactly which request 404\u2019d.</p></div>';
       return;
     }
     try {
