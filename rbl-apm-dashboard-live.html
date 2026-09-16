@@ -2794,17 +2794,51 @@ function APMDashboardLive() {
     // manual-bend field the hover handles use — it doesn't change the global
     // default, only what Organize itself produces.
     const STUB = 40;
+    // Multiple edges sharing the same parent (or the same child) mustn't all
+    // leave/arrive at that box's exact center — that's what made every arrow
+    // into or out of a busy node converge on one pixel. Spread each group
+    // evenly across the box's width instead, ordered by where the other end
+    // sits, so siblings fan out left-to-right without crossing.
+    const crossLevelEdges = edges.filter((e) => {
+      const sl = level[e.sourceId], tl = level[e.targetId];
+      return sl !== undefined && tl !== undefined && newPos[e.sourceId] && newPos[e.targetId] && sl !== tl;
+    });
+    const edgeHigherIsSource = {};
+    const exitGroups = {}, entryGroups = {};
+    crossLevelEdges.forEach((e) => {
+      const higherIsSource = level[e.sourceId] < level[e.targetId];
+      edgeHigherIsSource[e.id] = higherIsSource;
+      const higherId = higherIsSource ? e.sourceId : e.targetId;
+      const lowerId = higherIsSource ? e.targetId : e.sourceId;
+      (exitGroups[higherId] = exitGroups[higherId] || []).push(e);
+      (entryGroups[lowerId] = entryGroups[lowerId] || []).push(e);
+    });
+    const otherEndId = (e, nodeId) => (e.sourceId === nodeId ? e.targetId : e.sourceId);
+    [exitGroups, entryGroups].forEach((groups) => {
+      Object.keys(groups).forEach((nodeId) => {
+        groups[nodeId].sort((a, b) => newPos[otherEndId(a, nodeId)].x - newPos[otherEndId(b, nodeId)].x);
+      });
+    });
+    const fanX = (groups, nodeId, edgeId, baseX) => {
+      const group = groups[nodeId];
+      if (!group || group.length <= 1) return baseX;
+      const idx = group.findIndex((g) => g.id === edgeId);
+      const usable = Math.min(CONCEPT_W - 32, (group.length - 1) * 28);
+      return baseX - usable / 2 + idx * (usable / (group.length - 1));
+    };
     setCanvasEdges((prev) => (overrideEdges || prev).map((e) => {
       const srcLevel = level[e.sourceId], tgtLevel = level[e.targetId];
       const srcPos = newPos[e.sourceId], tgtPos = newPos[e.targetId];
       if (srcLevel === undefined || tgtLevel === undefined || !srcPos || !tgtPos || srcLevel === tgtLevel) {
         return e; // same-row or partially-outside-selection edges are left as straight lines
       }
-      const higherIsSource = srcLevel < tgtLevel;
+      const higherIsSource = edgeHigherIsSource[e.id];
       const higher = higherIsSource ? srcPos : tgtPos, lower = higherIsSource ? tgtPos : srcPos;
+      const higherId = higherIsSource ? e.sourceId : e.targetId;
+      const lowerId = higherIsSource ? e.targetId : e.sourceId;
       const higherAnchor = "bottom", lowerAnchor = "top";
-      const hCenterX = higher.x + CONCEPT_W / 2, hBottomY = higher.y + CONCEPT_H;
-      const lCenterX = lower.x + CONCEPT_W / 2, lTopY = lower.y;
+      const hCenterX = fanX(exitGroups, higherId, e.id, higher.x + CONCEPT_W / 2), hBottomY = higher.y + CONCEPT_H;
+      const lCenterX = fanX(entryGroups, lowerId, e.id, lower.x + CONCEPT_W / 2), lTopY = lower.y;
       const midY = hBottomY + (lTopY - hBottomY - STUB) / 2 + STUB / 2;
       // Waypoint order must follow the edge's actual source→target direction —
       // not always "higher node first" — or edges where the source happens to
@@ -5495,13 +5529,18 @@ function APMDashboardLive() {
                       const midX = (path[midIdx].x + path[midIdx + 1].x) / 2, midY = (path[midIdx].y + path[midIdx + 1].y) / 2;
                       const isHovered = hoveredEdgeId === e.id;
                       return (
-                        <g key={e.id}>
+                        // Hover state lives on the whole <g>, not the invisible line alone — a
+                        // segment/waypoint handle rendered on hover sits on top of that line, so
+                        // attaching onMouseEnter/Leave to the line itself meant the cursor moving
+                        // onto its own handle counted as "leaving", hiding the handle, which put
+                        // the line back under the cursor and re-triggered hover — an infinite
+                        // show/hide flicker that made the handles effectively undraggable.
+                        <g key={e.id} onMouseEnter={() => setHoveredEdgeId(e.id)} onMouseLeave={() => setHoveredEdgeId(null)}>
                           {/* Wide invisible stroke purely for hover detection — the visible
                               line stays thin, but hovering anywhere near it reveals the
                               editing handles instead of showing them permanently. */}
                           <polyline points={path.map((p) => `${p.x},${p.y}`).join(" ")} fill="none" stroke="transparent" strokeWidth="14"
-                            style={{ pointerEvents: "auto", cursor: "crosshair" }}
-                            onMouseEnter={() => setHoveredEdgeId(e.id)} onMouseLeave={() => setHoveredEdgeId(null)} />
+                            style={{ pointerEvents: "auto", cursor: "crosshair" }} />
                           <polyline points={path.map((p) => `${p.x},${p.y}`).join(" ")} fill="none"
                             stroke={e.pushed ? COLORS.accent : COLORS.inkSecondary}
                             strokeWidth="1.5" strokeDasharray={e.pushed ? undefined : "5,3"} markerEnd="url(#canvasArrow)" style={{ pointerEvents: "none" }} />
@@ -5552,10 +5591,9 @@ function APMDashboardLive() {
                       const midX = (path[midIdx].x + path[midIdx + 1].x) / 2, midY = (path[midIdx].y + path[midIdx + 1].y) / 2;
                       const isHovered = hoveredEdgeId === e.id;
                       return (
-                        <g key={e.id}>
+                        <g key={e.id} onMouseEnter={() => setHoveredEdgeId(e.id)} onMouseLeave={() => setHoveredEdgeId(null)}>
                           <polyline points={path.map((p) => `${p.x},${p.y}`).join(" ")} fill="none" stroke="transparent" strokeWidth="14"
-                            style={{ pointerEvents: "auto", cursor: "crosshair" }}
-                            onMouseEnter={() => setHoveredEdgeId(e.id)} onMouseLeave={() => setHoveredEdgeId(null)} />
+                            style={{ pointerEvents: "auto", cursor: "crosshair" }} />
                           <polyline points={path.map((p) => `${p.x},${p.y}`).join(" ")} fill="none" stroke="#8A93A0" strokeWidth="1.5"
                             markerEnd="url(#canvasArrow)" style={{ pointerEvents: "none" }} />
                           {isHovered && path.slice(0, -1).map((p, i) => {
@@ -5601,15 +5639,14 @@ function APMDashboardLive() {
                       const midX = (mid.x + midNext.x) / 2, midY = (mid.y + midNext.y) / 2;
                       const isHovered = hoveredEdgeId === a.id;
                       return (
-                        <g key={a.id}>
+                        <g key={a.id} onMouseEnter={() => setHoveredEdgeId(a.id)} onMouseLeave={() => setHoveredEdgeId(null)}>
                           {/* Wide invisible stroke just for grabbing the line itself — the
                               visible 2px line is too thin to reliably click on. Also doubles
                               as the hover-detection area for revealing edit handles. */}
                           <polyline points={a.points.map((p) => `${p.x},${p.y}`).join(" ")}
                             fill="none" stroke="transparent" strokeWidth="16"
                             style={{ cursor: "move", pointerEvents: "auto" }}
-                            onMouseDown={(e) => handleArrowLineMouseDown(e, a.id)}
-                            onMouseEnter={() => setHoveredEdgeId(a.id)} onMouseLeave={() => setHoveredEdgeId(null)} />
+                            onMouseDown={(e) => handleArrowLineMouseDown(e, a.id)} />
                           <polyline points={a.points.map((p) => `${p.x},${p.y}`).join(" ")}
                             fill="none" stroke="#64748B" strokeWidth="2" markerEnd="url(#canvasArrow)" style={{ pointerEvents: "none" }} />
                           {/* Small dim handle at each segment's midpoint — dragging it inserts
