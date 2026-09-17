@@ -869,17 +869,50 @@ function SortableTable({ columns, rows, rowKey, onRowClick, getRowStyle, filtera
   const [sortKey, setSortKey] = useState(defaultSort ? defaultSort.key : null);
   const [sortDir, setSortDir] = useState(defaultSort ? defaultSort.dir || "asc" : "asc");
   const [filterText, setFilterText] = useState("");
+  const [chipFilters, setChipFilters] = useState({});
   const showFilter = filterable !== undefined ? filterable : rows.length > 6;
+  const chipColumns = columns.filter((c) => c.chip);
+  const chipValue = (c, r) => (c.filterValue ? c.filterValue(r) : (c.sortValue ? c.sortValue(r) : r[c.key]));
 
-  const filtered = showFilter && filterText.trim()
-    ? rows.filter((r) => {
-        const needle = filterText.trim().toLowerCase();
-        return columns.some((c) => {
-          const v = c.filterValue ? c.filterValue(r) : (c.sortValue ? c.sortValue(r) : r[c.key]);
-          return v != null && String(v).toLowerCase().includes(needle);
-        });
-      })
-    : rows;
+  const chipOptions = useMemo(() => {
+    const opts = {};
+    chipColumns.forEach((c) => {
+      const seen = new Set();
+      const list = [];
+      rows.forEach((r) => {
+        const v = chipValue(c, r);
+        if (v != null && v !== "" && !seen.has(v)) { seen.add(v); list.push(v); }
+      });
+      opts[c.key] = list;
+    });
+    return opts;
+  }, [rows, chipColumns.map((c) => c.key).join(",")]);
+
+  const toggleChip = (colKey, value) => {
+    setChipFilters((prev) => {
+      const set = new Set(prev[colKey] || []);
+      set.has(value) ? set.delete(value) : set.add(value);
+      return { ...prev, [colKey]: set };
+    });
+  };
+  const activeChipCount = Object.values(chipFilters).reduce((sum, s) => sum + (s ? s.size : 0), 0);
+  const hasActiveFilters = activeChipCount > 0 || filterText.trim().length > 0;
+  const clearAllFilters = () => { setChipFilters({}); setFilterText(""); };
+
+  const filtered = rows.filter((r) => {
+    for (const c of chipColumns) {
+      const active = chipFilters[c.key];
+      if (active && active.size && !active.has(chipValue(c, r))) return false;
+    }
+    if (showFilter && filterText.trim()) {
+      const needle = filterText.trim().toLowerCase();
+      return columns.some((c) => {
+        const v = chipValue(c, r);
+        return v != null && String(v).toLowerCase().includes(needle);
+      });
+    }
+    return true;
+  });
 
   const sorted = sortKey ? [...filtered].sort((a, b) => {
       const col = columns.find((c) => c.key === sortKey);
@@ -899,12 +932,40 @@ function SortableTable({ columns, rows, rowKey, onRowClick, getRowStyle, filtera
 
   return (
     <div>
-      {showFilter && (
-        <div style={{ padding: "10px 14px 4px" }}>
-          <input value={filterText} onChange={(e) => setFilterText(e.target.value)}
-            placeholder={filterPlaceholder || "Filter…"}
-            style={{ width: "100%", maxWidth: 260, padding: "6px 10px", border: `1px solid ${COLORS.border}`,
-              borderRadius: 6, fontSize: 12.5, outline: "none" }} />
+      {(chipColumns.length > 0 || showFilter) && (
+        <div style={{ padding: "12px 14px 4px" }}>
+          {chipColumns.map((c) => (
+            <div key={c.key} style={{ display: "flex", flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: COLORS.inkSecondary, marginRight: 8,
+                textTransform: "uppercase", letterSpacing: 0.3 }}>{c.label}</span>
+              {(chipOptions[c.key] || []).map((v) => {
+                const active = chipFilters[c.key] && chipFilters[c.key].has(v);
+                const dot = c.chipColor ? c.chipColor(v) : null;
+                return (
+                  <span key={v} onClick={() => toggleChip(c.key, v)}
+                    style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px", fontSize: 12,
+                      border: `1px solid ${active ? COLORS.ink : COLORS.border}`,
+                      background: active ? COLORS.ink : COLORS.card, color: active ? "#fff" : COLORS.ink,
+                      borderRadius: 8, marginRight: 6, marginBottom: 6, cursor: "pointer" }}>
+                    {dot && <span style={{ width: 7, height: 7, borderRadius: "50%", background: dot, display: "inline-block" }} />}
+                    {v}
+                  </span>
+                );
+              })}
+            </div>
+          ))}
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            {showFilter && (
+              <input value={filterText} onChange={(e) => setFilterText(e.target.value)}
+                placeholder={filterPlaceholder || "Filter…"}
+                style={{ width: "100%", maxWidth: 260, padding: "6px 10px", border: `1px solid ${COLORS.border}`,
+                  borderRadius: 6, fontSize: 12.5, outline: "none" }} />
+            )}
+            {hasActiveFilters && (
+              <span onClick={clearAllFilters} style={{ fontSize: 12, color: COLORS.inkSecondary, cursor: "pointer",
+                textDecoration: "underline", whiteSpace: "nowrap" }}>Clear filters</span>
+            )}
+          </div>
         </div>
       )}
       <table>
@@ -4734,14 +4795,14 @@ function APMDashboardLive() {
                     defaultSort={{ key: "name" }}
                     columns={[
                       { key: "name", label: "Application" },
-                      { key: "aiAvailability", label: "Availability" },
-                      { key: "aiQuadrant", label: "Decision", render: (a) => (
+                      { key: "aiAvailability", label: "Availability", chip: true },
+                      { key: "aiQuadrant", label: "Decision", chip: true, chipColor: (v) => AI_PATHFINDER_INFO[v].color, render: (a) => (
                           <span style={{ background: AI_PATHFINDER_INFO[a.aiQuadrant].color, color: "#fff",
                             padding: "2px 8px", borderRadius: 8, fontSize: 11 }}>{a.aiQuadrant}</span>
                         ) },
-                      { key: "aiTargetPattern", label: "Target Pattern" },
+                      { key: "aiTargetPattern", label: "Target Pattern", chip: true },
                       { key: "owner", label: "Owner" },
-                      { key: "aiPathfinderStatus", label: "Status" },
+                      { key: "aiPathfinderStatus", label: "Status", chip: true },
                       { key: "reviewDate", label: "Review Date" },
                     ]}
                     rows={plotted}
@@ -4941,6 +5002,7 @@ function APMDashboardLive() {
                 const migrationColumns = [
                   { key: "name", label: "Application" },
                   { key: "disposition", label: "6R disposition", sortValue: (a) => a.disposition.code,
+                    chip: true, chipColor: (v) => DISPOSITION_INFO[v].color,
                     render: (a) => (
                       <span style={{ background: DISPOSITION_INFO[a.disposition.code].color, color: "#fff",
                         padding: "2px 8px", borderRadius: 8, fontSize: 11 }}>{a.disposition.code}</span>
