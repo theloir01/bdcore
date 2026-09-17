@@ -170,40 +170,49 @@ nodes:
 - {id: pr6, concept_type: Product, name: Campaigning & Public Affairs, status: Active, strategic_importance: Medium, stereotype: Internal}
 - {id: a1, concept_type: Application, category: CRM, architecture_style: Traditional, service_level: Platinum, rto: 4 hours, rpo: 15 minutes, active_date: '2025-03-01', user_count: 850, name: Microsoft
     Dynamics 365 CRM, status: Production, vendor: Microsoft, business_value: 3, technical_health: 4, criticality: Critical, tco: 420000, hosting_model: SaaS, owner: 'Head of Data, Insight and Fundraising
-    CRM', stereotype: SaaS}
+    CRM', stereotype: SaaS, ai_readiness: High, ai_relevance: High, ai_availability: Available, ai_target_pattern: Enable, ai_pathfinder_status: In Progress, review_date: '2026-12-01'}
 - {id: a2, concept_type: Application, category: Website/CMS, architecture_style: Traditional, service_level: Gold, rto: 8 hours, rpo: 1 hour, active_date: '2011-06-01', user_count: 40, name: britishlegion.org.uk
-    (public website), status: Production, vendor: WordPress, business_value: 3, technical_health: 3, criticality: High, tco: 180000, hosting_model: Cloud, owner: Head of Digital Marketing, stereotype: COTS}
+    (public website), status: Production, vendor: WordPress, business_value: 3, technical_health: 3, criticality: High, tco: 180000, hosting_model: Cloud, owner: Head of Digital Marketing, stereotype: COTS,
+  ai_readiness: High, ai_relevance: Medium, ai_availability: Planned, ai_target_pattern: Enable, ai_pathfinder_status: Not Started, review_date: '2027-03-01'}
 - {id: a3, concept_type: Application, category: Data Integration, architecture_style: Traditional, service_level: Silver, rto: 24 hours, rpo: 4 hours, active_date: '2024-02-01', user_count: 8, name: Talend
-    Data Integration Platform, status: Production, vendor: Talend, business_value: 2, technical_health: 4, criticality: High, tco: 150000, hosting_model: SaaS, stereotype: SaaS}
+    Data Integration Platform, status: Production, vendor: Talend, business_value: 2, technical_health: 4, criticality: High, tco: 150000, hosting_model: SaaS, stereotype: SaaS, ai_readiness: Medium,
+  ai_relevance: Low, ai_availability: Planned, ai_target_pattern: Consolidate, ai_pathfinder_status: Not Started, review_date: '2027-06-01'}
 - {id: a4, concept_type: Application, category: Payment Processing, architecture_style: Traditional, service_level: Gold, rto: 8 hours, rpo: 1 hour, active_date: '2015-01-01', name: PayPal Donation Processing,
-  status: Production, vendor: PayPal, business_value: 3, technical_health: 4, criticality: High, tco: 60000, hosting_model: SaaS, stereotype: SaaS}
+  status: Production, vendor: PayPal, business_value: 3, technical_health: 4, criticality: High, tco: 60000, hosting_model: SaaS, stereotype: SaaS, ai_readiness: High, ai_relevance: Medium, ai_availability: Embedded,
+  ai_target_pattern: Enable, ai_pathfinder_status: Done, review_date: '2027-01-01'}
 - {id: a5, concept_type: Application, category: Analytics, architecture_style: Traditional, service_level: Silver, rto: 24 hours, rpo: 4 hours, active_date: '2019-01-01', user_count: 15, name: Adobe Analytics,
-  status: Production, vendor: Adobe, business_value: 2, technical_health: 4, criticality: Medium, tco: 90000, hosting_model: SaaS, stereotype: SaaS}
+  status: Production, vendor: Adobe, business_value: 2, technical_health: 4, criticality: Medium, tco: 90000, hosting_model: SaaS, stereotype: SaaS, ai_readiness: High, ai_relevance: High, ai_availability: Embedded,
+  ai_target_pattern: Enable, ai_pathfinder_status: In Progress, review_date: '2026-11-01'}
 - {id: a6, concept_type: Application, category: CRM, architecture_style: Traditional, service_level: Platinum, rto: 4 hours, rpo: 15 minutes, active_date: '2010-01-01', sunset_date: '2024-09-01', retiring_date: '2026-06-01',
   decommission_date: '2027-03-01', user_count: 60, name: Legacy Direct-Marketing CRM, status: Retiring, vendor: Unsupported, business_value: 1, technical_health: 1, criticality: Medium, tco: 210000, hosting_model: On-Prem,
-  owner: 'Executive Director: Digital, Data & Technology', stereotype: Legacy}
+  owner: 'Executive Director: Digital, Data & Technology', stereotype: Legacy, ai_readiness: Low, ai_relevance: Low, ai_availability: Planned, ai_target_pattern: Consolidate, ai_pathfinder_status: Not Started}
 - {id: a7, concept_type: Application, category: Membership Management, architecture_style: Traditional, service_level: Bronze, rto: 72 hours, rpo: 24 hours, active_date: '2008-01-01', user_count: 25, name: Membership
-    Central Database, status: Production, vendor: Internal (legacy), business_value: 3, technical_health: 2, criticality: High, tco: 95000, hosting_model: On-Prem, stereotype: Custom}
+    Central Database, status: Production, vendor: Internal (legacy), business_value: 3, technical_health: 2, criticality: High, tco: 95000, hosting_model: On-Prem, stereotype: Custom, ai_readiness: Low,
+  ai_relevance: High, ai_availability: Planned, ai_target_pattern: Rebuild, ai_pathfinder_status: Not Started, review_date: '2026-12-01'}
 - {id: a8, concept_type: Application, category: Case Management, architecture_style: Traditional, service_level: Gold, rto: 8 hours, rpo: 1 hour, active_date: '2017-01-01', user_count: 180, name: Welfare
-    Case Management System, status: Production, vendor: Undisclosed, business_value: 3, technical_health: 2, criticality: Critical, tco: 140000, hosting_model: Cloud, owner: Director of Services, stereotype: Custom}
+    Case Management System, status: Production, vendor: Undisclosed, business_value: 3, technical_health: 2, criticality: Critical, tco: 140000, hosting_model: Cloud, owner: Director of Services, stereotype: Custom,
+  ai_readiness: Medium, ai_relevance: High, ai_availability: Planned, ai_target_pattern: Enable, ai_pathfinder_status: In Progress, review_date: '2026-04-01'}
 - {id: a9, concept_type: Application, category: HR & Benefits, architecture_style: Traditional, service_level: Silver, rto: 24 hours, rpo: 4 hours, active_date: '2021-01-15', user_count: 800, name: Reward
     Gateway Employee Benefits Platform, status: Production, vendor: Reward Gateway, business_value: 2, technical_health: 4, criticality: Medium, tco: 45000, hosting_model: SaaS, owner: Director of People
-    & Culture, stereotype: SaaS}
+    & Culture, stereotype: SaaS, ai_readiness: High, ai_relevance: Low, ai_availability: Available, ai_target_pattern: Enable, ai_pathfinder_status: Not Started, review_date: '2027-06-01'}
 - {id: a10, concept_type: Application, category: E-commerce, architecture_style: Traditional, service_level: Silver, rto: 24 hours, rpo: 4 hours, active_date: '2016-01-01', name: Poppy Shop E-commerce Platform,
-  status: Production, vendor: Undisclosed, business_value: 2, technical_health: 3, criticality: Medium, tco: 70000, hosting_model: Cloud, stereotype: COTS}
+  status: Production, vendor: Undisclosed, business_value: 2, technical_health: 3, criticality: Medium, tco: 70000, hosting_model: Cloud, stereotype: COTS, ai_readiness: Medium, ai_relevance: High,
+  ai_availability: Planned, ai_target_pattern: Enable, ai_pathfinder_status: Not Started, review_date: '2027-01-01'}
 - {id: a11, concept_type: Application, category: Campaign Management, architecture_style: Traditional, service_level: Silver, rto: 24 hours, rpo: 4 hours, active_date: '2020-01-01', user_count: 12, name: Campaigns
-    & Public Affairs Tracker, status: Production, vendor: Undisclosed, business_value: 2, technical_health: 3, criticality: Medium, tco: 35000, hosting_model: SaaS, stereotype: SaaS}
+    & Public Affairs Tracker, status: Production, vendor: Undisclosed, business_value: 2, technical_health: 3, criticality: Medium, tco: 35000, hosting_model: SaaS, stereotype: SaaS, ai_readiness: Medium,
+  ai_relevance: Low, ai_availability: Planned, ai_target_pattern: Consolidate, ai_pathfinder_status: Not Started, review_date: '2027-09-01'}
 - {id: a12, concept_type: Application, category: Finance & ERP, architecture_style: Traditional, service_level: Platinum, rto: 4 hours, rpo: 15 minutes, active_date: '2010-01-01', user_count: 20, name: Finance
-    & Accounting System, status: Production, vendor: Undisclosed, business_value: 3, technical_health: 2, criticality: Critical, tco: 160000, hosting_model: On-Prem, owner: Director of Finance, stereotype: Custom}
+    & Accounting System, status: Production, vendor: Undisclosed, business_value: 3, technical_health: 2, criticality: Critical, tco: 160000, hosting_model: On-Prem, owner: Director of Finance, stereotype: Custom,
+  ai_readiness: Low, ai_relevance: High, ai_availability: Planned, ai_target_pattern: Rebuild, ai_pathfinder_status: Not Started, review_date: '2027-03-01'}
 - {id: a13, concept_type: Application, category: Case Management, architecture_style: AI Agent, service_level: Gold, rto: 8 hours, rpo: 1 hour, planned_date: '2026-04-01', user_count: 60, name: Welfare
     Grant Triage Agent, status: In Development, vendor: Illustrative AI Service, business_value: High, technical_health: Adequate, criticality: Critical, tco: 120000, hosting_model: Cloud, owner: Director
-    of Services, stereotype: Custom}
+    of Services, stereotype: Custom, ai_readiness: High, ai_relevance: High, ai_availability: Planned, ai_target_pattern: Enable, ai_pathfinder_status: In Progress, review_date: '2026-04-01'}
 - {id: a14, concept_type: Application, category: Supporter Engagement, architecture_style: AI Agent, service_level: Gold, rto: 8 hours, rpo: 1 hour, planned_date: '2026-09-01', user_count: 25, name: Poppy
     Appeal Supporter Assistant, status: Planned, vendor: Illustrative AI Service, business_value: High, technical_health: Adequate, criticality: High, tco: 90000, hosting_model: Cloud, owner: Head of Digital
-    Marketing, stereotype: Custom}
+    Marketing, stereotype: Custom, ai_readiness: High, ai_relevance: High, ai_availability: Planned, ai_target_pattern: Enable, ai_pathfinder_status: Not Started, review_date: '2026-09-01'}
 - {id: a15, concept_type: Application, category: Membership Management, architecture_style: AI Agent, service_level: Silver, rto: 24 hours, rpo: 4 hours, active_date: '2026-02-01', user_count: 15, name: Membership
     Renewal Assistant, status: Production, vendor: Illustrative AI Service, business_value: Medium, technical_health: Adequate, criticality: High, tco: 65000, hosting_model: SaaS, owner: Head of Membership,
-  stereotype: SaaS}
+  stereotype: SaaS, ai_readiness: High, ai_relevance: High, ai_availability: Embedded, ai_target_pattern: Enable, ai_pathfinder_status: Done, review_date: '2027-02-01'}
 - id: aim1
   concept_type: AIModel
   name: Welfare Case Assessment Model

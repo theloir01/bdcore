@@ -262,6 +262,17 @@ concept_types:
       - {name: AIEnabled, type: enum, options: [Yes, No]}
       - {name: HumanOversight, type: enum, options: [Required, Recommended, None]}
       - {name: AIImpactType, type: enum, options: [Assist, Augment, Automate, Replace]}
+      - {name: AIReadiness, type: enum, options: [Low, Medium, High],
+         purpose: "AI Pathfinder Y-axis — feasibility: how ready this application is for AI change (data, integration, organisational readiness)"}
+      - {name: AIRelevance, type: enum, options: [Low, Medium, High],
+         purpose: "AI Pathfinder X-axis — payoff: how much value AI would add here"}
+      - {name: AIAvailability, type: enum, options: [Embedded, Available, Planned],
+         purpose: "whether AI capability already exists in this application today, is available to switch on, or is only planned"}
+      - {name: AITargetPattern, type: enum, options: [Enable, Replace, Rebuild, Consolidate],
+         purpose: "the intended shape of AI-driven change for this application"}
+      - {name: AIPathfinderStatus, type: enum, options: [Not Started, In Progress, Done],
+         purpose: "progress against the AI Pathfinder next action"}
+      - {name: ReviewDate, type: date, purpose: "when this application's AI Pathfinder decision should next be reviewed"}
 
   - name: Data
     category: Technology
