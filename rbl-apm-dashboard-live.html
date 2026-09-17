@@ -869,7 +869,7 @@ function SortableTable({ columns, rows, rowKey, onRowClick, getRowStyle, filtera
   const [sortKey, setSortKey] = useState(defaultSort ? defaultSort.key : null);
   const [sortDir, setSortDir] = useState(defaultSort ? defaultSort.dir || "asc" : "asc");
   const [filterText, setFilterText] = useState("");
-  const [chipFilters, setChipFilters] = useState({});
+  const [colFilters, setColFilters] = useState({});
   const showFilter = filterable !== undefined ? filterable : rows.length > 6;
   const chipColumns = columns.filter((c) => c.chip);
   const chipValue = (c, r) => (c.filterValue ? c.filterValue(r) : (c.sortValue ? c.sortValue(r) : r[c.key]));
@@ -888,21 +888,13 @@ function SortableTable({ columns, rows, rowKey, onRowClick, getRowStyle, filtera
     return opts;
   }, [rows, chipColumns.map((c) => c.key).join(",")]);
 
-  const toggleChip = (colKey, value) => {
-    setChipFilters((prev) => {
-      const set = new Set(prev[colKey] || []);
-      set.has(value) ? set.delete(value) : set.add(value);
-      return { ...prev, [colKey]: set };
-    });
-  };
-  const activeChipCount = Object.values(chipFilters).reduce((sum, s) => sum + (s ? s.size : 0), 0);
-  const hasActiveFilters = activeChipCount > 0 || filterText.trim().length > 0;
-  const clearAllFilters = () => { setChipFilters({}); setFilterText(""); };
+  const hasActiveFilters = Object.values(colFilters).some(Boolean) || filterText.trim().length > 0;
+  const clearAllFilters = () => { setColFilters({}); setFilterText(""); };
 
   const filtered = rows.filter((r) => {
     for (const c of chipColumns) {
-      const active = chipFilters[c.key];
-      if (active && active.size && !active.has(chipValue(c, r))) return false;
+      const v = colFilters[c.key];
+      if (v && chipValue(c, r) !== v) return false;
     }
     if (showFilter && filterText.trim()) {
       const needle = filterText.trim().toLowerCase();
@@ -933,39 +925,29 @@ function SortableTable({ columns, rows, rowKey, onRowClick, getRowStyle, filtera
   return (
     <div>
       {(chipColumns.length > 0 || showFilter) && (
-        <div style={{ padding: "12px 14px 4px" }}>
+        <div style={{ padding: "12px 14px 4px", display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+          {chipColumns.length > 0 && (
+            <span style={{ fontSize: 12.5, fontWeight: 600, color: COLORS.inkSecondary, marginRight: 2 }}>Filter by</span>
+          )}
           {chipColumns.map((c) => (
-            <div key={c.key} style={{ display: "flex", flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: COLORS.inkSecondary, marginRight: 8,
-                textTransform: "uppercase", letterSpacing: 0.3 }}>{c.label}</span>
-              {(chipOptions[c.key] || []).map((v) => {
-                const active = chipFilters[c.key] && chipFilters[c.key].has(v);
-                const dot = c.chipColor ? c.chipColor(v) : null;
-                return (
-                  <span key={v} onClick={() => toggleChip(c.key, v)}
-                    style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px", fontSize: 12,
-                      border: `1px solid ${active ? COLORS.ink : COLORS.border}`,
-                      background: active ? COLORS.ink : COLORS.card, color: active ? "#fff" : COLORS.ink,
-                      borderRadius: 8, marginRight: 6, marginBottom: 6, cursor: "pointer" }}>
-                    {dot && <span style={{ width: 7, height: 7, borderRadius: "50%", background: dot, display: "inline-block" }} />}
-                    {v}
-                  </span>
-                );
-              })}
-            </div>
+            <select key={c.key} value={colFilters[c.key] || ""}
+              onChange={(e) => setColFilters((prev) => ({ ...prev, [c.key]: e.target.value }))}
+              style={{ padding: "6px 10px", border: `1px solid ${colFilters[c.key] ? COLORS.ink : COLORS.border}`,
+                borderRadius: 6, fontSize: 12.5, background: COLORS.card, color: COLORS.ink, cursor: "pointer", outline: "none" }}>
+              <option value="">Any {c.label}</option>
+              {(chipOptions[c.key] || []).map((v) => <option key={v} value={v}>{v}</option>)}
+            </select>
           ))}
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            {showFilter && (
-              <input value={filterText} onChange={(e) => setFilterText(e.target.value)}
-                placeholder={filterPlaceholder || "Filter…"}
-                style={{ width: "100%", maxWidth: 260, padding: "6px 10px", border: `1px solid ${COLORS.border}`,
-                  borderRadius: 6, fontSize: 12.5, outline: "none" }} />
-            )}
-            {hasActiveFilters && (
-              <span onClick={clearAllFilters} style={{ fontSize: 12, color: COLORS.inkSecondary, cursor: "pointer",
-                textDecoration: "underline", whiteSpace: "nowrap" }}>Clear filters</span>
-            )}
-          </div>
+          {showFilter && (
+            <input value={filterText} onChange={(e) => setFilterText(e.target.value)}
+              placeholder={filterPlaceholder || "Filter…"}
+              style={{ padding: "6px 10px", border: `1px solid ${COLORS.border}`,
+                borderRadius: 6, fontSize: 12.5, outline: "none", flex: "1 1 180px", maxWidth: 220 }} />
+          )}
+          {hasActiveFilters && (
+            <span onClick={clearAllFilters} style={{ fontSize: 12, color: COLORS.inkSecondary, cursor: "pointer",
+              textDecoration: "underline", whiteSpace: "nowrap" }}>Clear filters</span>
+          )}
         </div>
       )}
       <table>
@@ -4796,7 +4778,7 @@ function APMDashboardLive() {
                     columns={[
                       { key: "name", label: "Application" },
                       { key: "aiAvailability", label: "Availability", chip: true },
-                      { key: "aiQuadrant", label: "Decision", chip: true, chipColor: (v) => AI_PATHFINDER_INFO[v].color, render: (a) => (
+                      { key: "aiQuadrant", label: "Decision", chip: true, render: (a) => (
                           <span style={{ background: AI_PATHFINDER_INFO[a.aiQuadrant].color, color: "#fff",
                             padding: "2px 8px", borderRadius: 8, fontSize: 11 }}>{a.aiQuadrant}</span>
                         ) },
@@ -5002,7 +4984,7 @@ function APMDashboardLive() {
                 const migrationColumns = [
                   { key: "name", label: "Application" },
                   { key: "disposition", label: "6R disposition", sortValue: (a) => a.disposition.code,
-                    chip: true, chipColor: (v) => DISPOSITION_INFO[v].color,
+                    chip: true,
                     render: (a) => (
                       <span style={{ background: DISPOSITION_INFO[a.disposition.code].color, color: "#fff",
                         padding: "2px 8px", borderRadius: 8, fontSize: 11 }}>{a.disposition.code}</span>
