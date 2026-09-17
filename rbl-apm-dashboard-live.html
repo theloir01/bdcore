@@ -870,8 +870,8 @@ function SortableTable({ columns, rows, rowKey, onRowClick, getRowStyle, filtera
   const [sortDir, setSortDir] = useState(defaultSort ? defaultSort.dir || "asc" : "asc");
   const [filterText, setFilterText] = useState("");
   const [colFilters, setColFilters] = useState({});
-  const showFilter = filterable !== undefined ? filterable : rows.length > 6;
   const chipColumns = columns.filter((c) => c.chip);
+  const showFilter = chipColumns.length === 0 && (filterable !== undefined ? filterable : rows.length > 6);
   const chipValue = (c, r) => (c.filterValue ? c.filterValue(r) : (c.sortValue ? c.sortValue(r) : r[c.key]));
 
   const chipOptions = useMemo(() => {
@@ -4773,7 +4773,6 @@ function APMDashboardLive() {
                   <div style={{ padding: "16px 18px 4px", fontSize: 15, fontWeight: 600 }}>All Applications, Segmented</div>
                   <SortableTable
                     rowKey={(a) => a.id}
-                    filterPlaceholder="Filter applications…"
                     defaultSort={{ key: "name" }}
                     columns={[
                       { key: "name", label: "Application" },
