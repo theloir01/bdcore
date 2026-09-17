@@ -859,6 +859,89 @@ const fmtWhen = (iso) => {
   return then.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: then.getFullYear() === new Date().getFullYear() ? undefined : "numeric" });
 };
 
+// Generic sortable/filterable table — every <table> in the app used to be
+// hand-rolled with no sort or filter affordance at all. One reusable
+// component instead of duplicating sort/filter logic per view; each mounted
+// instance owns its own sort/filter state, so multiple tables on one view
+// (e.g. one per redundancy group) don't interfere with each other.
+function SortableTable({ columns, rows, rowKey, onRowClick, getRowStyle, filterable, filterPlaceholder,
+  emptyMessage, renderRowExtra, defaultSort }) {
+  const [sortKey, setSortKey] = useState(defaultSort ? defaultSort.key : null);
+  const [sortDir, setSortDir] = useState(defaultSort ? defaultSort.dir || "asc" : "asc");
+  const [filterText, setFilterText] = useState("");
+  const showFilter = filterable !== undefined ? filterable : rows.length > 6;
+
+  const filtered = showFilter && filterText.trim()
+    ? rows.filter((r) => {
+        const needle = filterText.trim().toLowerCase();
+        return columns.some((c) => {
+          const v = c.filterValue ? c.filterValue(r) : (c.sortValue ? c.sortValue(r) : r[c.key]);
+          return v != null && String(v).toLowerCase().includes(needle);
+        });
+      })
+    : rows;
+
+  const sorted = sortKey ? [...filtered].sort((a, b) => {
+      const col = columns.find((c) => c.key === sortKey);
+      const av = col && col.sortValue ? col.sortValue(a) : a[sortKey];
+      const bv = col && col.sortValue ? col.sortValue(b) : b[sortKey];
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      const cmp = typeof av === "number" && typeof bv === "number" ? av - bv : String(av).localeCompare(String(bv));
+      return sortDir === "asc" ? cmp : -cmp;
+    }) : filtered;
+
+  const toggleSort = (key) => {
+    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(key); setSortDir("asc"); }
+  };
+
+  return (
+    <div>
+      {showFilter && (
+        <div style={{ padding: "10px 14px 4px" }}>
+          <input value={filterText} onChange={(e) => setFilterText(e.target.value)}
+            placeholder={filterPlaceholder || "Filter…"}
+            style={{ width: "100%", maxWidth: 260, padding: "6px 10px", border: `1px solid ${COLORS.border}`,
+              borderRadius: 6, fontSize: 12.5, outline: "none" }} />
+        </div>
+      )}
+      <table>
+        <thead>
+          <tr>
+            {columns.map((c) => (
+              <th key={c.key} onClick={c.sortable === false ? undefined : () => toggleSort(c.key)}
+                style={{ textAlign: c.align || "left", cursor: c.sortable === false ? "default" : "pointer", userSelect: "none" }}>
+                {c.label}{sortKey === c.key ? (sortDir === "asc" ? " ▲" : " ▼") : ""}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.length === 0 ? (
+            <tr><td colSpan={columns.length} style={{ padding: "16px 14px", color: COLORS.inkSecondary, fontSize: 12.5 }}>
+              {emptyMessage || "No matching rows."}
+            </td></tr>
+          ) : sorted.map((row) => (
+            <React.Fragment key={rowKey(row)}>
+              <tr onClick={onRowClick ? () => onRowClick(row) : undefined}
+                style={{ cursor: onRowClick ? "pointer" : "default", ...(getRowStyle ? getRowStyle(row) : {}) }}>
+                {columns.map((c) => (
+                  <td key={c.key} style={{ textAlign: c.align || "left" }}>
+                    {c.render ? c.render(row) : (row[c.key] != null && row[c.key] !== "" ? row[c.key] : "—")}
+                  </td>
+                ))}
+              </tr>
+              {renderRowExtra && renderRowExtra(row)}
+            </React.Fragment>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function deriveQueryApiUrl(uri, dbName) {
   const host = uri.trim().replace(/^neo4j\+s:\/\//, "").replace(/^neo4j:\/\//, "")
     .replace(/^bolt\+s:\/\//, "").replace(/^bolt:\/\//, "").replace(/\/$/, "");
@@ -1906,6 +1989,30 @@ function APMDashboardLive() {
     if (search && !`${a.name} ${a.vendor}`.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   }), [appsWithDisposition, statusFilter, criticalityFilter, dispositionFilter, hostingFilter, aiResultFilter, search]);
+
+  // Sorting is layered on top of the existing filter pipeline rather than baked
+  // into filteredApps itself — KPIs/CSV export/chip counts don't care about row
+  // order, only the table display does.
+  const [portfolioSortKey, setPortfolioSortKey] = useState("name");
+  const [portfolioSortDir, setPortfolioSortDir] = useState("asc");
+  const PORTFOLIO_SORT_VALUE = {
+    name: (a) => a.name, vendor: (a) => a.vendor || "", status: (a) => a.status,
+    hosting: (a) => a.hosting, criticality: (a) => CRIT_WEIGHT_BR[a.criticality] || 0,
+    disposition: (a) => a.disposition.code, tco: (a) => a.tco || 0, risk: (a) => a.risks.length,
+  };
+  const togglePortfolioSort = (key) => {
+    if (portfolioSortKey === key) setPortfolioSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setPortfolioSortKey(key); setPortfolioSortDir(key === "tco" || key === "risk" || key === "criticality" ? "desc" : "asc"); }
+  };
+  const sortedFilteredApps = useMemo(() => {
+    const getValue = PORTFOLIO_SORT_VALUE[portfolioSortKey];
+    if (!getValue) return filteredApps;
+    return [...filteredApps].sort((a, b) => {
+      const av = getValue(a), bv = getValue(b);
+      const cmp = typeof av === "number" && typeof bv === "number" ? av - bv : String(av).localeCompare(String(bv));
+      return portfolioSortDir === "asc" ? cmp : -cmp;
+    });
+  }, [filteredApps, portfolioSortKey, portfolioSortDir]);
 
   const kpis = useMemo(() => ({
     total: filteredApps.length,
@@ -4218,12 +4325,18 @@ function APMDashboardLive() {
                 <table>
                   <thead>
                     <tr style={{ borderTop: `1px solid ${COLORS.border}` }}>
-                      <th>Application</th><th>Vendor</th><th>Status</th><th>Hosting</th>
-                      <th>Criticality</th><th>Disposition</th><th>Est. Annual TCO</th><th>Risk</th><th></th>
+                      {[["name", "Application"], ["vendor", "Vendor"], ["status", "Status"], ["hosting", "Hosting"],
+                        ["criticality", "Criticality"], ["disposition", "Disposition"], ["tco", "Est. Annual TCO"], ["risk", "Risk"]]
+                        .map(([key, label]) => (
+                          <th key={key} onClick={() => togglePortfolioSort(key)} style={{ cursor: "pointer", userSelect: "none" }}>
+                            {label}{portfolioSortKey === key ? (portfolioSortDir === "asc" ? " ▲" : " ▼") : ""}
+                          </th>
+                        ))}
+                      <th></th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredApps.map((a) => (
+                    {sortedFilteredApps.map((a) => (
                       <React.Fragment key={a.id}>
                         <tr>
                           <td style={{ fontWeight: 500 }}>
@@ -4615,30 +4728,24 @@ function APMDashboardLive() {
 
                 <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18, overflow: "hidden" }}>
                   <div style={{ padding: "16px 18px 4px", fontSize: 15, fontWeight: 600 }}>All Applications, Segmented</div>
-                  <table>
-                    <thead>
-                      <tr style={{ borderTop: `1px solid ${COLORS.border}` }}>
-                        <th>Application</th><th>Availability</th><th>Decision</th><th>Target Pattern</th>
-                        <th>Owner</th><th>Status</th><th>Review Date</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {plotted.map((a) => (
-                        <tr key={a.id}>
-                          <td style={{ fontWeight: 500 }}>{a.name}</td>
-                          <td>{a.aiAvailability || "—"}</td>
-                          <td>
-                            <span style={{ background: AI_PATHFINDER_INFO[a.aiQuadrant].color, color: "#fff",
-                              padding: "2px 8px", borderRadius: 8, fontSize: 11 }}>{a.aiQuadrant}</span>
-                          </td>
-                          <td>{a.aiTargetPattern || "—"}</td>
-                          <td>{a.owner || "—"}</td>
-                          <td>{a.aiPathfinderStatus || "—"}</td>
-                          <td>{a.reviewDate || "—"}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  <SortableTable
+                    rowKey={(a) => a.id}
+                    filterPlaceholder="Filter applications…"
+                    defaultSort={{ key: "name" }}
+                    columns={[
+                      { key: "name", label: "Application" },
+                      { key: "aiAvailability", label: "Availability" },
+                      { key: "aiQuadrant", label: "Decision", render: (a) => (
+                          <span style={{ background: AI_PATHFINDER_INFO[a.aiQuadrant].color, color: "#fff",
+                            padding: "2px 8px", borderRadius: 8, fontSize: 11 }}>{a.aiQuadrant}</span>
+                        ) },
+                      { key: "aiTargetPattern", label: "Target Pattern" },
+                      { key: "owner", label: "Owner" },
+                      { key: "aiPathfinderStatus", label: "Status" },
+                      { key: "reviewDate", label: "Review Date" },
+                    ]}
+                    rows={plotted}
+                  />
                 </div>
 
                 {apps.length > pathfinderApps.length && (
@@ -4687,24 +4794,19 @@ function APMDashboardLive() {
                     <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginBottom: 14 }}>
                       {g.apps.length} systems both serving {g.capability}
                     </div>
-                    <table>
-                      <thead>
-                        <tr style={{ borderTop: `1px solid ${COLORS.border}` }}>
-                          <th>Application</th><th>Status</th><th>Business Value</th><th>Technical Health</th><th>Est. Annual TCO</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {g.apps.map((a) => (
-                          <tr key={a.id}>
-                            <td style={{ fontWeight: 500 }}>{a.name}</td>
-                            <td>{a.status}</td>
-                            <td>{valueLabel[a.businessValue] || "—"}</td>
-                            <td>{healthLabel[a.techHealth] || "—"}</td>
-                            <td>{fmtGBP(a.tco)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                    <SortableTable
+                      rowKey={(a) => a.id}
+                      filterable={false}
+                      defaultSort={{ key: "tco", dir: "desc" }}
+                      columns={[
+                        { key: "name", label: "Application" },
+                        { key: "status", label: "Status" },
+                        { key: "businessValue", label: "Business Value", render: (a) => valueLabel[a.businessValue] || "—" },
+                        { key: "techHealth", label: "Technical Health", render: (a) => healthLabel[a.techHealth] || "—" },
+                        { key: "tco", label: "Est. Annual TCO", render: (a) => fmtGBP(a.tco) },
+                      ]}
+                      rows={g.apps}
+                    />
                     {g.apps.some((a) => a.status === "Retiring") && (
                       <div style={{ marginTop: 12, fontSize: 12.5, color: COLORS.accent }}>
                         Already being resolved — one system in this group is flagged for retirement.
@@ -4835,63 +4937,44 @@ function APMDashboardLive() {
                 ))}
               </div>
 
-              <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18, padding: 20, marginBottom: 16 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.inkSecondary, marginBottom: 10 }}>Wave 2 · Dependent Applications — Blocked Until Wave 1 Is Resolved</div>
-                {migrationWaves.dependentApps.length === 0 ? (
-                  <div style={{ fontSize: 13, color: COLORS.inkSecondary }}>No applications currently blocked on foundation decisions.</div>
-                ) : (
-                  <table>
-                    <thead>
-                      <tr style={{ borderTop: `1px solid ${COLORS.border}` }}>
-                        <th>Application</th><th>6R disposition</th><th>Current TCO</th><th>Est. Cloud TCO</th><th>Est. Savings</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {migrationWaves.dependentApps.map((a) => (
-                        <tr key={a.id}>
-                          <td style={{ fontWeight: 500 }}>{a.name}</td>
-                          <td>
-                            <span style={{ background: DISPOSITION_INFO[a.disposition.code].color, color: "#fff",
-                              padding: "2px 8px", borderRadius: 8, fontSize: 11 }}>{a.disposition.code}</span>
-                          </td>
-                          <td>{fmtGBP(a.tco)}</td>
-                          <td>{fmtGBP(a.cloudTco)}</td>
-                          <td style={{ color: a.savings > 0 ? COLORS.accent : COLORS.inkSecondary }}>{fmtGBP(a.savings)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
+              {(() => {
+                const migrationColumns = [
+                  { key: "name", label: "Application" },
+                  { key: "disposition", label: "6R disposition", sortValue: (a) => a.disposition.code,
+                    render: (a) => (
+                      <span style={{ background: DISPOSITION_INFO[a.disposition.code].color, color: "#fff",
+                        padding: "2px 8px", borderRadius: 8, fontSize: 11 }}>{a.disposition.code}</span>
+                    ) },
+                  { key: "tco", label: "Current TCO", render: (a) => fmtGBP(a.tco) },
+                  { key: "cloudTco", label: "Est. Cloud TCO", render: (a) => fmtGBP(a.cloudTco) },
+                  { key: "savings", label: "Est. Savings", render: (a) => (
+                      <span style={{ color: a.savings > 0 ? COLORS.accent : COLORS.inkSecondary }}>{fmtGBP(a.savings)}</span>
+                    ) },
+                ];
+                return (
+                  <>
+                    <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18, padding: 20, marginBottom: 16 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.inkSecondary, marginBottom: 10 }}>Wave 2 · Dependent Applications — Blocked Until Wave 1 Is Resolved</div>
+                      {migrationWaves.dependentApps.length === 0 ? (
+                        <div style={{ fontSize: 13, color: COLORS.inkSecondary }}>No applications currently blocked on foundation decisions.</div>
+                      ) : (
+                        <SortableTable rowKey={(a) => a.id} defaultSort={{ key: "savings", dir: "desc" }}
+                          columns={migrationColumns} rows={migrationWaves.dependentApps} />
+                      )}
+                    </div>
 
-              <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18, padding: 20 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.inkSecondary, marginBottom: 10 }}>Standalone — On-Prem, but Not Blocked by Any Foundation Dependency</div>
-                {migrationWaves.standaloneApps.length === 0 ? (
-                  <div style={{ fontSize: 13, color: COLORS.inkSecondary }}>None.</div>
-                ) : (
-                  <table>
-                    <thead>
-                      <tr style={{ borderTop: `1px solid ${COLORS.border}` }}>
-                        <th>Application</th><th>6R disposition</th><th>Current TCO</th><th>Est. Cloud TCO</th><th>Est. Savings</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {migrationWaves.standaloneApps.map((a) => (
-                        <tr key={a.id}>
-                          <td style={{ fontWeight: 500 }}>{a.name}</td>
-                          <td>
-                            <span style={{ background: DISPOSITION_INFO[a.disposition.code].color, color: "#fff",
-                              padding: "2px 8px", borderRadius: 8, fontSize: 11 }}>{a.disposition.code}</span>
-                          </td>
-                          <td>{fmtGBP(a.tco)}</td>
-                          <td>{fmtGBP(a.cloudTco)}</td>
-                          <td style={{ color: a.savings > 0 ? COLORS.accent : COLORS.inkSecondary }}>{fmtGBP(a.savings)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
+                    <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18, padding: 20 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.inkSecondary, marginBottom: 10 }}>Standalone — On-Prem, but Not Blocked by Any Foundation Dependency</div>
+                      {migrationWaves.standaloneApps.length === 0 ? (
+                        <div style={{ fontSize: 13, color: COLORS.inkSecondary }}>None.</div>
+                      ) : (
+                        <SortableTable rowKey={(a) => a.id} defaultSort={{ key: "savings", dir: "desc" }}
+                          columns={migrationColumns} rows={migrationWaves.standaloneApps} />
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           )}
           {view === "landing" && (() => {
@@ -5199,25 +5282,24 @@ function APMDashboardLive() {
                     borderRadius: 14, padding: 20 }}>No {omSelectedType} instances found.</div>
                 ) : (
                   <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, overflow: "hidden" }}>
-                    <table>
-                      <thead><tr><th>Name</th><th>ID</th><th></th></tr></thead>
-                      <tbody>
-                        {omInstances.map((inst) => (
-                          <tr key={inst.id}>
-                            <td style={{ fontWeight: 500 }}>{inst.name || "—"}</td>
-                            <td style={{ color: COLORS.inkSecondary, fontSize: 12 }}>{inst.id}</td>
-                            <td>
-                              <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                                <button onClick={() => omStartEdit(inst)} style={{ padding: "4px 10px", background: COLORS.card,
-                                  color: COLORS.ink, border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 11.5, cursor: "pointer" }}>Edit</button>
-                                <button onClick={() => omDeleteInstance(inst)} style={{ padding: "4px 10px", background: COLORS.card,
-                                  color: COLORS.risk, border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 11.5, cursor: "pointer" }}>Delete</button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                    <SortableTable
+                      rowKey={(inst) => inst.id}
+                      filterPlaceholder={`Filter ${pluralizeConceptLabel(omSelectedType).toLowerCase()}…`}
+                      defaultSort={{ key: "name" }}
+                      columns={[
+                        { key: "name", label: "Name" },
+                        { key: "id", label: "ID", render: (inst) => <span style={{ color: COLORS.inkSecondary, fontSize: 12 }}>{inst.id}</span> },
+                        { key: "actions", label: "", sortable: false, align: "right", render: (inst) => (
+                            <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                              <button onClick={() => omStartEdit(inst)} style={{ padding: "4px 10px", background: COLORS.card,
+                                color: COLORS.ink, border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 11.5, cursor: "pointer" }}>Edit</button>
+                              <button onClick={() => omDeleteInstance(inst)} style={{ padding: "4px 10px", background: COLORS.card,
+                                color: COLORS.risk, border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 11.5, cursor: "pointer" }}>Delete</button>
+                            </div>
+                          ) },
+                      ]}
+                      rows={omInstances}
+                    />
                   </div>
                 )}
 
@@ -5325,28 +5407,30 @@ function APMDashboardLive() {
                       {wsCanvases.length === 0 ? (
                         <div style={{ padding: "18px 16px", fontSize: 12.5, color: COLORS.inkSecondary }}>No canvases in this workspace yet.</div>
                       ) : (
-                        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                          <tbody>
-                            {wsCanvases.map((c) => (
-                              <tr key={c.id} onClick={() => switchCanvas(c.id)}
-                                style={{ cursor: "pointer", borderBottom: `1px solid ${COLORS.border}` }}>
-                                <td style={{ padding: "12px 16px", fontSize: 13.5, fontWeight: 600,
-                                  color: c.id === activeCanvasId ? COLORS.accent : COLORS.ink }}>
-                                  <span style={{ display: "flex", alignItems: "center", gap: 8 }}>{ICONS.canvas}{c.name}</span>
-                                </td>
-                                <td style={{ padding: "12px 16px", fontSize: 12, color: COLORS.inkSecondary, textAlign: "right", whiteSpace: "nowrap" }}>
-                                  Updated {fmtWhen(c.updatedAt)}
-                                </td>
-                                <td style={{ padding: "12px 16px", textAlign: "right", whiteSpace: "nowrap" }}>
+                        <SortableTable
+                          rowKey={(c) => c.id}
+                          onRowClick={(c) => switchCanvas(c.id)}
+                          filterable={wsCanvases.length > 6}
+                          defaultSort={{ key: "name" }}
+                          columns={[
+                            { key: "name", label: "Canvas", render: (c) => (
+                                <span style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 600,
+                                  color: c.id === activeCanvasId ? COLORS.accent : COLORS.ink }}>{ICONS.canvas}{c.name}</span>
+                              ) },
+                            { key: "updatedAt", label: "Updated", align: "right", render: (c) => (
+                                <span style={{ whiteSpace: "nowrap" }}>Updated {fmtWhen(c.updatedAt)}</span>
+                              ) },
+                            { key: "actions", label: "", sortable: false, align: "right", render: (c) => (
+                                <span style={{ whiteSpace: "nowrap" }}>
                                   <span onClick={(e) => { e.stopPropagation(); renameCanvas(c); }} title="Rename canvas"
                                     style={{ fontSize: 12, color: COLORS.inkSecondary, cursor: "pointer", padding: "0 6px" }}>✎</span>
                                   <span onClick={(e) => { e.stopPropagation(); deleteCanvas(c); }} title="Delete canvas"
                                     style={{ fontSize: 13, color: COLORS.inkSecondary, cursor: "pointer", padding: "0 6px" }}>✕</span>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                                </span>
+                              ) },
+                          ]}
+                          rows={wsCanvases}
+                        />
                       )}
                       <button onClick={() => createCanvasInWorkspace(ws.id)}
                         style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 16px",
