@@ -2294,10 +2294,8 @@ function APMDashboardLive() {
     return { categories, items, segAngle, cx, cy };
   }, [technologies]);
 
-  const toggleSetFilter = (setter, current, value) => {
-    const next = new Set(current);
-    next.has(value) ? next.delete(value) : next.add(value);
-    setter(next);
+  const selectSingleFilter = (setter, current, value) => {
+    setter(!value || (current.has(value) && current.size === 1) ? new Set() : new Set([value]));
   };
 
   const exportAppsToCSV = () => {
@@ -2406,13 +2404,6 @@ function APMDashboardLive() {
     });
     return result;
   }, [filteredApps]);
-
-  const chipStyle = (active) => ({
-    display: "inline-block", padding: "4px 10px", fontSize: 12.5,
-    border: `1px solid ${active ? COLORS.ink : COLORS.border}`,
-    background: active ? COLORS.ink : COLORS.card, color: active ? COLORS.card : COLORS.ink,
-    borderRadius: 8, marginRight: 6, marginBottom: 6, cursor: "pointer",
-  });
 
   const NAV_ITEMS = [
     ["brief", "Executive Brief", "brief"],
@@ -4171,41 +4162,44 @@ function APMDashboardLive() {
               </div>
 
               <div style={{ marginBottom: 20 }}>
-                <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 4, marginBottom: 8 }}>
-                  <span style={{ fontSize: 12.5, color: COLORS.inkSecondary, marginRight: 8 }}>Status:</span>
-                  {allStatuses.map((s) => (
-                    <span key={s} style={chipStyle(statusFilter.has(s))}
-                      onClick={() => toggleSetFilter(setStatusFilter, statusFilter, s)}>{s}</span>
-                  ))}
-                  <span style={{ fontSize: 12.5, color: COLORS.inkSecondary, margin: "0 8px" }}>Criticality:</span>
-                  {allCriticalities.map((c) => (
-                    <span key={c} style={chipStyle(criticalityFilter.has(c))}
-                      onClick={() => toggleSetFilter(setCriticalityFilter, criticalityFilter, c)}>{c}</span>
-                  ))}
-                </div>
-                <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 4, marginBottom: 8 }}>
-                  <span style={{ fontSize: 12.5, color: COLORS.inkSecondary, marginRight: 8 }}>Disposition:</span>
-                  {allDispositions.map((d) => (
-                    <span key={d} style={chipStyle(dispositionFilter.has(d))}
-                      onClick={() => toggleSetFilter(setDispositionFilter, dispositionFilter, d)}>{d}</span>
-                  ))}
-                  <span style={{ fontSize: 12.5, color: COLORS.inkSecondary, margin: "0 8px" }}>Hosting:</span>
-                  {allHostings.map((h) => (
-                    <span key={h} style={chipStyle(hostingFilter.has(h))}
-                      onClick={() => toggleSetFilter(setHostingFilter, hostingFilter, h)}>{h}</span>
-                  ))}
-                </div>
-                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 12.5, fontWeight: 600, color: COLORS.inkSecondary, marginRight: 2 }}>Filter by</span>
+                  <select value={[...statusFilter][0] || ""} onChange={(e) => selectSingleFilter(setStatusFilter, statusFilter, e.target.value)}
+                    style={{ padding: "6px 10px", border: `1px solid ${statusFilter.size ? COLORS.ink : COLORS.border}`,
+                      borderRadius: 6, fontSize: 12.5, background: COLORS.card, color: COLORS.ink, cursor: "pointer", outline: "none" }}>
+                    <option value="">Any Status</option>
+                    {allStatuses.map((s) => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                  <select value={[...criticalityFilter][0] || ""} onChange={(e) => selectSingleFilter(setCriticalityFilter, criticalityFilter, e.target.value)}
+                    style={{ padding: "6px 10px", border: `1px solid ${criticalityFilter.size ? COLORS.ink : COLORS.border}`,
+                      borderRadius: 6, fontSize: 12.5, background: COLORS.card, color: COLORS.ink, cursor: "pointer", outline: "none" }}>
+                    <option value="">Any Criticality</option>
+                    {allCriticalities.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                  <select value={[...dispositionFilter][0] || ""} onChange={(e) => selectSingleFilter(setDispositionFilter, dispositionFilter, e.target.value)}
+                    style={{ padding: "6px 10px", border: `1px solid ${dispositionFilter.size ? COLORS.ink : COLORS.border}`,
+                      borderRadius: 6, fontSize: 12.5, background: COLORS.card, color: COLORS.ink, cursor: "pointer", outline: "none" }}>
+                    <option value="">Any Disposition</option>
+                    {allDispositions.map((d) => <option key={d} value={d}>{d}</option>)}
+                  </select>
+                  <select value={[...hostingFilter][0] || ""} onChange={(e) => selectSingleFilter(setHostingFilter, hostingFilter, e.target.value)}
+                    style={{ padding: "6px 10px", border: `1px solid ${hostingFilter.size ? COLORS.ink : COLORS.border}`,
+                      borderRadius: 6, fontSize: 12.5, background: COLORS.card, color: COLORS.ink, cursor: "pointer", outline: "none" }}>
+                    <option value="">Any Hosting</option>
+                    {allHostings.map((h) => <option key={h} value={h}>{h}</option>)}
+                  </select>
                   <input placeholder="Search name or vendor…" value={search} onChange={(e) => setSearch(e.target.value)}
-                    style={{ padding: "7px 10px", border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 8, fontSize: 13, width: 240 }} />
+                    style={{ padding: "6px 10px", border: `1px solid ${COLORS.border}`, borderRadius: 6, fontSize: 12.5,
+                      outline: "none", flex: "1 1 180px", maxWidth: 220 }} />
+                  {(statusFilter.size > 0 || criticalityFilter.size > 0 || dispositionFilter.size > 0 || hostingFilter.size > 0 || aiResultFilter || search) && (
+                    <span onClick={() => { setStatusFilter(new Set()); setCriticalityFilter(new Set()); setDispositionFilter(new Set()); setHostingFilter(new Set()); setAiResultFilter(null); setSearch(""); }}
+                      style={{ fontSize: 12, color: COLORS.inkSecondary, cursor: "pointer", textDecoration: "underline", whiteSpace: "nowrap" }}>
+                      Clear filters
+                    </span>
+                  )}
                   <button onClick={handleRefresh}
                     style={{ padding: "7px 14px", background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)",
-                      borderRadius: 8, fontSize: 13, cursor: "pointer" }}>Refresh From Neo4j</button>
-                  {(statusFilter.size > 0 || criticalityFilter.size > 0 || dispositionFilter.size > 0 || hostingFilter.size > 0 || aiResultFilter || search) && (
-                    <button onClick={() => { setStatusFilter(new Set()); setCriticalityFilter(new Set()); setDispositionFilter(new Set()); setHostingFilter(new Set()); setAiResultFilter(null); setSearch(""); }}
-                      style={{ padding: "7px 14px", background: "transparent", color: COLORS.inkSecondary, border: "none",
-                        fontSize: 13, cursor: "pointer", textDecoration: "underline" }}>Clear Filters</button>
-                  )}
+                      borderRadius: 8, fontSize: 13, cursor: "pointer", marginLeft: "auto" }}>Refresh From Neo4j</button>
                 </div>
               </div>
 
@@ -4313,7 +4307,7 @@ function APMDashboardLive() {
                 </div>
                 {allDispositions.map((d) => (
                   <div key={d} style={{ display: "flex", alignItems: "center", marginBottom: 8, cursor: "pointer" }}
-                    onClick={() => toggleSetFilter(setDispositionFilter, dispositionFilter, d)}>
+                    onClick={() => selectSingleFilter(setDispositionFilter, dispositionFilter, d)}>
                     <div style={{ width: 100, fontSize: 13, fontWeight: dispositionFilter.has(d) ? 700 : 400,
                       color: dispositionFilter.has(d) ? DISPOSITION_INFO[d].color : COLORS.ink }}>{d}</div>
                     <div style={{ flex: 1, background: "#EEF0F8", height: 10, borderRadius: 999, overflow: "hidden", marginRight: 10 }}>
