@@ -847,6 +847,17 @@ function edgeStyle(relType) {
 const healthLabel = { 1: "Poor", 2: "Adequate", 3: "Good", 4: "Good" };
 const valueLabel = { 1: "Low", 2: "Medium", 3: "High" };
 const fmtGBP = (n) => n == null ? "—" : `£${Number(n).toLocaleString("en-GB", { maximumFractionDigits: 0 })}`;
+const fmtWhen = (iso) => {
+  if (!iso) return "—";
+  const then = new Date(iso), diffMs = Date.now() - then.getTime(), mins = Math.round(diffMs / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return then.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: then.getFullYear() === new Date().getFullYear() ? undefined : "numeric" });
+};
 
 function deriveQueryApiUrl(uri, dbName) {
   const host = uri.trim().replace(/^neo4j\+s:\/\//, "").replace(/^neo4j:\/\//, "")
@@ -1001,38 +1012,24 @@ function currentLifecycleStage(app) {
 // a process's AI readiness comes from the quality of the DATA belonging to the
 // same CAPABILITY the process realises, found by traversing two real edges
 // (Process -REALISES-> Capability <-BELONGS_TO- Data), not a hardcoded lookup.
-// AI opportunity scoring: reasons through the graph rather than a flat table —
-// a process's AI readiness comes from the quality of the DATA belonging to the
-// same CAPABILITY the process realises, found by traversing two real edges
-// (Process -REALISES-> Capability <-BELONGS_TO- Data), not a hardcoded lookup.
-const AUTOMATION_SCORE = { Manual: 3, Partial: 1.5, Full: 0 };
-const FREQUENCY_SCORE = { "Real-time": 3, Daily: 3, Weekly: 2, Monthly: 1, "Ad-hoc": 0.5 };
-const IMPORTANCE_SCORE = { Critical: 3, High: 2, Medium: 1, Low: 0.5 };
-const QUALITY_SCORE = { High: 3, Adequate: 2, Poor: 1 };
-
-function computeAIScores(p) {
-  const autoS = AUTOMATION_SCORE[p.automationLevel] ?? 1;
-  const freqS = FREQUENCY_SCORE[p.frequency] ?? 1;
-  const impS = IMPORTANCE_SCORE[p.capabilityImportance] ?? 1;
-  const opportunity = (autoS + freqS + impS) / 3;
-  const readiness = p.dataQualities.length
-    ? p.dataQualities.reduce((s, q) => s + (QUALITY_SCORE[q] || 2), 0) / p.dataQualities.length
-    : 1.5;
-  return { opportunity, readiness };
-}
-
-const AI_QUADRANT_INFO = {
-  "Automate Now": { color: "#0EA968", desc: "Manual, frequent, valuable work — and the data behind it is good enough to trust." },
-  "Fix Data First": { color: "#D97706", desc: "Worth automating, but the underlying data quality isn't there yet." },
-  "Low Priority": { color: "#6C7A99", desc: "Data's ready, but the process isn't manual/frequent/valuable enough to matter yet." },
-  "Not Yet": { color: "#7A6A73", desc: "Neither the opportunity nor the data readiness make a case right now." },
+// AI Pathfinder: the company's own 2x2 framework, not something the app infers.
+// AIReadiness (feasibility) and AIRelevance (payoff) are stored, editable per-
+// application judgements — "High" on either axis is what counts as "high" for
+// quadrant placement; Low/Medium both read as "low" so the four quadrants stay
+// meaningfully differentiated instead of nearly everything landing top-right.
+const AI_PATHFINDER_INFO = {
+  Accelerate: { color: "#0EA968", desc: "High readiness, high relevance — move now." },
+  Selective: { color: "#7C5CFF", desc: "High readiness, lower relevance — pursue selectively, case by case." },
+  Prepare: { color: "#D97706", desc: "Lower readiness, high relevance — the value is there; build the foundations first." },
+  Deprioritize: { color: "#7A6A73", desc: "Lower readiness, lower relevance — not worth attention right now." },
 };
-function aiQuadrant(scores) {
-  const highOpp = scores.opportunity >= 2, highReady = scores.readiness >= 2;
-  if (highOpp && highReady) return "Automate Now";
-  if (highOpp && !highReady) return "Fix Data First";
-  if (!highOpp && highReady) return "Low Priority";
-  return "Not Yet";
+function aiPathfinderQuadrant(app) {
+  if (!app.aiReadiness || !app.aiRelevance) return null;
+  const highReadiness = app.aiReadiness === "High", highRelevance = app.aiRelevance === "High";
+  if (highReadiness && highRelevance) return "Accelerate";
+  if (highReadiness && !highRelevance) return "Selective";
+  if (!highReadiness && highRelevance) return "Prepare";
+  return "Deprioritize";
 }
 
 // simple force-directed layout, no external library — fine for small graphs
@@ -1474,7 +1471,7 @@ function APMDashboardLive() {
         `MATCH (w:Workspace) RETURN w.id AS id, w.name AS name ORDER BY w.name`
       );
       const canvasSummaryRows = await runCypher(apiUrl, authHeader,
-        `MATCH (c:Canvas) RETURN c.id AS id, c.name AS name, c.workspaceId AS workspaceId ORDER BY c.name`
+        `MATCH (c:Canvas) RETURN c.id AS id, c.name AS name, c.workspaceId AS workspaceId, c.updatedAt AS updatedAt ORDER BY c.name`
       );
       let finalWorkspaces = workspaceRows;
       let finalCanvases = canvasSummaryRows;
@@ -1496,7 +1493,7 @@ function APMDashboardLive() {
             now: new Date().toISOString() }
         );
         finalWorkspaces = [{ id: wsId, name: "My Workspace" }];
-        finalCanvases = [{ id: canvasId, name: "Canvas 1", workspaceId: wsId }];
+        finalCanvases = [{ id: canvasId, name: "Canvas 1", workspaceId: wsId, updatedAt: new Date().toISOString() }];
       }
       setWorkspaces(finalWorkspaces);
       setCanvasList(finalCanvases);
@@ -1536,6 +1533,9 @@ function APMDashboardLive() {
         locations: appLocationMap[row.app.id] || [],
         risks: row.risks || [],
         capabilities: (row.capabilities || []).filter(Boolean),
+        aiReadiness: row.app.ai_readiness || null, aiRelevance: row.app.ai_relevance || null,
+        aiAvailability: row.app.ai_availability || null, aiTargetPattern: row.app.ai_target_pattern || null,
+        aiPathfinderStatus: row.app.ai_pathfinder_status || null, reviewDate: row.app.review_date || null,
       }));
 
       const nodeMap = new Map();
@@ -1940,16 +1940,14 @@ function APMDashboardLive() {
     return { total, withOwner, withVendor, completenessScore, gaps };
   }, [apps]);
 
-  const scoredProcesses = useMemo(() => {
-    return processes.map((p) => {
-      const scores = computeAIScores(p);
-      return { ...p, ...scores, quadrant: aiQuadrant(scores) };
-    }).sort((a, b) => (b.opportunity - b.readiness * 0.01) - (a.opportunity - a.readiness * 0.01));
-  }, [processes]);
-
-  const topRecommendation = useMemo(
-    () => scoredProcesses.find((p) => p.quadrant === "Automate Now"),
-    [scoredProcesses]
+  const pathfinderApps = useMemo(() => {
+    return appsWithDisposition
+      .map((a) => ({ ...a, aiQuadrant: aiPathfinderQuadrant(a) }))
+      .filter((a) => a.aiQuadrant);
+  }, [appsWithDisposition]);
+  const pathfinderTopPick = useMemo(
+    () => pathfinderApps.find((a) => a.aiQuadrant === "Accelerate"),
+    [pathfinderApps]
   );
 
   // Redundancy: group apps by (capability, functional category) — more than
@@ -2146,53 +2144,6 @@ function APMDashboardLive() {
     return { categories, items, segAngle, cx, cy };
   }, [technologies]);
 
-  // Decision shortlist: synthesises 6R + AI-TIME + AI Opportunity into a single
-  // verdict per application, rather than making a CIO combine three tabs by hand.
-  // Infra/plumbing categories don't inherit a shared capability's process
-  // opportunity — Talend and PayPal support Fundraising, but the manual work
-  // in "Poppy Appeal Collection" happens in the CRM and website, not in them.
-  const INFRA_CATEGORIES = new Set(["Data Integration", "Payment Processing"]);
-  const CRIT_WEIGHT = { Critical: 3, High: 2, Medium: 1, Low: 0.5 };
-  const decisionShortlist = useMemo(() => {
-    const relatedOpportunity = (app) => {
-      if (INFRA_CATEGORIES.has(app.category)) return [];
-      return scoredProcesses.filter((p) => app.capabilities.includes(p.capabilityName));
-    };
-    return scoredAppsForAITime.map((app) => {
-      const relatedProcs = relatedOpportunity(app);
-      const hasAutomateNow = relatedProcs.some((p) => p.quadrant === "Automate Now");
-      let verdict, reason;
-      if (app.disposition.code === "Retire") {
-        verdict = "Retire"; reason = app.disposition.reason;
-      } else if (app.aiQuadrant === "Prime Disruption Target") {
-        verdict = "Replace"; reason = AI_TIME_INFO[app.aiQuadrant].desc;
-      } else if (app.disposition.code === "Replace") {
-        verdict = "Replace";
-        reason = hasAutomateNow
-          ? `${app.disposition.reason} — and the underlying process is a strong AI-augmentation candidate, so design the replacement AI-native rather than bolting AI onto what's there.`
-          : app.disposition.reason;
-      } else if (hasAutomateNow && (app.aiQuadrant === "Safe for Now" || app.aiQuadrant === "Watch Closely")) {
-        verdict = "Augment";
-        reason = `The process behind this system is manual/frequent/valuable enough to automate, but the application itself is healthy — augment the workflow, don't replace the system.`;
-      } else {
-        verdict = "Leave"; reason = "No AI-specific action indicated right now.";
-      }
-      const impactedProcesses = relatedProcs;
-      const impactedTeams = [...new Set(impactedProcesses.flatMap((p) => orgsByProcess[p.id] || []))];
-      const impactedRoles = [...new Set(impactedProcesses.flatMap((p) => (p.roles ? p.roles.split(",").map((r) => r.trim()) : [])))];
-      const upstream = computeReachable(app.id, depLinks, "upstream");
-      const downstream = computeReachable(app.id, depLinks, "downstream");
-      const impactedApps = [...new Set([...upstream, ...downstream])]
-        .map((id) => depNodes.find((n) => n.id === id))
-        .filter((n) => n && n.type === "Application")
-        .map((n) => n.name);
-      const priority = (CRIT_WEIGHT[app.criticality] || 1) * (app.tco || 0);
-      return { ...app, verdict, reason, impactedProcesses, impactedTeams, impactedRoles, impactedApps, priority };
-    })
-    .filter((a) => a.verdict !== "Leave")
-    .sort((a, b) => b.priority - a.priority);
-  }, [scoredAppsForAITime, scoredProcesses, orgsByProcess, depLinks, depNodes]);
-
   const toggleSetFilter = (setter, current, value) => {
     const next = new Set(current);
     next.has(value) ? next.delete(value) : next.add(value);
@@ -2328,9 +2279,7 @@ function APMDashboardLive() {
     ["fieldreview", "Field Review", "fieldreview"],
   ];
   const AI_NAV_ITEMS = [
-    ["shortlist", "Decision Shortlist", "shortlist"],
-    ["ai", "AI Opportunity", "ai"],
-    ["aitime", "AI-TIME", "aitime"],
+    ["ai", "AI Pathfinder", "ai"],
   ];
   const MODERNISATION_NAV_ITEMS = [
     ["obsolescence", "Tech Obsolescence", "obsolescence"],
@@ -2409,10 +2358,12 @@ function APMDashboardLive() {
         shapeEdges: shapeEdgesArg !== undefined ? shapeEdgesArg : shapeEdges,
         arrows: arrowsArg !== undefined ? arrowsArg : freeArrows,
       });
+      const now = new Date().toISOString();
       await runCypher(apiUrl, authHeader,
         `MERGE (c:Canvas {id: $id}) SET c.data = $data, c.updatedAt = $now`,
-        { id: targetId, data, now: new Date().toISOString() }
+        { id: targetId, data, now }
       );
+      setCanvasList((prev) => prev.map((c) => c.id === targetId ? { ...c, updatedAt: now } : c));
       setCanvasStatus("Saved");
       setTimeout(() => setCanvasStatus(""), 1500);
     } catch (e) {
@@ -2478,11 +2429,12 @@ function APMDashboardLive() {
       const authHeader = "Basic " + btoa(`${username}:${password}`);
       const canvasId = newCanvasId("pcanvas");
       const emptyData = JSON.stringify({ stickies: [], concepts: [], edges: [], texts: [] });
+      const now = new Date().toISOString();
       await runCypher(apiUrl, authHeader,
         `CREATE (c:Canvas {id: $id, name: $name, workspaceId: $wsId, data: $data, updatedAt: $now})`,
-        { id: canvasId, name, wsId: workspaceId, data: emptyData, now: new Date().toISOString() }
+        { id: canvasId, name, wsId: workspaceId, data: emptyData, now }
       );
-      setCanvasList((prev) => [...prev, { id: canvasId, name, workspaceId }]);
+      setCanvasList((prev) => [...prev, { id: canvasId, name, workspaceId, updatedAt: now }]);
       switchCanvas(canvasId);
     } catch (e) {
       setCanvasStatus(`Couldn't create canvas: ${e.message}`);
@@ -3462,9 +3414,9 @@ function APMDashboardLive() {
 
   const VIEW_TITLES = {
     brief: "Executive Brief", portfolio: "Portfolio Overview", blocked: "Blocked Decisions",
-    canvas: "Modelling Canvas",
+    canvas: "Modelling Canvas", workspaces: "Workspaces",
     capboard: "Capability Board", dependencies: "Dependencies & Impact", health: "Portfolio Health",
-    redundancy: "Redundancy", shortlist: "Decision Shortlist", ai: "AI Opportunity", aitime: "AI-TIME",
+    redundancy: "Redundancy", ai: "AI Pathfinder",
     obsolescence: "Tech Obsolescence", cloudmigration: "Cloud Migration", techradar: "Tech Radar",
     fieldreview: "Field Review", ontology: "Ontology Manager",
     journeytrace: "Journey Trace", maturity: "Capability Maturity", decisionlog: "Decision Log",
@@ -3773,14 +3725,14 @@ function APMDashboardLive() {
               with no children, so it's a plain nav row like the ones below it. */}
           <div className="ds-nav-pill" title="APM"
             onClick={() => {
-              if (sidebarCollapsed) { toggleSidebarCollapsed(); if (view === "canvas" || view === "ontology") setView("brief"); setOpenTopSection("apm"); return; }
-              if (view === "canvas" || view === "ontology") setView("brief");
+              if (sidebarCollapsed) { toggleSidebarCollapsed(); if (view === "canvas" || view === "workspaces" || view === "ontology") setView("brief"); setOpenTopSection("apm"); return; }
+              if (view === "canvas" || view === "workspaces" || view === "ontology") setView("brief");
               setOpenTopSection((prev) => prev === "apm" ? null : "apm");
             }}
             style={{ display: "flex", justifyContent: sidebarCollapsed ? "center" : "space-between", alignItems: "center", cursor: "pointer",
               padding: sidebarCollapsed ? "9px 0" : "9px 12px", fontSize: 13, fontWeight: 700, borderRadius: 9, marginBottom: 3,
-              background: (view !== "canvas" && view !== "ontology") ? `${COLORS.accent}14` : "transparent",
-              color: (view !== "canvas" && view !== "ontology") ? COLORS.accent : COLORS.inkSecondary }}>
+              background: (view !== "canvas" && view !== "workspaces" && view !== "ontology") ? `${COLORS.accent}14` : "transparent",
+              color: (view !== "canvas" && view !== "workspaces" && view !== "ontology") ? COLORS.accent : COLORS.inkSecondary }}>
             <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
                 strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d="M4 19V5M4 19h16M9 19V11M14 19V7M19 19v-5" /></svg>
@@ -3831,14 +3783,17 @@ function APMDashboardLive() {
 
           <div className="ds-nav-pill" title="Workspaces"
             onClick={() => {
-              if (sidebarCollapsed) { toggleSidebarCollapsed(); if (view !== "canvas") setView("canvas"); setOpenTopSection("workspaces"); return; }
-              if (view !== "canvas") setView("canvas");
+              // Clicking the row itself (not a specific canvas in the tree below) always
+              // goes to the Workspace Manager overview, not straight into whatever canvas
+              // happened to auto-load last — the whole point is to let you choose.
+              if (sidebarCollapsed) { toggleSidebarCollapsed(); setView("workspaces"); setOpenTopSection("workspaces"); return; }
+              setView("workspaces");
               setOpenTopSection((prev) => prev === "workspaces" ? null : "workspaces");
             }}
             style={{ display: "flex", justifyContent: sidebarCollapsed ? "center" : "space-between", alignItems: "center", cursor: "pointer",
               padding: sidebarCollapsed ? "9px 0" : "9px 12px", fontSize: 13, fontWeight: 700, borderRadius: 9, marginBottom: 3,
-              background: view === "canvas" ? `${COLORS.accent}14` : "transparent",
-              color: view === "canvas" ? COLORS.accent : COLORS.inkSecondary }}>
+              background: (view === "canvas" || view === "workspaces") ? `${COLORS.accent}14` : "transparent",
+              color: (view === "canvas" || view === "workspaces") ? COLORS.accent : COLORS.inkSecondary }}>
             <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
                 strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
@@ -4559,117 +4514,142 @@ function APMDashboardLive() {
               </div>
             </div>
           )}
-          {view === "ai" && (
-            <div>
-              <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginBottom: 20, maxWidth: 680, lineHeight: 1.6 }}>
-                Opportunity is scored from how manual, frequent, and important each process is. Readiness is scored
-                from the quality of the data behind the capability that process serves — found by tracing
-                Process → Capability ← Data through the graph, not a hardcoded lookup.
-              </div>
-
-              {topRecommendation && (
-                <div style={{ background: "#DCEAE1", border: `1px solid ${COLORS.accent}`, borderRadius: 18,
-                  padding: "16px 20px", marginBottom: 24 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.accent, marginBottom: 4 }}>Top Recommendation</div>
-                  <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>{topRecommendation.name}</div>
-                  <div style={{ fontSize: 12.5, color: COLORS.inkSecondary }}>
-                    {topRecommendation.automationLevel} today, runs {(topRecommendation.frequency || "").toLowerCase()},
-                    supports {topRecommendation.capabilityName} ({topRecommendation.capabilityImportance} importance) —
-                    and the data behind it is good enough to act on now.
-                  </div>
+          {view === "ai" && (() => {
+            const LEVEL_SCORE = { Low: 1, Medium: 2, High: 3 };
+            // Only "High" counts as the high side of either axis (see aiPathfinderQuadrant),
+            // so the quadrant divider sits at the Medium/High boundary, not the midpoint —
+            // the background fill has to match the same line the dots are sorted against.
+            const DIVIDER = 2.5 / 3;
+            const dividerX = pad + DIVIDER * (W - pad * 2);
+            const dividerY = H - pad - DIVIDER * (H - pad * 2);
+            // Several applications commonly share the exact same Readiness×Relevance
+            // combination — spread same-combo dots around their shared point instead of
+            // stacking them exactly on top of each other.
+            const JITTER = [[0, 0], [18, -11], [-18, 11], [18, 11], [-18, -11], [0, -20], [0, 20]];
+            const groupCounts = {};
+            const plotted = pathfinderApps.map((a) => {
+              const key = `${a.aiReadiness}::${a.aiRelevance}`;
+              const idx = groupCounts[key] || 0;
+              groupCounts[key] = idx + 1;
+              const [jx, jy] = JITTER[idx % JITTER.length];
+              const baseX = pad + (LEVEL_SCORE[a.aiRelevance] / 3) * (W - pad * 2);
+              const baseY = H - pad - (LEVEL_SCORE[a.aiReadiness] / 3) * (H - pad * 2);
+              return { ...a, cx: baseX + jx, cy: baseY + jy };
+            });
+            const hoveredApp = hovered ? plotted.find((a) => a.id === hovered) : null;
+            return (
+              <div>
+                <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginBottom: 20, maxWidth: 720, lineHeight: 1.6 }}>
+                  A practical decision framework to focus AI change on the applications that matter most —
+                  AI Readiness (feasibility) against AI Relevance (payoff), placing every scored application into
+                  one of four decisions: Accelerate, Selective, Prepare, or Deprioritize.
                 </div>
-              )}
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 24, marginBottom: 28 }}>
-                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18, padding: 20 }}>
-                  <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 2 }}>AI Opportunity vs. Data Readiness</div>
-                  <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginBottom: 12 }}>
-                    One bubble per process. Hover for detail.
+                {pathfinderTopPick && (
+                  <div style={{ background: "#DCEAE1", border: `1px solid ${COLORS.accent}`, borderRadius: 18,
+                    padding: "16px 20px", marginBottom: 24 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.accent, marginBottom: 4 }}>Top Pick — Accelerate</div>
+                    <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>{pathfinderTopPick.name}</div>
+                    <div style={{ fontSize: 12.5, color: COLORS.inkSecondary }}>
+                      High readiness, high relevance — {pathfinderTopPick.aiAvailability ? pathfinderTopPick.aiAvailability.toLowerCase() : "unassessed"} today,
+                      target pattern is {pathfinderTopPick.aiTargetPattern || "unassigned"}.
+                    </div>
                   </div>
-                  <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H}>
-                    <rect x={W/2} y={pad} width={W/2-pad} height={H/2-pad} fill="#DCEAE1" />
-                    <rect x={pad} y={pad} width={W/2-pad} height={H/2-pad} fill="#EDEAE1" />
-                    <rect x={W/2} y={H/2} width={W/2-pad} height={H/2-pad} fill="#FBEAD0" />
-                    <rect x={pad} y={H/2} width={W/2-pad} height={H/2-pad} fill="#E4E3EA" />
-                    <text x={W - pad - 8} y={pad + 18} fontSize="12" fill={COLORS.ink} textAnchor="end" fontWeight="600">Automate Now</text>
-                    <text x={pad + 8} y={pad + 18} fontSize="12" fill={COLORS.ink} textAnchor="start" fontWeight="600">Low Priority</text>
-                    <text x={W - pad - 8} y={H - pad - 10} fontSize="12" fill={COLORS.ink} textAnchor="end" fontWeight="600">Fix Data First</text>
-                    <text x={pad + 8} y={H - pad - 10} fontSize="12" fill={COLORS.ink} textAnchor="start" fontWeight="600">Not Yet</text>
-                    <line x1={pad} y1={H - pad} x2={W - pad} y2={H - pad} stroke={COLORS.ink} strokeWidth="1" />
-                    <line x1={pad} y1={pad} x2={pad} y2={H - pad} stroke={COLORS.ink} strokeWidth="1" />
-                    <text x={W / 2} y={H - 12} fontSize="12" fill={COLORS.inkSecondary} textAnchor="middle">AI Opportunity →</text>
-                    <text x={16} y={H / 2} fontSize="12" fill={COLORS.inkSecondary} textAnchor="middle" transform={`rotate(-90 16 ${H / 2})`}>Data Readiness →</text>
-                    {scoredProcesses.map((p) => {
-                      const cx = pad + (p.opportunity / 3) * (W - pad * 2);
-                      const cy = H - pad - (p.readiness / 3) * (H - pad * 2);
-                      return (
-                        <g key={p.id} onMouseEnter={() => setHovered(p.id)} onMouseLeave={() => setHovered(null)} style={{ cursor: "pointer" }}>
-                          <circle cx={cx} cy={cy} r={14} fill={AI_QUADRANT_INFO[p.quadrant].color}
-                            fillOpacity={hovered === p.id ? 0.95 : 0.75} stroke={COLORS.ink}
-                            strokeWidth={hovered === p.id ? 1.5 : 0.5} />
-                          <text x={cx} y={cy - 20} fontSize="11" fill={COLORS.ink} textAnchor="middle" fontWeight={hovered === p.id ? "600" : "400"}>
-                            {p.name.length > 24 ? p.name.slice(0, 22) + "…" : p.name}
+                )}
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 24, marginBottom: 28 }}>
+                  <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18, padding: 20 }}>
+                    <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 2 }}>AI Readiness vs. AI Relevance</div>
+                    <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginBottom: 12 }}>
+                      One bubble per scored application. Hover for detail.
+                    </div>
+                    <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H}>
+                      <rect x={dividerX} y={pad} width={W - pad - dividerX} height={dividerY - pad} fill="#DCEAE1" />
+                      <rect x={pad} y={pad} width={dividerX - pad} height={dividerY - pad} fill="#EDE8F7" />
+                      <rect x={dividerX} y={dividerY} width={W - pad - dividerX} height={H - pad - dividerY} fill="#FBEAD0" />
+                      <rect x={pad} y={dividerY} width={dividerX - pad} height={H - pad - dividerY} fill="#E4E3EA" />
+                      <text x={W - pad - 8} y={pad + 18} fontSize="12" fill={COLORS.ink} textAnchor="end" fontWeight="600">Accelerate</text>
+                      <text x={pad + 8} y={pad + 18} fontSize="12" fill={COLORS.ink} textAnchor="start" fontWeight="600">Selective</text>
+                      <text x={W - pad - 8} y={H - pad - 10} fontSize="12" fill={COLORS.ink} textAnchor="end" fontWeight="600">Prepare</text>
+                      <text x={pad + 8} y={H - pad - 10} fontSize="12" fill={COLORS.ink} textAnchor="start" fontWeight="600">Deprioritize</text>
+                      <line x1={pad} y1={H - pad} x2={W - pad} y2={H - pad} stroke={COLORS.ink} strokeWidth="1" />
+                      <line x1={pad} y1={pad} x2={pad} y2={H - pad} stroke={COLORS.ink} strokeWidth="1" />
+                      <text x={W / 2} y={H - 12} fontSize="12" fill={COLORS.inkSecondary} textAnchor="middle">AI Relevance (Payoff) →</text>
+                      <text x={16} y={H / 2} fontSize="12" fill={COLORS.inkSecondary} textAnchor="middle" transform={`rotate(-90 16 ${H / 2})`}>AI Readiness (Feasibility) →</text>
+                      {plotted.map((a) => (
+                        <g key={a.id} onMouseEnter={() => setHovered(a.id)} onMouseLeave={() => setHovered(null)} style={{ cursor: "pointer" }}>
+                          <circle cx={a.cx} cy={a.cy} r={13} fill={AI_PATHFINDER_INFO[a.aiQuadrant].color}
+                            fillOpacity={hovered === a.id ? 0.95 : 0.75} stroke={COLORS.ink}
+                            strokeWidth={hovered === a.id ? 1.5 : 0.5} />
+                          <text x={a.cx} y={a.cy - 18} fontSize="11" fill={COLORS.ink} textAnchor="middle" fontWeight={hovered === a.id ? "600" : "400"}>
+                            {a.name.length > 22 ? a.name.slice(0, 20) + "…" : a.name}
                           </text>
                         </g>
-                      );
-                    })}
-                  </svg>
-                </div>
-                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18, padding: 18 }}>
-                  {hovered && scoredProcesses.find((p) => p.id === hovered) ? (() => {
-                    const p = scoredProcesses.find((x) => x.id === hovered);
-                    return (
+                      ))}
+                    </svg>
+                  </div>
+                  <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18, padding: 18 }}>
+                    {hoveredApp ? (
                       <div>
-                        <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>{p.name}</div>
+                        <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>{hoveredApp.name}</div>
                         <div style={{ fontSize: 12.5, lineHeight: 1.9 }}>
-                          <div><b>Automation Today</b> — {p.automationLevel || "—"}</div>
-                          <div><b>Frequency</b> — {p.frequency || "—"}</div>
-                          <div><b>Capability</b> — {p.capabilityName || "—"} ({p.capabilityImportance || "—"})</div>
-                          <div><b>Data Quality</b> — {p.dataQualities.length ? p.dataQualities.join(", ") : "no linked data"}</div>
-                          <div><b>Supporting Apps</b> — {p.supportingApps.length ? p.supportingApps.join(", ") : "none"}</div>
+                          <div><b>Availability</b> — {hoveredApp.aiAvailability || "—"}</div>
+                          <div><b>Target Pattern</b> — {hoveredApp.aiTargetPattern || "—"}</div>
+                          <div><b>Owner</b> — {hoveredApp.owner || "—"}</div>
+                          <div><b>Status</b> — {hoveredApp.aiPathfinderStatus || "—"}</div>
+                          <div><b>Review Date</b> — {hoveredApp.reviewDate || "—"}</div>
                           <div style={{ marginTop: 8 }}>
-                            <span style={{ background: AI_QUADRANT_INFO[p.quadrant].color, color: "#fff",
-                              padding: "2px 8px", borderRadius: 8, fontSize: 11.5, fontWeight: 600 }}>{p.quadrant}</span>
+                            <span style={{ background: AI_PATHFINDER_INFO[hoveredApp.aiQuadrant].color, color: "#fff",
+                              padding: "2px 8px", borderRadius: 8, fontSize: 11.5, fontWeight: 600 }}>{hoveredApp.aiQuadrant}</span>
                           </div>
+                          <div style={{ marginTop: 6, color: COLORS.inkSecondary }}>{AI_PATHFINDER_INFO[hoveredApp.aiQuadrant].desc}</div>
                         </div>
                       </div>
-                    );
-                  })() : (
-                    <div style={{ fontSize: 12.5, color: COLORS.inkSecondary, lineHeight: 1.6 }}>
-                      Hover a bubble to see the reasoning behind its placement.
-                    </div>
-                  )}
+                    ) : (
+                      <div style={{ fontSize: 12.5, color: COLORS.inkSecondary, lineHeight: 1.6 }}>
+                        Hover a bubble to see its availability, target pattern, owner, and review date.
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
 
-              <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18, overflow: "hidden" }}>
-                <div style={{ padding: "16px 18px 4px", fontSize: 15, fontWeight: 600 }}>All Processes, Ranked</div>
-                <table>
-                  <thead>
-                    <tr style={{ borderTop: `1px solid ${COLORS.border}` }}>
-                      <th>Process</th><th>Capability</th><th>Automation</th><th>Frequency</th>
-                      <th>Data quality</th><th>Verdict</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {scoredProcesses.map((p) => (
-                      <tr key={p.id}>
-                        <td style={{ fontWeight: 500 }}>{p.name}</td>
-                        <td>{p.capabilityName}</td>
-                        <td>{p.automationLevel || "—"}</td>
-                        <td>{p.frequency || "—"}</td>
-                        <td>{p.dataQualities.length ? p.dataQualities.join(", ") : "—"}</td>
-                        <td>
-                          <span style={{ background: AI_QUADRANT_INFO[p.quadrant].color, color: "#fff",
-                            padding: "2px 8px", borderRadius: 8, fontSize: 11 }}>{p.quadrant}</span>
-                        </td>
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18, overflow: "hidden" }}>
+                  <div style={{ padding: "16px 18px 4px", fontSize: 15, fontWeight: 600 }}>All Applications, Segmented</div>
+                  <table>
+                    <thead>
+                      <tr style={{ borderTop: `1px solid ${COLORS.border}` }}>
+                        <th>Application</th><th>Availability</th><th>Decision</th><th>Target Pattern</th>
+                        <th>Owner</th><th>Status</th><th>Review Date</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {plotted.map((a) => (
+                        <tr key={a.id}>
+                          <td style={{ fontWeight: 500 }}>{a.name}</td>
+                          <td>{a.aiAvailability || "—"}</td>
+                          <td>
+                            <span style={{ background: AI_PATHFINDER_INFO[a.aiQuadrant].color, color: "#fff",
+                              padding: "2px 8px", borderRadius: 8, fontSize: 11 }}>{a.aiQuadrant}</span>
+                          </td>
+                          <td>{a.aiTargetPattern || "—"}</td>
+                          <td>{a.owner || "—"}</td>
+                          <td>{a.aiPathfinderStatus || "—"}</td>
+                          <td>{a.reviewDate || "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {apps.length > pathfinderApps.length && (
+                  <div style={{ fontSize: 12, color: COLORS.inkSecondary, marginTop: 14 }}>
+                    {apps.length - pathfinderApps.length} application{apps.length - pathfinderApps.length === 1 ? "" : "s"} not
+                    yet scored (missing AI Readiness or AI Relevance) — set them via Ontology Manager to include them here.
+                  </div>
+                )}
               </div>
-            </div>
-          )}
+            );
+          })()}
           {view === "redundancy" && (
             <div>
               <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginBottom: 20, maxWidth: 680, lineHeight: 1.6 }}>
@@ -4733,110 +4713,6 @@ function APMDashboardLive() {
                   </div>
                 ))
               )}
-            </div>
-          )}
-          {view === "aitime" && (
-            <div>
-              <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginBottom: 14, maxWidth: 680, lineHeight: 1.6 }}>
-                A different question from AI Opportunity: not "where should we add AI," but "which of these
-                applications could be eliminated because an AI agent could just do the job without the software."
-                Exposure comes from what kind of work the category does; entrenchment reuses the same business
-                value and technical health TIME already scores.
-              </div>
-
-              <div style={{ background: "#EDEAE1", border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18,
-                padding: "14px 18px", marginBottom: 24, fontSize: 12.5, color: COLORS.inkSecondary, lineHeight: 1.6 }}>
-                <b style={{ color: COLORS.ink }}>Worth noticing:</b> the Welfare Case Management System scored as
-                your #1 <i>AI Opportunity</i> (the underlying process is manual, frequent, and important) — but it
-                lands in <i>"Safe for Now"</i> here, not <i>"Prime Disruption Target."</i> That's not a
-                contradiction. Augmenting welfare casework with AI doesn't mean the system of record disappears —
-                safeguarding and audit needs keep a human-accountable application in place even as the work inside
-                it gets AI assistance.
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 24, marginBottom: 28 }}>
-                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18, padding: 20 }}>
-                  <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 2 }}>AI Disruption Exposure vs. Entrenchment</div>
-                  <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginBottom: 12 }}>One bubble per application.</div>
-                  <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H}>
-                    <rect x={W/2} y={pad} width={W/2-pad} height={H/2-pad} fill="#FBE0D8" />
-                    <rect x={pad} y={pad} width={W/2-pad} height={H/2-pad} fill="#E4E3EA" />
-                    <rect x={W/2} y={H/2} width={W/2-pad} height={H/2-pad} fill="#FBEAD0" />
-                    <rect x={pad} y={H/2} width={W/2-pad} height={H/2-pad} fill="#DCEAE1" />
-                    <text x={W - pad - 8} y={pad + 18} fontSize="12" fill={COLORS.ink} textAnchor="end" fontWeight="600">Watch Closely</text>
-                    <text x={pad + 8} y={pad + 18} fontSize="12" fill={COLORS.ink} textAnchor="start" fontWeight="600">Modernise Conventionally</text>
-                    <text x={W - pad - 8} y={H - pad - 10} fontSize="12" fill={COLORS.ink} textAnchor="end" fontWeight="600">Prime Disruption Target</text>
-                    <text x={pad + 8} y={H - pad - 10} fontSize="12" fill={COLORS.ink} textAnchor="start" fontWeight="600">Safe for Now</text>
-                    <line x1={pad} y1={H - pad} x2={W - pad} y2={H - pad} stroke={COLORS.ink} strokeWidth="1" />
-                    <line x1={pad} y1={pad} x2={pad} y2={H - pad} stroke={COLORS.ink} strokeWidth="1" />
-                    <text x={W / 2} y={H - 12} fontSize="12" fill={COLORS.inkSecondary} textAnchor="middle">AI Disruption Exposure →</text>
-                    <text x={16} y={H / 2} fontSize="12" fill={COLORS.inkSecondary} textAnchor="middle" transform={`rotate(-90 16 ${H / 2})`}>Entrenchment →</text>
-                    {scoredAppsForAITime.map((a) => {
-                      const cx = pad + (a.exposure / 3) * (W - pad * 2);
-                      const cy = H - pad - ((a.entrenchment - 1) / 2.5) * (H - pad * 2);
-                      return (
-                        <g key={a.id} onMouseEnter={() => setHovered(a.id)} onMouseLeave={() => setHovered(null)} style={{ cursor: "pointer" }}>
-                          <circle cx={cx} cy={cy} r={13} fill={AI_TIME_INFO[a.aiQuadrant].color}
-                            fillOpacity={hovered === a.id ? 0.95 : 0.75} stroke={COLORS.ink}
-                            strokeWidth={hovered === a.id ? 1.5 : 0.5} />
-                          <text x={cx} y={cy - 19} fontSize="11" fill={COLORS.ink} textAnchor="middle" fontWeight={hovered === a.id ? "600" : "400"}>
-                            {a.name.length > 20 ? a.name.slice(0, 18) + "…" : a.name}
-                          </text>
-                        </g>
-                      );
-                    })}
-                  </svg>
-                </div>
-                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18, padding: 18 }}>
-                  {hovered && scoredAppsForAITime.find((a) => a.id === hovered) ? (() => {
-                    const a = scoredAppsForAITime.find((x) => x.id === hovered);
-                    return (
-                      <div>
-                        <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>{a.name}</div>
-                        <div style={{ fontSize: 12.5, lineHeight: 1.9 }}>
-                          <div><b>Category</b> — {a.category}</div>
-                          <div><b>Business value</b> — {valueLabel[a.businessValue] || "—"}</div>
-                          <div><b>Technical health</b> — {healthLabel[a.techHealth] || "—"}</div>
-                          <div style={{ marginTop: 8 }}>
-                            <span style={{ background: AI_TIME_INFO[a.aiQuadrant].color, color: "#fff",
-                              padding: "2px 8px", borderRadius: 8, fontSize: 11.5, fontWeight: 600 }}>{a.aiQuadrant}</span>
-                            <div style={{ marginTop: 4, color: COLORS.inkSecondary }}>{AI_TIME_INFO[a.aiQuadrant].desc}</div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })() : (
-                    <div style={{ fontSize: 12.5, color: COLORS.inkSecondary, lineHeight: 1.6 }}>
-                      Hover a bubble to see the reasoning.
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", overflow: "hidden", borderRadius: 18 }}>
-                <div style={{ padding: "16px 18px 4px", fontSize: 15, fontWeight: 600 }}>All Applications</div>
-                <table>
-                  <thead>
-                    <tr style={{ borderTop: `1px solid ${COLORS.border}` }}>
-                      <th>Application</th><th>Category</th><th>Business Value</th><th>Technical Health</th><th>Verdict</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {scoredAppsForAITime.map((a) => (
-                      <tr key={a.id}>
-                        <td style={{ fontWeight: 500 }}>{a.name}</td>
-                        <td>{a.category}</td>
-                        <td>{valueLabel[a.businessValue] || "—"}</td>
-                        <td>{healthLabel[a.techHealth] || "—"}</td>
-                        <td>
-                          <span style={{ background: AI_TIME_INFO[a.aiQuadrant].color, color: "#fff",
-                            padding: "2px 8px", borderRadius: 8, fontSize: 11 }}>{a.aiQuadrant}</span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
             </div>
           )}
           {view === "obsolescence" && (
@@ -5030,7 +4906,7 @@ function APMDashboardLive() {
                 icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="1.8"><rect x="4" y="4" width="16" height="16" rx="3" /><path d="M4 10h16M10 4v16" /></svg> },
               { key: "decisionlog", title: "Decision Log", desc: "Every architecture decision — consequences, and what superseded what.", color: "#F0384D",
                 icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F0384D" strokeWidth="1.8"><path d="M7 3h8l4 4v14H7z" /><path d="M15 3v4h4" /><line x1="9.5" y1="12" x2="16" y2="12" /><line x1="9.5" y1="16" x2="16" y2="16" /></svg> },
-              { key: "ai", title: "AI Opportunity", desc: "Where AI would help most, mapped against data readiness.", color: "#2C7A8C",
+              { key: "ai", title: "AI Pathfinder", desc: "Where to accelerate, prepare, be selective, or deprioritize AI across the portfolio.", color: "#2C7A8C",
                 icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2C7A8C" strokeWidth="1.8"><path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8" /><circle cx="12" cy="12" r="3" /></svg> },
             ];
             const quickStats = [
@@ -5412,6 +5288,78 @@ function APMDashboardLive() {
               </div>
             );
           })()}
+
+          {view === "workspaces" && (
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+                <div style={{ fontSize: 13, color: COLORS.inkSecondary, maxWidth: 640, lineHeight: 1.6 }}>
+                  Pick a canvas to open it, or start something new. Nothing here is pushed to the real graph until
+                  you explicitly push a canvas to it.
+                </div>
+                <button onClick={createWorkspace} className="ds-btn-primary" style={{ padding: "9px 18px", borderRadius: 8,
+                  fontSize: 13, fontWeight: 700, flexShrink: 0 }}>
+                  + New Workspace
+                </button>
+              </div>
+
+              {workspaces.map((ws) => {
+                const wsCanvases = canvasList.filter((c) => c.workspaceId === ws.id);
+                return (
+                  <div key={ws.id} style={{ marginBottom: 28 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <div style={{ fontSize: 15.5, fontWeight: 700, fontFamily: "var(--font-display)" }}>{ws.name}</div>
+                        <div style={{ fontSize: 11.5, color: COLORS.inkSecondary }}>
+                          {wsCanvases.length} canvas{wsCanvases.length === 1 ? "" : "es"}
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", gap: 4 }}>
+                        <span onClick={() => renameWorkspace(ws)} title="Rename workspace"
+                          style={{ fontSize: 12, color: COLORS.inkSecondary, cursor: "pointer", padding: "2px 6px" }}>✎</span>
+                        <span onClick={() => deleteWorkspace(ws)} title="Delete workspace"
+                          style={{ fontSize: 13, color: COLORS.inkSecondary, cursor: "pointer", padding: "2px 6px" }}>✕</span>
+                      </div>
+                    </div>
+                    <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`,
+                      borderRadius: 14, overflow: "hidden" }}>
+                      {wsCanvases.length === 0 ? (
+                        <div style={{ padding: "18px 16px", fontSize: 12.5, color: COLORS.inkSecondary }}>No canvases in this workspace yet.</div>
+                      ) : (
+                        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                          <tbody>
+                            {wsCanvases.map((c) => (
+                              <tr key={c.id} onClick={() => switchCanvas(c.id)}
+                                style={{ cursor: "pointer", borderBottom: `1px solid ${COLORS.border}` }}>
+                                <td style={{ padding: "12px 16px", fontSize: 13.5, fontWeight: 600,
+                                  color: c.id === activeCanvasId ? COLORS.accent : COLORS.ink }}>
+                                  <span style={{ display: "flex", alignItems: "center", gap: 8 }}>{ICONS.canvas}{c.name}</span>
+                                </td>
+                                <td style={{ padding: "12px 16px", fontSize: 12, color: COLORS.inkSecondary, textAlign: "right", whiteSpace: "nowrap" }}>
+                                  Updated {fmtWhen(c.updatedAt)}
+                                </td>
+                                <td style={{ padding: "12px 16px", textAlign: "right", whiteSpace: "nowrap" }}>
+                                  <span onClick={(e) => { e.stopPropagation(); renameCanvas(c); }} title="Rename canvas"
+                                    style={{ fontSize: 12, color: COLORS.inkSecondary, cursor: "pointer", padding: "0 6px" }}>✎</span>
+                                  <span onClick={(e) => { e.stopPropagation(); deleteCanvas(c); }} title="Delete canvas"
+                                    style={{ fontSize: 13, color: COLORS.inkSecondary, cursor: "pointer", padding: "0 6px" }}>✕</span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                      <button onClick={() => createCanvasInWorkspace(ws.id)}
+                        style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 16px",
+                          fontSize: 12.5, fontWeight: 600, border: "none", borderTop: `1px solid ${COLORS.border}`,
+                          background: "transparent", color: COLORS.inkSecondary, cursor: "pointer" }}>
+                        + New Canvas
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
           {view === "canvas" && (
             <div>
@@ -7038,83 +6986,6 @@ function APMDashboardLive() {
             );
           })()}
 
-          {view === "shortlist" && (
-            <div>
-              <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginBottom: 20, maxWidth: 700, lineHeight: 1.6 }}>
-                One verdict per system, synthesised from 6R disposition, AI-TIME, and AI Opportunity — not a fourth
-                independent score, a combination of the three you've already seen. Ranked by criticality × TCO,
-                cut to what's actually actionable ({decisionShortlist.length} of {apps.length} applications;
-                the rest need no AI-specific decision right now).
-              </div>
-
-              {decisionShortlist.length > 0 && (
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 28 }}>
-                  {(() => {
-                    const fund = decisionShortlist.find((a) => a.verdict === "Augment") || decisionShortlist[0];
-                    const stop = decisionShortlist.find((a) => a.verdict === "Replace" || a.verdict === "Retire");
-                    return (
-                      <>
-                        <div style={{ background: "#DCEAE1", border: `1px solid ${COLORS.accent}`, borderRadius: 18, padding: "16px 20px" }}>
-                          <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.accent, marginBottom: 4 }}>Fund With Confidence</div>
-                          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>{fund.name}</div>
-                          <div style={{ fontSize: 12.5, color: COLORS.inkSecondary }}>{fund.reason}</div>
-                        </div>
-                        {stop ? (
-                          <div style={{ background: "#FBE0D8", border: `1px solid ${COLORS.risk}`, borderRadius: 18, padding: "16px 20px" }}>
-                            <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.risk, marginBottom: 4 }}>Stop or Pause Early</div>
-                            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>{stop.name}</div>
-                            <div style={{ fontSize: 12.5, color: COLORS.inkSecondary }}>{stop.reason}</div>
-                          </div>
-                        ) : (
-                          <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18, padding: "16px 20px" }}>
-                            <div style={{ fontSize: 12.5, color: COLORS.inkSecondary }}>No clear stop/pause candidate in this data.</div>
-                          </div>
-                        )}
-                      </>
-                    );
-                  })()}
-                </div>
-              )}
-
-              {decisionShortlist.map((a, i) => (
-                <div key={a.id} className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18,
-                  padding: 20, marginBottom: 16 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
-                    <div>
-                      <div style={{ fontSize: 11.5, color: COLORS.inkSecondary, marginBottom: 2 }}>#{i + 1}</div>
-                      <div style={{ fontSize: 16, fontWeight: 600 }}>{a.name}</div>
-                    </div>
-                    <span style={{ background: { Retire: "#7A6A73", Replace: COLORS.risk, Augment: COLORS.accent }[a.verdict] || COLORS.ink,
-                      color: "#fff", padding: "4px 12px", borderRadius: 8, fontSize: 13, fontWeight: 600 }}>
-                      {a.verdict}
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginBottom: 14, lineHeight: 1.6 }}>{a.reason}</div>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, fontSize: 12.5 }}>
-                    <div>
-                      <div style={{ fontWeight: 600, marginBottom: 4 }}>Impacted Processes</div>
-                      {a.impactedProcesses.length ? a.impactedProcesses.map((p) => <div key={p.id}>{p.name}</div>) : <div style={{ color: COLORS.inkSecondary }}>None</div>}
-                    </div>
-                    <div>
-                      <div style={{ fontWeight: 600, marginBottom: 4 }}>Impacted Teams</div>
-                      {a.impactedTeams.length ? a.impactedTeams.map((t) => <div key={t}>{t}</div>) : <div style={{ color: COLORS.inkSecondary }}>None traced</div>}
-                    </div>
-                    <div>
-                      <div style={{ fontWeight: 600, marginBottom: 4 }}>Impacted Roles</div>
-                      {a.impactedRoles.length ? a.impactedRoles.map((r) => <div key={r}>{r}</div>) : <div style={{ color: COLORS.inkSecondary }}>None traced</div>}
-                    </div>
-                    <div>
-                      <div style={{ fontWeight: 600, marginBottom: 4 }}>Impacted Apps/Integrations</div>
-                      {a.impactedApps.length ? a.impactedApps.map((n) => <div key={n}>{n}</div>) : <div style={{ color: COLORS.inkSecondary }}>None</div>}
-                    </div>
-                  </div>
-                  <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${COLORS.border}`, fontSize: 12, color: COLORS.inkSecondary }}>
-                    {a.criticality} criticality · {fmtGBP(a.tco)} annual TCO · 6R: {a.disposition.code} · AI-TIME: {a.aiQuadrant}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       )}
 
