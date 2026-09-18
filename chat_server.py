@@ -426,15 +426,24 @@ def canvas_chat():
     if not request_text:
         return jsonify({"error": "No request provided"}), 400
     canvas_snapshot = request.json.get("canvas", [])
+    # Prior turns in this canvas's chat thread — {role: "user"|"assistant", content}
+    # — so a follow-up like "out of those options which would you recommend?"
+    # resolves "those options" against what was actually just said, on top of
+    # CURRENT CANVAS CONTENTS below already carrying their full text. Capped
+    # to keep the prompt bounded on a long-running session.
+    history = [h for h in request.json.get("history", []) if h.get("role") in ("user", "assistant") and h.get("content")][-16:]
 
     schema_context, valid_rel_types = build_schema_context()
 
     plan_system = (
         "You help someone build a diagram on a visual canvas by describing what they "
-        "want in plain English. Respond with ONLY a JSON object — no markdown fences, "
-        "no explanation before or after — matching exactly this shape:\n\n"
+        "want in plain English, and answer questions about what's on it — this is a "
+        "running conversation, not a one-shot command line. Respond with ONLY a JSON "
+        "object — no markdown fences, no explanation before or after — matching "
+        "exactly this shape:\n\n"
         "{\n"
-        '  "summary": "one short sentence describing what you\'re adding",\n'
+        '  "reply": "what you say back in the chat thread — see below for the two '
+        'cases this covers",\n'
         '  "pull": [ { "cypher": "a real Cypher query, schema-validated, that RETURNS '
         'id, name, and a literal type string per match, e.g. RETURN c.id AS id, c.name '
         'AS name, \\"Capability\\" AS type" } ],\n'
@@ -459,7 +468,35 @@ def canvas_chat():
         '"label": "<a short badge word/phrase, e.g. \'High Risk\' — optional, omit for none>" }\n'
         "  ]\n"
         "}\n\n"
-        "Any section can be an empty array if not needed. Guidance on which kind to use:\n"
+        "Any section can be an empty array if not needed. \"reply\" covers two different "
+        "situations — decide which one this request is before writing it:\n"
+        "- The request asks for something to be drawn/changed (the pull/create/"
+        "connections/recolor sections below do the actual work): write 2-4 sentences "
+        "describing what you did in plain terms — what you pulled in, what you "
+        "created, how things connect. When you sketched multiple options or "
+        "alternatives (e.g. several stickies laying out different approaches), name "
+        "each one and its key feature/tradeoff in a sentence, so the reply alone tells "
+        "the whole story without having to read every sticky — e.g. \"I pulled in the "
+        "three critical applications and sketched three DR options: a cloud-native "
+        "rebuild (fastest RTO, highest cost), a warm standby on a secondary site "
+        "(moderate cost and speed), and a backup-and-restore runbook (cheapest, "
+        "slowest to recover).\" Do not describe HOW you found things (which queries "
+        "ran, etc) — that mechanical detail is shown separately in the UI, not part "
+        "of this reply.\n"
+        "- The request is a question — about what's already on the canvas, or a "
+        "follow-up on the conversation so far (\"which of those would you recommend?\", "
+        "\"what's the risk with option 2?\", \"how does this compare to our other CRM "
+        "apps?\") — answer it directly and substantively in \"reply\", grounded in "
+        "CURRENT CANVAS CONTENTS below (which carries the full text/attributes of "
+        "everything already there, including real portfolio data for anything "
+        "pulled in) and the conversation history you've been given. Give a real "
+        "answer with real reasoning — \"which would you recommend\" deserves an actual "
+        "pick and why, not a recap of the options back at them. Leave pull/create/"
+        "connections/recolor all empty for a pure question — don't invent something "
+        "to draw just because those sections exist.\n"
+        "- A request can combine both — e.g. \"add a fourth option and tell me which of "
+        "all four you'd pick\" both creates something and answers in the same reply.\n\n"
+        "Guidance on which kind to use for the drawing sections themselves:\n"
         "- \"pull\": when the request plausibly refers to something that already exists "
         "in their real portfolio — write a real query to find it, using fuzzy name "
         "matching (toLower(x.name) CONTAINS toLower(\"...\")), never an exact-match guess. "
@@ -553,13 +590,17 @@ def canvas_chat():
         "Real, available shape keys by category:\n" + SHAPE_LIBRARY_TEXT + "\n\n"
         "Schema (concept types, attributes, and the exact valid relationship triples):\n"
         + schema_context + "\n\n"
-        "CURRENT CANVAS CONTENTS (only relevant to \"recolor\", and to deciding whether "
-        "something the request describes already exists on the canvas so you don't "
-        "duplicate it):\n"
+        "CURRENT CANVAS CONTENTS — the full text/attributes of everything already there "
+        "(including real portfolio data for anything pulled in). This is what \"recolor\" "
+        "judges objects against, what tells you whether something the request describes "
+        "already exists so you don't duplicate it, and what most questions in \"reply\" "
+        "should be answered from:\n"
         + (json.dumps(canvas_snapshot) if canvas_snapshot else "The canvas is currently empty.")
     )
 
-    raw_plan, usage = call_claude(plan_system, [{"role": "user", "content": request_text}], max_tokens=2048)
+    messages = [{"role": h["role"], "content": h["content"]} for h in history]
+    messages.append({"role": "user", "content": request_text})
+    raw_plan, usage = call_claude(plan_system, messages, max_tokens=2048)
     total_usage = {"input": usage["input"], "output": usage["output"]}
 
     try:
@@ -589,10 +630,11 @@ def canvas_chat():
     print(f"[canvas-chat: {request_text[:60]!r}] tokens — input: {total_usage['input']}, output: {total_usage['output']}")
 
     return jsonify({
-        "summary": plan.get("summary", ""),
+        "reply": plan.get("reply", ""),
         "pulled": pulled,
         "create": plan.get("create", []),
         "connections": plan.get("connections", []),
+        "recolor": plan.get("recolor", []),
         "tokens": {**total_usage, "total": total_usage["input"] + total_usage["output"]},
     })
 
