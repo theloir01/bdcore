@@ -211,6 +211,35 @@ def extract_json(text):
     return (match.group(1) if match else text).strip()
 
 
+def describe_pull_outcome(pull_requested, pulled):
+    """
+    A truthful, deterministic sentence about what "pull" actually found,
+    built entirely from the real query results — never from the model.
+    The model writes "reply" in the same turn it decides what to pull, i.e.
+    before any of those queries have actually run against the database, so
+    it has no way to know yet whether a given name matched anything real.
+    Left unchecked, that produces exactly the failure mode this exists to
+    prevent: a confident "I've pulled in the four applications" when the
+    query actually matched zero rows. This is prepended to the model's own
+    reply (which is now instructed to only describe what it created).
+    Returns None when nothing was requested to pull (nothing to report).
+    """
+    if not pull_requested:
+        return None
+    found, any_missing = [], False
+    for p in pulled:
+        rows = p.get("rows") or []
+        if rows:
+            found.extend(r.get("name") for r in rows if r.get("name"))
+        else:
+            any_missing = True
+    if found and any_missing:
+        return f"Found and pulled in: {', '.join(found)}. I couldn't find a match for the rest — double-check those names and try again."
+    if found:
+        return f"Pulled in: {', '.join(found)}."
+    return "I couldn't find a match in the portfolio for what you asked me to pull in — double-check the exact names and try again."
+
+
 def get_validated_plan(system, messages, max_tokens=2048):
     """
     Calls Claude and parses its JSON plan, retrying once if the response
@@ -499,18 +528,22 @@ def canvas_chat():
         "Any section can be an empty array if not needed. \"reply\" covers two different "
         "situations — decide which one this request is before writing it:\n"
         "- The request asks for something to be drawn/changed (the pull/create/"
-        "connections/recolor sections below do the actual work): write 2-4 sentences "
-        "describing what you did in plain terms — what you pulled in, what you "
-        "created, how things connect. When you sketched multiple options or "
-        "alternatives (e.g. several stickies laying out different approaches), name "
-        "each one and its key feature/tradeoff in a sentence, so the reply alone tells "
-        "the whole story without having to read every sticky — e.g. \"I pulled in the "
-        "three critical applications and sketched three DR options: a cloud-native "
-        "rebuild (fastest RTO, highest cost), a warm standby on a secondary site "
-        "(moderate cost and speed), and a backup-and-restore runbook (cheapest, "
-        "slowest to recover).\" Do not describe HOW you found things (which queries "
-        "ran, etc) — that mechanical detail is shown separately in the UI, not part "
-        "of this reply.\n"
+        "connections/recolor sections below do the actual work): write 1-3 sentences "
+        "describing what you CREATED — new concepts, shapes, or stickies, and how "
+        "things connect. When you sketched multiple options or alternatives (e.g. "
+        "several stickies laying out different approaches), name each one and its key "
+        "feature/tradeoff in a sentence, so the reply alone tells the whole story "
+        "without having to read every sticky — e.g. \"I sketched three DR options: a "
+        "cloud-native rebuild (fastest RTO, highest cost), a warm standby on a "
+        "secondary site (moderate cost and speed), and a backup-and-restore runbook "
+        "(cheapest, slowest to recover).\" Do not describe HOW you found things (which "
+        "queries ran, etc) — that's shown separately in the UI. Critically: do NOT "
+        "claim anything about whether a \"pull\" query actually found or added "
+        "something — you're writing this before that query has even run against the "
+        "real database, so you cannot know yet whether it matched anything. A "
+        "separate, truthful line reporting exactly what was and wasn't found gets "
+        "added automatically in front of your reply — write only about the part you "
+        "actually control (what you created).\n"
         "- The request is a question — about what's already on the canvas, or a "
         "follow-up on the conversation so far (\"which of those would you recommend?\", "
         "\"what's the risk with option 2?\", \"how does this compare to our other CRM "
@@ -529,7 +562,13 @@ def canvas_chat():
         "in their real portfolio — write a real query to find it, using fuzzy name "
         "matching (toLower(x.name) CONTAINS toLower(\"...\")), never an exact-match guess. "
         "Only use relationship types from the exact list below — this is validated in "
-        "code and an invented one will bounce back as an error.\n"
+        "code and an invented one will bounce back as an error. When the request names "
+        "SEVERAL specific, distinct things by name (e.g. \"pull in App A, App B, and App "
+        "C\"), write ONE pull query PER named thing rather than combining them into a "
+        "single query with OR conditions — each query's real result is reported back to "
+        "the person individually (see the reply guidance above), so one combined query "
+        "makes it impossible to tell them which specific ones were and weren't actually "
+        "found.\n"
         "- \"create\" kind=concept: for a genuine new BDCore entity that doesn't exist "
         "yet — only use real concept types and real attribute names from the schema "
         "below, and only enum values that are actually listed for that attribute. These "
@@ -654,8 +693,12 @@ def canvas_chat():
 
     print(f"[canvas-chat: {request_text[:60]!r}] tokens — input: {total_usage['input']}, output: {total_usage['output']}")
 
+    pull_status = describe_pull_outcome(plan.get("pull"), pulled)
+    model_reply = plan.get("reply", "").strip()
+    reply = f"{pull_status} {model_reply}".strip() if pull_status else model_reply
+
     return jsonify({
-        "reply": plan.get("reply", ""),
+        "reply": reply,
         "pulled": pulled,
         "create": plan.get("create", []),
         "connections": plan.get("connections", []),
