@@ -211,6 +211,34 @@ def extract_json(text):
     return (match.group(1) if match else text).strip()
 
 
+def get_validated_plan(system, messages, max_tokens=2048):
+    """
+    Calls Claude and parses its JSON plan, retrying once if the response
+    comes back empty or unparseable. The Anthropic API occasionally returns
+    a completion with no text content for no discoverable reason on our end
+    — rare, but this endpoint's prompt (full schema + shape library + a
+    growing conversation history) is by far the longest in this file, so
+    it's the one place that's actually shown it. A single silent retry
+    clears it almost every time; only surface an error to the person if it
+    fails twice in a row.
+
+    Returns (plan_dict_or_None, raw_text_of_last_attempt, total_usage_dict).
+    """
+    total_usage = {"input": 0, "output": 0}
+    plan, raw_plan = None, ""
+    for attempt in range(2):
+        raw_plan, usage = call_claude(system, messages, max_tokens=max_tokens)
+        total_usage["input"] += usage["input"]
+        total_usage["output"] += usage["output"]
+        try:
+            plan = json.loads(extract_json(raw_plan))
+            break
+        except Exception as e:
+            print(f"[canvas-chat] attempt {attempt + 1} failed to parse a plan ({e}); raw length={len(raw_plan)}")
+            plan = None
+    return plan, raw_plan, total_usage
+
+
 def run_cypher(statement):
     with driver.session() as session:
         result = session.run(statement)
@@ -600,14 +628,11 @@ def canvas_chat():
 
     messages = [{"role": h["role"], "content": h["content"]} for h in history]
     messages.append({"role": "user", "content": request_text})
-    raw_plan, usage = call_claude(plan_system, messages, max_tokens=2048)
-    total_usage = {"input": usage["input"], "output": usage["output"]}
+    plan, raw_plan, total_usage = get_validated_plan(plan_system, messages)
 
-    try:
-        plan_text = extract_json(raw_plan)
-        plan = json.loads(plan_text)
-    except Exception as e:
-        return jsonify({"error": f"Couldn't parse a plan from that request: {e}", "raw": raw_plan,
+    if plan is None:
+        return jsonify({"error": "I wasn't able to put together a response for that — please try asking again.",
+                         "raw": raw_plan,
                          "tokens": {**total_usage, "total": total_usage["input"] + total_usage["output"]}}), 200
 
     # Resolve every "pull" query against the real graph — same validation
