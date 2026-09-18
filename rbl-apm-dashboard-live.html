@@ -3015,11 +3015,20 @@ function APMDashboardLive() {
   // the canvas, not bespoke logic tied to any one feature. Levels nodes via
   // BFS from root (zero in-degree) concepts; disconnected pieces and cycles
   // just become extra roots rather than breaking the layout.
-  const autoOrganizeCanvas = (overrideConcepts, overrideEdges) => {
+  const autoOrganizeCanvas = (overrideConcepts, overrideEdges, overrideShapes, overrideStickies) => {
     const concepts = overrideConcepts || canvasConcepts;
     const edges = overrideEdges || canvasEdges;
     const nodeIds = concepts.map((c) => c.id);
     if (nodeIds.length === 0) return;
+    // What else is already on the canvas that this tree needs to be laid out
+    // around, rather than through — otherwise a fixed (CENTER_X, 80) origin
+    // plants the tree wherever that happens to be regardless of what's there
+    // (this is what made a "pull concepts + sketch ideation stickies" plan
+    // draw its tree straight through the stickies it had just placed).
+    const obstacles = [
+      ...(overrideShapes || shapes).map((s) => ({ x: s.x, y: s.y, w: s.width || SHAPE_W, h: s.height || SHAPE_H })),
+      ...(overrideStickies || stickies).map((s) => ({ x: s.x, y: s.y, w: s.width || 160, h: s.height || 120 })),
+    ];
     // Undirected adjacency — "drives" pointing one way and "invests in" pointing
     // the other shouldn't change which row something lands in. What matters for
     // layout is how many hops something is from where you started, not which
@@ -3057,12 +3066,26 @@ function APMDashboardLive() {
     const byLevel = {};
     nodeIds.forEach((id) => { (byLevel[level[id]] = byLevel[level[id]] || []).push(id); });
 
-    const LEVEL_HEIGHT = 220, NODE_SPACING = 260, CENTER_X = 500;
+    const LEVEL_HEIGHT = 220, NODE_SPACING = 260, CENTER_X = 500, BASE_Y = 80;
+    // Default origin when nothing else is on the canvas (the common case,
+    // and identical to the old fixed-origin behavior — no regression for a
+    // canvas that's just a concept tree). With obstacles, treat the tree's
+    // own overall footprint as one item and find it a genuinely free spot
+    // via the same ring-search used for every other object on the canvas,
+    // rather than always landing at the same fixed spot regardless.
+    let originDX = 0, originDY = 0;
+    if (obstacles.length > 0) {
+      const levelCount = Object.keys(byLevel).length;
+      const maxRowWidth = Math.max(...Object.values(byLevel).map((ids) => ids.length * NODE_SPACING));
+      const treeOrigin = findFreePosition(CENTER_X - maxRowWidth / 2, BASE_Y, obstacles, maxRowWidth, levelCount * LEVEL_HEIGHT);
+      originDX = treeOrigin.x - (CENTER_X - maxRowWidth / 2);
+      originDY = treeOrigin.y - BASE_Y;
+    }
     const newPos = {};
     Object.keys(byLevel).map(Number).sort((a, b) => a - b).forEach((l) => {
       const ids = byLevel[l];
-      const startX = CENTER_X - (ids.length * NODE_SPACING) / 2;
-      ids.forEach((id, i) => { newPos[id] = { x: startX + i * NODE_SPACING, y: 80 + l * LEVEL_HEIGHT }; });
+      const startX = CENTER_X - (ids.length * NODE_SPACING) / 2 + originDX;
+      ids.forEach((id, i) => { newPos[id] = { x: startX + i * NODE_SPACING, y: BASE_Y + l * LEVEL_HEIGHT + originDY }; });
     });
     setCanvasConcepts((prev) => (overrideConcepts || prev).map((c) => newPos[c.id] ? { ...c, x: newPos[c.id].x, y: newPos[c.id].y } : c));
 
@@ -3243,6 +3266,7 @@ function APMDashboardLive() {
     // 2. New concepts/shapes/stickies — BPM shapes get a deliberate left-to-right
     // sequence since they're meant to read as a flow, not a scatter
     let bpmX = null, bpmY = null;
+    let stickyStackOrigin = null, stickyStackCount = 0;
     (plan.create || []).forEach((item) => {
       if (item.kind === "concept" && CANVAS_CONCEPT_TYPES.includes(item.conceptType)) {
         const name = item.name || `New ${item.conceptType}`;
@@ -3269,7 +3293,23 @@ function APMDashboardLive() {
         localShapes.push(shape);
         idMap[item.tempId] = shape.id; kindMap[item.tempId] = "shape";
       } else if (item.kind === "sticky") {
-        const pos = findFreePosition(center.x - 80, center.y - 60, occupied(), 160, 120);
+        // Multiple stickies from the same plan (e.g. several ideation options)
+        // stack into one tidy column off to the side, instead of each
+        // independently ring-searching out from the same center point and
+        // landing in a scatter. The column sits clear of where a concept
+        // tree from this same plan will end up (autoOrganizeCanvas below
+        // treats this column as an obstacle it lays the tree out around).
+        let desiredX, desiredY;
+        if (stickyStackOrigin === null) {
+          const seed = findFreePosition(center.x + 420, center.y - 200, occupied(), 160, 120);
+          stickyStackOrigin = seed;
+          desiredX = seed.x; desiredY = seed.y;
+        } else {
+          stickyStackCount += 1;
+          desiredX = stickyStackOrigin.x;
+          desiredY = stickyStackOrigin.y + stickyStackCount * 140;
+        }
+        const pos = findFreePosition(desiredX, desiredY, occupied(), 160, 120);
         const sticky = { id: newCanvasId("sticky"), x: pos.x, y: pos.y, width: 160, height: 120,
           zIndex: zCounterRef.current++, text: item.text || "New idea", color: STICKY_COLORS[localStickies.length % STICKY_COLORS.length] };
         localStickies.push(sticky);
@@ -3317,8 +3357,10 @@ function APMDashboardLive() {
     setCanvasConcepts(localConcepts);
     setCanvasEdges(localCanvasEdges);
     // Pass the fresh local arrays explicitly rather than relying on state —
-    // React hasn't necessarily re-rendered with the setState calls above yet.
-    autoOrganizeCanvas(localConcepts, localCanvasEdges);
+    // React hasn't necessarily re-rendered with the setState calls above yet
+    // (same reason shapes/stickies are passed too, so the tree lays out
+    // around the stickies this same plan just placed, not an empty canvas).
+    autoOrganizeCanvas(localConcepts, localCanvasEdges, localShapes, localStickies);
   };
 
   // What the AI sees of the canvas today — just enough per object to answer
