@@ -3258,6 +3258,24 @@ function APMDashboardLive() {
       }
     });
 
+    // 4. Recolor — always an existing (or just-pulled/just-created) object,
+    // never a brand-new one, so "id" resolves through idMap first (covers a
+    // tempId from this same plan's "create", or a pull:i:j reference) and
+    // falls back to the literal id, which is what a pre-existing canvas
+    // object (from the snapshot the model was shown) looks like.
+    const isValidColor = (c) => c === null || (typeof c === "string" && /^#[0-9a-fA-F]{3,8}$/.test(c));
+    (plan.recolor || []).forEach((item) => {
+      if (!isValidColor(item.color)) return;
+      const targetId = idMap[item.id] || item.id;
+      const label = item.label || null;
+      let idx = localStickies.findIndex((s) => s.id === targetId);
+      if (idx !== -1) { if (item.color) localStickies[idx] = { ...localStickies[idx], color: item.color }; return; }
+      idx = localConcepts.findIndex((c) => c.id === targetId);
+      if (idx !== -1) { localConcepts[idx] = { ...localConcepts[idx], highlightColor: item.color, highlightLabel: item.color ? label : null }; return; }
+      idx = localShapes.findIndex((s) => s.id === targetId);
+      if (idx !== -1) { localShapes[idx] = { ...localShapes[idx], highlightColor: item.color, highlightLabel: item.color ? label : null }; }
+    });
+
     setShapes(localShapes);
     setStickies(localStickies);
     setShapeEdges(localShapeEdges);
@@ -3268,6 +3286,27 @@ function APMDashboardLive() {
     autoOrganizeCanvas(localConcepts, localCanvasEdges);
   };
 
+  // What the AI sees of the canvas today — just enough per object to answer
+  // "recolor" requests (real-world risk data for anything pulled from the
+  // graph) and to avoid re-creating something that's already there, without
+  // shipping the entire portfolio on every request.
+  const buildCanvasSnapshot = () => [
+    ...canvasConcepts.map((c) => {
+      const real = c.realId ? appsWithDisposition.find((a) => a.id === c.realId) : null;
+      return {
+        id: c.id, kind: "concept", conceptType: c.conceptType, name: c.name, attributes: c.attributes,
+        ...(real ? { realData: {
+          criticality: real.criticality, status: real.status, hosting: real.hosting,
+          disposition: real.disposition ? real.disposition.code : null, risks: real.risks,
+          businessValue: real.businessValue, techHealth: real.techHealth,
+          aiReadiness: real.aiReadiness, aiRelevance: real.aiRelevance,
+        } } : {}),
+      };
+    }),
+    ...shapes.map((s) => ({ id: s.id, kind: "shape", category: s.category, shapeKey: s.shapeKey, label: s.label })),
+    ...stickies.map((s) => ({ id: s.id, kind: "sticky", text: s.text })),
+  ];
+
   const sendCanvasChatMessage = async () => {
     const requestText = canvasChatInput.trim();
     if (!requestText || canvasChatLoading) return;
@@ -3275,7 +3314,8 @@ function APMDashboardLive() {
     setCanvasChatLoading(true);
     try {
       const res = await fetch("http://localhost:5050/canvas-chat", {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ request: requestText }),
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ request: requestText, canvas: buildCanvasSnapshot() }),
       });
       if (!res.ok) throw new Error(`Chat backend returned ${res.status}`);
       const data = await res.json();
@@ -6147,7 +6187,8 @@ function APMDashboardLive() {
                       style={{ position: "absolute", left: c.x, top: c.y, width: cw, minHeight: ch, zIndex: c.zIndex || 0,
                         background: "#fff", borderRadius: 12, padding: 12, overflow: "visible",
                         borderTop: `4px solid ${style.color}`,
-                        borderLeft: `1px solid ${COLORS.border}`, borderRight: `1px solid ${COLORS.border}`, borderBottom: `1px solid ${COLORS.border}`,
+                        borderLeft: c.highlightColor ? `4px solid ${c.highlightColor}` : `1px solid ${COLORS.border}`,
+                        borderRight: `1px solid ${COLORS.border}`, borderBottom: `1px solid ${COLORS.border}`,
                         outline: selectedIds.has(`concept:${c.id}`) ? `2px solid ${COLORS.accent}` : "none", outlineOffset: 2,
                         boxShadow: "0 6px 18px rgba(10,14,26,0.14)", cursor: "grab" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
@@ -6157,6 +6198,8 @@ function APMDashboardLive() {
                           <span style={{ fontSize: 10, fontWeight: 700, color: style.color, textTransform: "uppercase", letterSpacing: "0.03em" }}>{c.conceptType}</span>
                         </div>
                         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          {c.highlightLabel && <span style={{ fontSize: 9, background: `${c.highlightColor}18`, color: c.highlightColor,
+                            padding: "1px 6px", borderRadius: 5, fontWeight: 700 }}>{c.highlightLabel}</span>}
                           {c.pushed && <span style={{ fontSize: 9, background: "#DCEAE1", color: COLORS.accent, padding: "1px 6px", borderRadius: 5, fontWeight: 700 }}>PUSHED</span>}
                           <span onMouseDown={(e) => e.stopPropagation()} onClick={() => deleteConcept(c.id, c.pushed)}
                             style={{ cursor: "pointer", fontSize: 12, color: "rgba(28,42,58,0.4)" }}>✕</span>
@@ -6237,11 +6280,18 @@ function APMDashboardLive() {
                         style={{ position: "absolute", left: s.x, top: s.y, width: sw, height: sh, zIndex: s.zIndex || 0,
                           display: "flex", flexDirection: isBasic ? undefined : "column", alignItems: "center", justifyContent: "center",
                           outline: selectedIds.has(`shape:${s.id}`) ? `2px solid ${COLORS.accent}` : "none", outlineOffset: 2,
+                          boxShadow: s.highlightColor ? `0 0 0 3px ${s.highlightColor}` : "none", borderRadius: isBasic ? 0 : 8,
                           cursor: "grab", padding: isBasic ? 0 : 6 }}>
                         <span onMouseDown={(e) => e.stopPropagation()} onClick={() => deleteShape(s.id)}
                           style={{ position: "absolute", top: -2, right: -2, cursor: "pointer", fontSize: 11,
                             color: "rgba(28,42,58,0.4)", background: "#F3F4F7", borderRadius: "50%", width: 16, height: 16,
                             display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2 }}>✕</span>
+                        {s.highlightLabel && (
+                          <span style={{ position: "absolute", top: -10, left: -2, fontSize: 8.5, fontWeight: 700,
+                            background: s.highlightColor, color: "#fff", padding: "1px 5px", borderRadius: 4, whiteSpace: "nowrap", zIndex: 2 }}>
+                            {s.highlightLabel}
+                          </span>
+                        )}
 
                         {isBasic ? (
                           <>
