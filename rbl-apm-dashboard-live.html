@@ -1318,6 +1318,12 @@ function APMDashboardLive() {
   const [omEditForm, setOmEditForm] = useState({});
   const [omStatus, setOmStatus] = useState("");
   const zCounterRef = useRef(1);
+  // Click-vs-drag threshold for canvas item mousedown — lets a plain click on
+  // a sticky's textarea (or any other in-item control) still place a text
+  // cursor normally, while an actual drag still moves the object. See
+  // handleItemMouseDown/handleCanvasMouseMove/handleCanvasMouseUp.
+  const dragThresholdMetRef = useRef(false);
+  const dragStartTargetRef = useRef(null);
   const [importType, setImportType] = useState("Application");
   const [importOptions, setImportOptions] = useState([]);
   const [importLoading, setImportLoading] = useState(false);
@@ -3697,10 +3703,10 @@ function APMDashboardLive() {
   };
   const handleItemMouseDown = (e, kind, id) => {
     e.stopPropagation();
-    e.preventDefault(); // same native-text-selection guard as the marquee shift-drag above
     const point = screenToCanvas(e.clientX, e.clientY);
     const key = `${kind}:${id}`;
     if (e.shiftKey) {
+      e.preventDefault(); // native-text-selection guard — shift+click is always a selection action, never a click-to-edit
       setSelectedIds((prev) => {
         const next = new Set(prev);
         next.has(key) ? next.delete(key) : next.add(key);
@@ -3716,6 +3722,14 @@ function APMDashboardLive() {
       const item = findCanvasItem(kKind, kId);
       if (item) startPositions[k] = { x: item.x, y: item.y };
     });
+    // No preventDefault here — deferred to the move handler once actual
+    // dragging is confirmed, so a plain click on e.g. a sticky's textarea
+    // still focuses it normally (see the mouseup handler's manual .focus()
+    // for the "never crossed the threshold" case, since preventDefault
+    // would have to happen synchronously on mousedown to block focus at
+    // all, before we can know whether this becomes a drag).
+    dragThresholdMetRef.current = false;
+    dragStartTargetRef.current = e.target;
     setDragState({ type: "item", startMouse: point, startPositions });
   };
   const handleCanvasMouseMove = (e) => {
@@ -3782,6 +3796,18 @@ function APMDashboardLive() {
     } else if (dragState.type === "item") {
       const point = screenToCanvas(e.clientX, e.clientY);
       const dx = point.x - dragState.startMouse.x, dy = point.y - dragState.startMouse.y;
+      if (!dragThresholdMetRef.current) {
+        if (Math.abs(dx) < 4 && Math.abs(dy) < 4) return; // still just a click, not a drag yet
+        dragThresholdMetRef.current = true;
+        // The mousedown's native default (focus + cursor placement) was never
+        // prevented — now that this is confirmed to be a real drag rather
+        // than a click, blur whatever text field it landed in, so the drag
+        // doesn't also extend a text selection inside it as the mouse moves.
+        const target = dragStartTargetRef.current;
+        if (target && (target.tagName === "TEXTAREA" || target.tagName === "INPUT") && document.activeElement === target) {
+          target.blur();
+        }
+      }
       // One map() per array over the whole moved set, in the same "compute
       // deltas, then one setState per array" shape as autoOrganizeCanvas —
       // works identically whether one item or many are being dragged.
@@ -3843,6 +3869,15 @@ function APMDashboardLive() {
       return;
     }
     if (resizeState) { setResizeState(null); return; }
+    // A click that never crossed the drag threshold — e.g. clicking into a
+    // sticky's textarea to place a cursor — never moved anything, but its
+    // mousedown also never got a chance to preventDefault (that has to be
+    // decided synchronously, before we know it'll stay a click), so the
+    // browser's own focus never landed either. Do it manually here instead.
+    if (dragState && dragState.type === "item" && !dragThresholdMetRef.current) {
+      const target = dragStartTargetRef.current;
+      if (target && (target.tagName === "TEXTAREA" || target.tagName === "INPUT")) target.focus();
+    }
     setDragState(null);
   };
   const handleCanvasWheel = (e) => {
@@ -6351,7 +6386,7 @@ function APMDashboardLive() {
                               border: c === s.color ? `1.5px solid ${COLORS.ink}` : "1.5px solid rgba(28,42,58,0.15)" }} />
                         ))}
                       </div>
-                      <textarea value={s.text} onMouseDown={(e) => e.stopPropagation()}
+                      <textarea value={s.text}
                         onChange={(e) => setStickies((prev) => prev.map((x) => x.id === s.id ? { ...x, text: e.target.value } : x))}
                         style={{ background: "transparent", border: "none", resize: "none", fontSize: 12.5, fontFamily: "inherit",
                           width: "100%", flex: 1, outline: "none" }} />
