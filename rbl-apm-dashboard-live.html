@@ -1333,6 +1333,7 @@ function APMDashboardLive() {
   const [dragState, setDragState] = useState(null); // { type: 'pan'|'item'|'marquee', id, startMouse, startPos }
   const [selectedIds, setSelectedIds] = useState(new Set()); // Set of "kind:id" — multi-select across stickies/concepts/texts/shapes
   const [marquee, setMarquee] = useState(null); // { x1, y1, x2, y2 } in canvas space, while rubber-band-selecting
+  const [escalateDialog, setEscalateDialog] = useState(null); // { item, canvasName, workspaceMode: 'existing'|'new', workspaceId, newWorkspaceName }
   const [connectDrag, setConnectDrag] = useState(null); // { sourceId, x, y } — live drag from a connector handle
   const [resizeState, setResizeState] = useState(null); // { id, kind, startMouse, startSize }
   const [connectingFrom, setConnectingFrom] = useState(null);
@@ -2690,6 +2691,11 @@ function APMDashboardLive() {
   // Saves whatever canvas is currently open before switching away from it —
   // otherwise unsaved work is silently lost the moment you click another canvas.
   const switchCanvas = async (canvasId) => {
+    // Reveal the Workspaces section regardless of entry point — this matters
+    // beyond the normal "click a canvas row" path (which is already inside
+    // an open Workspaces section by definition): escalateToCanvas reaches
+    // here straight from the Landing page, where it was still on "apm".
+    setOpenTopSection("workspaces");
     if (canvasId === activeCanvasId) { setView("canvas"); return; }
     if (activeCanvasId) await saveCanvas(stickies, canvasConcepts, canvasEdges, canvasTexts, activeCanvasId, shapes, shapeEdges, freeArrows);
     setActiveCanvasId(canvasId);
@@ -2728,6 +2734,11 @@ function APMDashboardLive() {
         { id: canvasId, name, wsId: workspaceId, data: emptyData, now }
       );
       setCanvasList((prev) => [...prev, { id: canvasId, name, workspaceId, updatedAt: now }]);
+      // switchCanvas can't reliably discover which workspace this canvas
+      // belongs to (its own canvasList closure is stale immediately after
+      // the setCanvasList above), so expand it here instead, where
+      // workspaceId is already known directly.
+      setOpenWorkspaces((prev) => ({ ...prev, [workspaceId]: true }));
       // Awaited (unlike a fire-and-forget call) so callers that need to act on
       // the new canvas once it's actually the live one — e.g. escalating
       // straight into an AI-drawn first pass — aren't racing loadCanvasData.
@@ -3180,12 +3191,20 @@ function APMDashboardLive() {
   // updates are async/batched, so checking collision against "what's already
   // on the canvas" via the live state mid-batch would miss items added
   // moments earlier in the same plan, causing overlaps.
-  const executeCanvasPlan = async (plan) => {
-    const localConcepts = [...canvasConcepts];
-    const localShapes = [...shapes];
-    const localStickies = [...stickies];
-    const localCanvasEdges = [...canvasEdges];
-    const localShapeEdges = [...shapeEdges];
+  // seed lets a caller that just switched to a different (guaranteed-empty)
+  // canvas hand over its known-fresh starting arrays explicitly, instead of
+  // this function reading canvasConcepts/shapes/stickies etc. off the
+  // closure — those are whatever canvas was open when THIS async chain
+  // started, which a just-awaited switchCanvas/loadCanvasData does NOT
+  // retroactively update (setState from that call only affects future
+  // renders, not variables this closure already captured), so without a
+  // seed the plan would land on top of the previous canvas's content.
+  const executeCanvasPlan = async (plan, seed) => {
+    const localConcepts = [...(seed ? seed.concepts : canvasConcepts)];
+    const localShapes = [...(seed ? seed.shapes : shapes)];
+    const localStickies = [...(seed ? seed.stickies : stickies)];
+    const localCanvasEdges = [...(seed ? seed.edges : canvasEdges)];
+    const localShapeEdges = [...(seed ? seed.shapeEdges : shapeEdges)];
     const idMap = {}, kindMap = {}; // tempId or "pull:i:j" -> real canvas id / which array it's in
 
     const occupied = () => [
@@ -3326,8 +3345,9 @@ function APMDashboardLive() {
   // Shared by the manual "Draw on canvas" box and escalateToCanvas's
   // auto-fired ideation prompt — snapshot is passed in rather than always
   // read fresh, since a just-created canvas's state hasn't necessarily
-  // flushed yet when its first request goes out.
-  const runCanvasChatRequest = async (requestText, canvasSnapshot) => {
+  // flushed yet when its first request goes out. seed (see executeCanvasPlan)
+  // is only passed by escalateToCanvas, for the same reason.
+  const runCanvasChatRequest = async (requestText, canvasSnapshot, seed) => {
     setCanvasChatLoading(true);
     try {
       const res = await fetch("http://localhost:5050/canvas-chat", {
@@ -3337,7 +3357,7 @@ function APMDashboardLive() {
       if (!res.ok) throw new Error(`Chat backend returned ${res.status}`);
       const data = await res.json();
       if (data.error) { setCanvasChatLog((prev) => [...prev, { request: requestText, error: data.error }]); return; }
-      await executeCanvasPlan(data);
+      await executeCanvasPlan(data, seed);
       setCanvasChatLog((prev) => [...prev, { request: requestText, summary: data.summary }]);
     } catch (e) {
       setCanvasChatLog((prev) => [...prev, { request: requestText, error: `Couldn't reach the chat backend: ${e.message}. Is chat_server.py running on port 5050?` }]);
@@ -3353,28 +3373,47 @@ function APMDashboardLive() {
     await runCanvasChatRequest(requestText, buildCanvasSnapshot());
   };
 
-  // "Escalate to Canvas" from an Action Center item — creates a fresh canvas
-  // (a new workspace only if none exists yet) and immediately fires an
-  // AI-drawn first pass at it, seeded with the item's own real entity names
-  // so the model has something concrete to pull in rather than a vague
-  // request. Generic across every Action Center category on purpose — a
-  // hand-tuned prompt per category would read better in the best case, but
-  // creates 9 things to keep in sync with whatever those categories become;
-  // the pull+create machinery already handles "pull in X and sketch options"
-  // well regardless of what X is.
-  const escalateToCanvas = async (item) => {
-    let workspaceId = workspaces[0] && workspaces[0].id;
-    if (!workspaceId) workspaceId = await createWorkspace("My Workspace");
+  // "Ideate on Canvas" from an Action Center item — opens a small dialog to
+  // name the new canvas and choose its workspace (existing or new) before
+  // anything is created, rather than silently auto-naming and picking the
+  // first workspace.
+  const openEscalateDialog = (item) => {
+    setEscalateDialog({
+      item, canvasName: `Fix: ${item.title}`.slice(0, 80),
+      workspaceMode: workspaces.length > 0 ? "existing" : "new",
+      workspaceId: workspaces[0] ? workspaces[0].id : null,
+      newWorkspaceName: "New Workspace",
+    });
+  };
+
+  // Creates the chosen workspace (if new) and canvas, then fires an AI-drawn
+  // first pass at it, seeded with the item's own real entity names so the
+  // model has something concrete to pull in rather than a vague request.
+  // Generic across every Action Center category on purpose — a hand-tuned
+  // prompt per category would read better in the best case, but creates 9
+  // things to keep in sync with whatever those categories become; the
+  // pull+create machinery already handles "pull in X and sketch options"
+  // well regardless of what X is. The empty seed passed to
+  // runCanvasChatRequest matters just as much as the dialog itself — without
+  // it this draws onto whatever canvas was open before escalating, since a
+  // just-awaited switchCanvas doesn't retroactively fix up this closure's
+  // already-captured canvasConcepts/stickies/etc.
+  const confirmEscalate = async () => {
+    const d = escalateDialog;
+    if (!d) return;
+    setEscalateDialog(null);
+    let workspaceId = d.workspaceMode === "existing" ? d.workspaceId : null;
+    if (!workspaceId) workspaceId = await createWorkspace((d.newWorkspaceName || "New Workspace").trim() || "New Workspace");
     if (!workspaceId) return;
-    const canvasId = await createCanvasInWorkspace(workspaceId, `Fix: ${item.title}`.slice(0, 80));
+    const canvasId = await createCanvasInWorkspace(workspaceId, (d.canvasName || "").trim() || `Fix: ${d.item.title}`.slice(0, 80));
     if (!canvasId) return;
-    const entities = item.entities || [];
+    const entities = d.item.entities || [];
     const entityText = entities.length
       ? `Pull in ${entities.slice(0, 5).join(", ")}${entities.length > 5 ? `, and ${entities.length - 5} more` : ""}. `
       : "";
-    const prompt = `${entityText}Sketch 2-3 concrete options for addressing this: ${item.title} — ${item.description}`;
+    const prompt = `${entityText}Sketch 2-3 concrete options for addressing this: ${d.item.title} — ${d.item.description}`;
     setCanvasChatInput(prompt);
-    await runCanvasChatRequest(prompt, []);
+    await runCanvasChatRequest(prompt, [], { concepts: [], shapes: [], stickies: [], edges: [], shapeEdges: [] });
     setCanvasChatInput("");
   };
 
@@ -5475,8 +5514,8 @@ function APMDashboardLive() {
                         </div>
                         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6, flexShrink: 0 }}>
                           <span style={{ fontSize: 13, fontWeight: 700, color: COLORS.ink, whiteSpace: "nowrap" }}>Review →</span>
-                          <button onClick={(e) => { e.stopPropagation(); escalateToCanvas(item); }} disabled={canvasChatLoading}
-                            title="Create a new canvas and let the AI sketch a first pass at fixing this"
+                          <button onClick={(e) => { e.stopPropagation(); openEscalateDialog(item); }} disabled={canvasChatLoading}
+                            title="Name a new canvas, pick a workspace, and let the AI sketch a first pass at fixing this"
                             style={{ fontSize: 11, fontWeight: 600, padding: "5px 10px", borderRadius: 7,
                               border: `1px solid ${COLORS.accent}44`, background: `${COLORS.accent}0C`, color: COLORS.accent,
                               cursor: canvasChatLoading ? "default" : "pointer", opacity: canvasChatLoading ? 0.6 : 1, whiteSpace: "nowrap" }}>
@@ -5490,6 +5529,61 @@ function APMDashboardLive() {
               </div>
             );
           })()}
+
+          {escalateDialog && (
+            <div onClick={() => setEscalateDialog(null)}
+              style={{ position: "fixed", inset: 0, background: "rgba(10,14,26,0.45)", zIndex: 200,
+                display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div onClick={(e) => e.stopPropagation()}
+                style={{ background: COLORS.card, borderRadius: 16, padding: 24, width: 420, boxSizing: "border-box",
+                  boxShadow: "0 24px 60px rgba(10,14,26,0.3)", border: `1px solid ${COLORS.border}` }}>
+                <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Ideate on Canvas</div>
+                <div style={{ fontSize: 12.5, color: COLORS.inkSecondary, marginBottom: 18, lineHeight: 1.5 }}>{escalateDialog.item.title}</div>
+
+                <label style={{ fontSize: 11.5, fontWeight: 600, display: "block", marginBottom: 6 }}>Frame name</label>
+                <input value={escalateDialog.canvasName} autoFocus
+                  onChange={(e) => setEscalateDialog((d) => ({ ...d, canvasName: e.target.value }))}
+                  style={{ width: "100%", padding: "8px 10px", border: `1px solid ${COLORS.border}`, borderRadius: 8,
+                    fontSize: 13, marginBottom: 18, boxSizing: "border-box" }} />
+
+                <label style={{ fontSize: 11.5, fontWeight: 600, display: "block", marginBottom: 8 }}>Workspace</label>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
+                  {workspaces.map((w) => (
+                    <label key={w.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}>
+                      <input type="radio" name="escalate-ws"
+                        checked={escalateDialog.workspaceMode === "existing" && escalateDialog.workspaceId === w.id}
+                        onChange={() => setEscalateDialog((d) => ({ ...d, workspaceMode: "existing", workspaceId: w.id }))} />
+                      {w.name}
+                    </label>
+                  ))}
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}>
+                    <input type="radio" name="escalate-ws" checked={escalateDialog.workspaceMode === "new"}
+                      onChange={() => setEscalateDialog((d) => ({ ...d, workspaceMode: "new" }))} />
+                    New workspace
+                  </label>
+                  {escalateDialog.workspaceMode === "new" && (
+                    <input value={escalateDialog.newWorkspaceName}
+                      onChange={(e) => setEscalateDialog((d) => ({ ...d, newWorkspaceName: e.target.value }))}
+                      placeholder="Workspace name"
+                      style={{ marginLeft: 26, padding: "7px 9px", border: `1px solid ${COLORS.border}`, borderRadius: 7,
+                        fontSize: 12.5, boxSizing: "border-box" }} />
+                  )}
+                </div>
+
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                  <button onClick={() => setEscalateDialog(null)}
+                    style={{ padding: "8px 16px", background: "transparent", border: "none", color: COLORS.inkSecondary,
+                      cursor: "pointer", fontSize: 13 }}>Cancel</button>
+                  <button onClick={confirmEscalate}
+                    disabled={!escalateDialog.canvasName.trim() || (escalateDialog.workspaceMode === "new" && !escalateDialog.newWorkspaceName.trim())}
+                    style={{ padding: "8px 18px", background: COLORS.accent, color: "#fff", border: "none", borderRadius: 8,
+                      fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+                    Create &amp; Ideate →
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {view === "brief" && (
             <div>
