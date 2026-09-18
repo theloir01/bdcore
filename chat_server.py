@@ -425,6 +425,7 @@ def canvas_chat():
     request_text = request.json.get("request", "").strip()
     if not request_text:
         return jsonify({"error": "No request provided"}), 400
+    canvas_snapshot = request.json.get("canvas", [])
 
     schema_context, valid_rel_types = build_schema_context()
 
@@ -450,6 +451,12 @@ def canvas_chat():
         'verb valid for that exact type pair>" },\n'
         '    { "from": "...", "to": "...", "kind": "shape", "label": "<only for '
         'kind=shape — any free text, or omit>" }\n'
+        "  ],\n"
+        '  "recolor": [\n'
+        '    { "id": "<a real id from CURRENT CANVAS CONTENTS below — never a tempId, '
+        'this only ever applies to objects already on the canvas>", '
+        '"color": "<a hex color, or null to clear a highlight back to default>", '
+        '"label": "<a short badge word/phrase, e.g. \'High Risk\' — optional, omit for none>" }\n'
         "  ]\n"
         "}\n\n"
         "Any section can be an empty array if not needed. Guidance on which kind to use:\n"
@@ -494,10 +501,62 @@ def canvas_chat():
         "connect to shapes with free labels; there's no connector between the two "
         "groups on this canvas today, so don't invent a connection between them.\n"
         "- Keep it proportionate — a simple request should produce a simple plan. Don't "
-        "pad out a 3-step process into 8 shapes just to seem thorough.\n\n"
+        "pad out a 3-step process into 8 shapes just to seem thorough.\n"
+        "- \"recolor\": for requests about how existing canvas objects should look — "
+        "\"colour these by risk\", \"highlight anything overdue for review\", \"make the "
+        "unowned ones stand out\" — not for adding anything new. Judge each object in "
+        "CURRENT CANVAS CONTENTS below against the request using whatever data it carries "
+        "(a concept pulled from the real portfolio carries a \"realData\" block — risks, "
+        "criticality, disposition, status, hosting, AI readiness/relevance, business value, "
+        "technical health; a plain draft concept only has its own attributes; a shape or "
+        "sticky only has its label/text) — only recolor objects the request's criteria "
+        "actually applies to, leave the rest out of the array entirely rather than resetting "
+        "them. Prefer a small, consistent palette that reads as intentional rather than "
+        "decorative — red/orange for something genuinely concerning, amber for worth "
+        "watching, green for healthy/low-risk, blue or grey for neutral/informational — "
+        "unless the request's own criteria calls for something else (e.g. \"colour by "
+        "concept type\" wants one consistent color per type, not a risk gradient). A short "
+        "\"label\" badge (2-3 words) is a nice addition when it adds real information (e.g. "
+        "\"No DR Coverage\") but skip it when the color alone already says enough. A request "
+        "combining recolor with pull/create is fine — e.g. \"pull in the Payments capability "
+        "and colour everything by criticality\" pulls first, then recolors the full "
+        "resulting set including anything just pulled in (reference newly-created objects "
+        "in \"recolor\" by their tempId, exactly like a connection would).\n"
+        "- Reference architectures and frameworks (\"add an AWS reference architecture for "
+        "a 3-tier web app\", \"lay out the NIST CSF functions\"): there's no AWS/NIST-branded "
+        "shape set — compose one from the generic Cloud/Network/Security/Generic/Basic shapes "
+        "below, labelled with the real vendor/framework terms, the same way a real architect "
+        "would sketch it on a whiteboard. Worked example, \"a basic AWS 3-tier web app\":\n"
+        "  create: [\n"
+        "    {\"tempId\": \"a1\", \"kind\": \"shape\", \"category\": \"Network\", \"shapeKey\": \"internet\", \"label\": \"Internet\"},\n"
+        "    {\"tempId\": \"a2\", \"kind\": \"shape\", \"category\": \"Security\", \"shapeKey\": \"waf\", \"label\": \"AWS WAF\"},\n"
+        "    {\"tempId\": \"a3\", \"kind\": \"shape\", \"category\": \"Network\", \"shapeKey\": \"loadbalancer\", \"label\": \"Application Load Balancer\"},\n"
+        "    {\"tempId\": \"a4\", \"kind\": \"shape\", \"category\": \"Network\", \"shapeKey\": \"vpc\", \"label\": \"VPC\"},\n"
+        "    {\"tempId\": \"a5\", \"kind\": \"shape\", \"category\": \"Cloud\", \"shapeKey\": \"vm\", \"label\": \"Web Tier (EC2 Auto Scaling)\"},\n"
+        "    {\"tempId\": \"a6\", \"kind\": \"shape\", \"category\": \"Cloud\", \"shapeKey\": \"vm\", \"label\": \"App Tier (EC2 Auto Scaling)\"},\n"
+        "    {\"tempId\": \"a7\", \"kind\": \"shape\", \"category\": \"Cloud\", \"shapeKey\": \"database\", \"label\": \"RDS (Multi-AZ)\"},\n"
+        "    {\"tempId\": \"a8\", \"kind\": \"shape\", \"category\": \"Cloud\", \"shapeKey\": \"storage\", \"label\": \"S3\"},\n"
+        "    {\"tempId\": \"a9\", \"kind\": \"shape\", \"category\": \"Security\", \"shapeKey\": \"iam\", \"label\": \"IAM Roles\"}\n"
+        "  ],\n"
+        "  connections: [ {\"from\": \"a1\", \"to\": \"a2\", \"kind\": \"shape\"}, {\"from\": \"a2\", \"to\": \"a3\", \"kind\": \"shape\"}, "
+        "{\"from\": \"a3\", \"to\": \"a4\", \"kind\": \"shape\"}, {\"from\": \"a4\", \"to\": \"a5\", \"kind\": \"shape\"}, "
+        "{\"from\": \"a5\", \"to\": \"a6\", \"kind\": \"shape\"}, {\"from\": \"a6\", \"to\": \"a7\", \"kind\": \"shape\"}, "
+        "{\"from\": \"a6\", \"to\": \"a8\", \"kind\": \"shape\"} ]\n"
+        "  (IAM left unconnected — it governs the whole thing, not a step in the request flow; "
+        "that's fine, not every box needs a line.) A framework taxonomy like NIST CSF is "
+        "simpler — one Basic \"roundedrect\" shape per function (Identify, Protect, Detect, "
+        "Respond, Recover), each labelled with the real function name, usually with no "
+        "connections at all since it's a taxonomy, not a flow. Same proportionality rule "
+        "applies: a request for \"the AWS reference architecture\" with no more detail should "
+        "get a recognisable, simple sketch like the one above, not an exhaustive rebuild of "
+        "every AWS service that could theoretically be involved.\n\n"
         "Real, available shape keys by category:\n" + SHAPE_LIBRARY_TEXT + "\n\n"
         "Schema (concept types, attributes, and the exact valid relationship triples):\n"
-        + schema_context
+        + schema_context + "\n\n"
+        "CURRENT CANVAS CONTENTS (only relevant to \"recolor\", and to deciding whether "
+        "something the request describes already exists on the canvas so you don't "
+        "duplicate it):\n"
+        + (json.dumps(canvas_snapshot) if canvas_snapshot else "The canvas is currently empty.")
     )
 
     raw_plan, usage = call_claude(plan_system, [{"role": "user", "content": request_text}], max_tokens=2048)

@@ -1330,7 +1330,9 @@ function APMDashboardLive() {
   const [stickies, setStickies] = useState([]);
   const [canvasConcepts, setCanvasConcepts] = useState([]);
   const [canvasEdges, setCanvasEdges] = useState([]);
-  const [dragState, setDragState] = useState(null); // { type: 'pan'|'item', id, startMouse, startPos }
+  const [dragState, setDragState] = useState(null); // { type: 'pan'|'item'|'marquee', id, startMouse, startPos }
+  const [selectedIds, setSelectedIds] = useState(new Set()); // Set of "kind:id" — multi-select across stickies/concepts/texts/shapes
+  const [marquee, setMarquee] = useState(null); // { x1, y1, x2, y2 } in canvas space, while rubber-band-selecting
   const [connectDrag, setConnectDrag] = useState(null); // { sourceId, x, y } — live drag from a connector handle
   const [resizeState, setResizeState] = useState(null); // { id, kind, startMouse, startSize }
   const [connectingFrom, setConnectingFrom] = useState(null);
@@ -1779,13 +1781,29 @@ function APMDashboardLive() {
     }
   }, []);
 
-  // Escape cancels an in-progress arrow — the mouse-driven Finish/Cancel
-  // buttons are the primary way, this is just a safety net.
+  // Escape cancels an in-progress arrow (mouse-driven Finish/Cancel buttons
+  // are the primary way, this is just a safety net) or clears the current
+  // canvas selection. Delete/Backspace removes the selected canvas objects —
+  // guarded on an editable element having focus, since Delete/Backspace also
+  // needs to work as plain text-editing keys inside sticky/concept fields.
   useEffect(() => {
-    const onKeyDown = (e) => { if (e.key === "Escape" && arrowDrawMode) cancelArrowDraw(); };
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") {
+        if (arrowDrawMode) cancelArrowDraw();
+        else if (selectedIds.size > 0) setSelectedIds(new Set());
+        return;
+      }
+      if (e.key === "Delete" || e.key === "Backspace") {
+        if (view !== "canvas" || selectedIds.size === 0) return;
+        const tag = document.activeElement && document.activeElement.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA" || (document.activeElement && document.activeElement.isContentEditable)) return;
+        e.preventDefault();
+        deleteSelected();
+      }
+    };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [arrowDrawMode]);
+  }, [arrowDrawMode, selectedIds, view]);
 
   // Autoscroll the chat to the newest message — without this, new answers
   // land below the visible area and the person has to manually scroll down
@@ -3240,6 +3258,24 @@ function APMDashboardLive() {
       }
     });
 
+    // 4. Recolor — always an existing (or just-pulled/just-created) object,
+    // never a brand-new one, so "id" resolves through idMap first (covers a
+    // tempId from this same plan's "create", or a pull:i:j reference) and
+    // falls back to the literal id, which is what a pre-existing canvas
+    // object (from the snapshot the model was shown) looks like.
+    const isValidColor = (c) => c === null || (typeof c === "string" && /^#[0-9a-fA-F]{3,8}$/.test(c));
+    (plan.recolor || []).forEach((item) => {
+      if (!isValidColor(item.color)) return;
+      const targetId = idMap[item.id] || item.id;
+      const label = item.label || null;
+      let idx = localStickies.findIndex((s) => s.id === targetId);
+      if (idx !== -1) { if (item.color) localStickies[idx] = { ...localStickies[idx], color: item.color }; return; }
+      idx = localConcepts.findIndex((c) => c.id === targetId);
+      if (idx !== -1) { localConcepts[idx] = { ...localConcepts[idx], highlightColor: item.color, highlightLabel: item.color ? label : null }; return; }
+      idx = localShapes.findIndex((s) => s.id === targetId);
+      if (idx !== -1) { localShapes[idx] = { ...localShapes[idx], highlightColor: item.color, highlightLabel: item.color ? label : null }; }
+    });
+
     setShapes(localShapes);
     setStickies(localStickies);
     setShapeEdges(localShapeEdges);
@@ -3250,6 +3286,27 @@ function APMDashboardLive() {
     autoOrganizeCanvas(localConcepts, localCanvasEdges);
   };
 
+  // What the AI sees of the canvas today — just enough per object to answer
+  // "recolor" requests (real-world risk data for anything pulled from the
+  // graph) and to avoid re-creating something that's already there, without
+  // shipping the entire portfolio on every request.
+  const buildCanvasSnapshot = () => [
+    ...canvasConcepts.map((c) => {
+      const real = c.realId ? appsWithDisposition.find((a) => a.id === c.realId) : null;
+      return {
+        id: c.id, kind: "concept", conceptType: c.conceptType, name: c.name, attributes: c.attributes,
+        ...(real ? { realData: {
+          criticality: real.criticality, status: real.status, hosting: real.hosting,
+          disposition: real.disposition ? real.disposition.code : null, risks: real.risks,
+          businessValue: real.businessValue, techHealth: real.techHealth,
+          aiReadiness: real.aiReadiness, aiRelevance: real.aiRelevance,
+        } } : {}),
+      };
+    }),
+    ...shapes.map((s) => ({ id: s.id, kind: "shape", category: s.category, shapeKey: s.shapeKey, label: s.label })),
+    ...stickies.map((s) => ({ id: s.id, kind: "sticky", text: s.text })),
+  ];
+
   const sendCanvasChatMessage = async () => {
     const requestText = canvasChatInput.trim();
     if (!requestText || canvasChatLoading) return;
@@ -3257,7 +3314,8 @@ function APMDashboardLive() {
     setCanvasChatLoading(true);
     try {
       const res = await fetch("http://localhost:5050/canvas-chat", {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ request: requestText }),
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ request: requestText, canvas: buildCanvasSnapshot() }),
       });
       if (!res.ok) throw new Error(`Chat backend returned ${res.status}`);
       const data = await res.json();
@@ -3430,6 +3488,43 @@ function APMDashboardLive() {
   };
   const deleteEdge = (id) => setCanvasEdges((prev) => prev.filter((e) => e.id !== id));
 
+  const findCanvasItem = (kind, id) => {
+    if (kind === "sticky") return stickies.find((s) => s.id === id);
+    if (kind === "concept") return canvasConcepts.find((c) => c.id === id);
+    if (kind === "text") return canvasTexts.find((t) => t.id === id);
+    if (kind === "shape") return shapes.find((s) => s.id === id);
+    return null;
+  };
+  // Bulk counterpart to deleteSticky/deleteText/deleteConcept/deleteShape —
+  // one filter per array (like autoOrganizeCanvas's one-setState-per-array
+  // pattern) instead of calling the single-item delete once per selected id,
+  // so a multi-select delete can't leave stale-closure gaps.
+  const deleteSelected = () => {
+    if (selectedIds.size === 0) return;
+    const idsByKind = { sticky: new Set(), concept: new Set(), text: new Set(), shape: new Set() };
+    selectedIds.forEach((key) => {
+      const [kind, id] = key.split(":");
+      if (idsByKind[kind]) idsByKind[kind].add(id);
+    });
+    const pushedCount = canvasConcepts.filter((c) => idsByKind.concept.has(c.id) && c.pushed).length;
+    if (pushedCount > 0 && !window.confirm(
+      `${pushedCount} of the selected concepts were already pushed to Neo4j. Removing them here only removes them from the canvas — the real nodes stay in the graph. Continue?`
+    )) return;
+    if (idsByKind.sticky.size) setStickies((prev) => prev.filter((s) => !idsByKind.sticky.has(s.id)));
+    if (idsByKind.text.size) setCanvasTexts((prev) => prev.filter((t) => !idsByKind.text.has(t.id)));
+    if (idsByKind.concept.size) {
+      setCanvasConcepts((prev) => prev.filter((c) => !idsByKind.concept.has(c.id)));
+      setCanvasEdges((prev) => prev.filter((e) => !idsByKind.concept.has(e.sourceId) && !idsByKind.concept.has(e.targetId)));
+    }
+    if (idsByKind.shape.size) {
+      setShapes((prev) => prev.filter((s) => !idsByKind.shape.has(s.id)));
+      setShapeEdges((prev) => prev.filter((e) => !idsByKind.shape.has(e.sourceId) && !idsByKind.shape.has(e.targetId)));
+    }
+    if (editingConceptId && idsByKind.concept.has(editingConceptId)) setEditingConceptId(null);
+    if (editingTextId && idsByKind.text.has(editingTextId)) setEditingTextId(null);
+    setSelectedIds(new Set());
+  };
+
   // Single entry point for the type picker regardless of what opened it — the
   // "+ Concept" button (no sticky context) and "Convert to Concept" on a sticky
   // (uses that sticky's position/text) now share the exact same experience,
@@ -3456,14 +3551,42 @@ function APMDashboardLive() {
     if (contextMenu) setContextMenu(null);
     if (e.target !== canvasRef.current && !e.target.dataset.canvasBg) return;
     if (arrowDrawMode) { addArrowDraftPoint(screenToCanvas(e.clientX, e.clientY)); return; }
+    if (e.shiftKey) {
+      // Shift-drag on empty canvas = rubber-band select, instead of the plain-drag pan
+      // gesture, so panning (already muscle memory) isn't disturbed by adding this.
+      // preventDefault — Shift+mousedown is also the browser's native "extend text
+      // selection" gesture; without this it fights our own selection with a highlight.
+      e.preventDefault();
+      const point = screenToCanvas(e.clientX, e.clientY);
+      setMarquee({ x1: point.x, y1: point.y, x2: point.x, y2: point.y });
+      setDragState({ type: "marquee" });
+      return;
+    }
+    if (selectedIds.size > 0) setSelectedIds(new Set());
     setDragState({ type: "pan", startMouse: { x: e.clientX, y: e.clientY }, startOffset: canvasOffset });
   };
-  const handleItemMouseDown = (e, id) => {
+  const handleItemMouseDown = (e, kind, id) => {
     e.stopPropagation();
+    e.preventDefault(); // same native-text-selection guard as the marquee shift-drag above
     const point = screenToCanvas(e.clientX, e.clientY);
-    const item = stickies.find((s) => s.id === id) || canvasConcepts.find((c) => c.id === id) || canvasTexts.find((t) => t.id === id) || shapes.find((s) => s.id === id);
-    if (!item) return;
-    setDragState({ type: "item", id, startMouse: point, startPos: { x: item.x, y: item.y } });
+    const key = `${kind}:${id}`;
+    if (e.shiftKey) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        next.has(key) ? next.delete(key) : next.add(key);
+        return next;
+      });
+      return;
+    }
+    const activeSelection = selectedIds.has(key) && selectedIds.size > 1 ? selectedIds : new Set([key]);
+    if (activeSelection !== selectedIds) setSelectedIds(activeSelection);
+    const startPositions = {};
+    activeSelection.forEach((k) => {
+      const [kKind, kId] = k.split(":");
+      const item = findCanvasItem(kKind, kId);
+      if (item) startPositions[k] = { x: item.x, y: item.y };
+    });
+    setDragState({ type: "item", startMouse: point, startPositions });
   };
   const handleCanvasMouseMove = (e) => {
     if (draggingEdgeWaypoint) {
@@ -3517,6 +3640,11 @@ function APMDashboardLive() {
       else if (resizeState.kind === "shape") setShapes((prev) => prev.map((s) => s.id === resizeState.id ? { ...s, width: newW, height: newH } : s));
       return;
     }
+    if (marquee) {
+      const point = screenToCanvas(e.clientX, e.clientY);
+      setMarquee((m) => ({ ...m, x2: point.x, y2: point.y }));
+      return;
+    }
     if (!dragState) return;
     if (dragState.type === "pan") {
       const dx = e.clientX - dragState.startMouse.x, dy = e.clientY - dragState.startMouse.y;
@@ -3524,14 +3652,38 @@ function APMDashboardLive() {
     } else if (dragState.type === "item") {
       const point = screenToCanvas(e.clientX, e.clientY);
       const dx = point.x - dragState.startMouse.x, dy = point.y - dragState.startMouse.y;
-      const newX = dragState.startPos.x + dx, newY = dragState.startPos.y + dy;
-      setStickies((prev) => prev.map((s) => (s.id === dragState.id ? { ...s, x: newX, y: newY } : s)));
-      setCanvasConcepts((prev) => prev.map((c) => (c.id === dragState.id ? { ...c, x: newX, y: newY } : c)));
-      setCanvasTexts((prev) => prev.map((t) => (t.id === dragState.id ? { ...t, x: newX, y: newY } : t)));
-      setShapes((prev) => prev.map((s) => (s.id === dragState.id ? { ...s, x: newX, y: newY } : s)));
+      // One map() per array over the whole moved set, in the same "compute
+      // deltas, then one setState per array" shape as autoOrganizeCanvas —
+      // works identically whether one item or many are being dragged.
+      const newPosByKey = {};
+      Object.keys(dragState.startPositions).forEach((key) => {
+        const pos = dragState.startPositions[key];
+        newPosByKey[key] = { x: pos.x + dx, y: pos.y + dy };
+      });
+      setStickies((prev) => prev.map((s) => newPosByKey[`sticky:${s.id}`] ? { ...s, ...newPosByKey[`sticky:${s.id}`] } : s));
+      setCanvasConcepts((prev) => prev.map((c) => newPosByKey[`concept:${c.id}`] ? { ...c, ...newPosByKey[`concept:${c.id}`] } : c));
+      setCanvasTexts((prev) => prev.map((t) => newPosByKey[`text:${t.id}`] ? { ...t, ...newPosByKey[`text:${t.id}`] } : t));
+      setShapes((prev) => prev.map((s) => newPosByKey[`shape:${s.id}`] ? { ...s, ...newPosByKey[`shape:${s.id}`] } : s));
     }
   };
   const handleCanvasMouseUp = () => {
+    if (marquee) {
+      const x1 = Math.min(marquee.x1, marquee.x2), x2 = Math.max(marquee.x1, marquee.x2);
+      const y1 = Math.min(marquee.y1, marquee.y2), y2 = Math.max(marquee.y1, marquee.y2);
+      const intersects = (o, defaultW, defaultH) => {
+        const w = o.width || defaultW, h = o.height || defaultH;
+        return o.x <= x2 && o.x + w >= x1 && o.y <= y2 && o.y + h >= y1;
+      };
+      const next = new Set();
+      stickies.forEach((s) => { if (intersects(s, 160, 120)) next.add(`sticky:${s.id}`); });
+      canvasConcepts.forEach((c) => { if (intersects(c, CONCEPT_W, CONCEPT_H)) next.add(`concept:${c.id}`); });
+      canvasTexts.forEach((t) => { if (intersects(t, 160, 60)) next.add(`text:${t.id}`); });
+      shapes.forEach((s) => { if (intersects(s, SHAPE_W, SHAPE_H)) next.add(`shape:${s.id}`); });
+      setSelectedIds(next);
+      setMarquee(null);
+      setDragState(null);
+      return;
+    }
     if (draggingEdgeWaypoint) { setDraggingEdgeWaypoint(null); return; }
     if (draggingWholeArrow) { setDraggingWholeArrow(null); return; }
     if (draggingArrowPoint) { setDraggingArrowPoint(null); return; }
@@ -5983,10 +6135,18 @@ function APMDashboardLive() {
                     )}
                   </svg>
 
+                  {marquee && (
+                    <div style={{ position: "absolute",
+                      left: Math.min(marquee.x1, marquee.x2), top: Math.min(marquee.y1, marquee.y2),
+                      width: Math.abs(marquee.x2 - marquee.x1), height: Math.abs(marquee.y2 - marquee.y1),
+                      background: `${COLORS.accent}14`, border: `1px solid ${COLORS.accent}`, pointerEvents: "none", zIndex: 9999 }} />
+                  )}
+
                   {stickies.map((s) => (
-                    <div key={s.id} onMouseDown={(e) => handleItemMouseDown(e, s.id)} onContextMenu={(e) => openContextMenu(e, "sticky", s.id)}
+                    <div key={s.id} onMouseDown={(e) => handleItemMouseDown(e, "sticky", s.id)} onContextMenu={(e) => openContextMenu(e, "sticky", s.id)}
                       style={{ position: "absolute", left: s.x, top: s.y, width: s.width || 160, height: s.height || 120, zIndex: s.zIndex || 0,
                         background: s.color, borderRadius: 6, padding: 10, boxShadow: "0 6px 16px rgba(10,14,26,0.16)",
+                        outline: selectedIds.has(`sticky:${s.id}`) ? `2px solid ${COLORS.accent}` : "none", outlineOffset: 2,
                         cursor: "grab", display: "flex", flexDirection: "column", justifyContent: "space-between", overflow: "hidden" }}>
                       <span onMouseDown={(e) => e.stopPropagation()} onClick={() => deleteSticky(s.id)}
                         style={{ position: "absolute", top: 4, right: 6, cursor: "pointer", fontSize: 12, color: "rgba(28,42,58,0.5)" }}>✕</span>
@@ -6023,11 +6183,13 @@ function APMDashboardLive() {
                     const cw = c.width || CONCEPT_W, ch = c.height || CONCEPT_H;
                     return (
                     <div key={c.id}
-                      onMouseDown={(e) => handleItemMouseDown(e, c.id)} onContextMenu={(e) => openContextMenu(e, "concept", c.id)}
+                      onMouseDown={(e) => handleItemMouseDown(e, "concept", c.id)} onContextMenu={(e) => openContextMenu(e, "concept", c.id)}
                       style={{ position: "absolute", left: c.x, top: c.y, width: cw, minHeight: ch, zIndex: c.zIndex || 0,
                         background: "#fff", borderRadius: 12, padding: 12, overflow: "visible",
                         borderTop: `4px solid ${style.color}`,
-                        borderLeft: `1px solid ${COLORS.border}`, borderRight: `1px solid ${COLORS.border}`, borderBottom: `1px solid ${COLORS.border}`,
+                        borderLeft: c.highlightColor ? `4px solid ${c.highlightColor}` : `1px solid ${COLORS.border}`,
+                        borderRight: `1px solid ${COLORS.border}`, borderBottom: `1px solid ${COLORS.border}`,
+                        outline: selectedIds.has(`concept:${c.id}`) ? `2px solid ${COLORS.accent}` : "none", outlineOffset: 2,
                         boxShadow: "0 6px 18px rgba(10,14,26,0.14)", cursor: "grab" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -6036,6 +6198,8 @@ function APMDashboardLive() {
                           <span style={{ fontSize: 10, fontWeight: 700, color: style.color, textTransform: "uppercase", letterSpacing: "0.03em" }}>{c.conceptType}</span>
                         </div>
                         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          {c.highlightLabel && <span style={{ fontSize: 9, background: `${c.highlightColor}18`, color: c.highlightColor,
+                            padding: "1px 6px", borderRadius: 5, fontWeight: 700 }}>{c.highlightLabel}</span>}
                           {c.pushed && <span style={{ fontSize: 9, background: "#DCEAE1", color: COLORS.accent, padding: "1px 6px", borderRadius: 5, fontWeight: 700 }}>PUSHED</span>}
                           <span onMouseDown={(e) => e.stopPropagation()} onClick={() => deleteConcept(c.id, c.pushed)}
                             style={{ cursor: "pointer", fontSize: 12, color: "rgba(28,42,58,0.4)" }}>✕</span>
@@ -6084,11 +6248,12 @@ function APMDashboardLive() {
                   })}
 
                   {canvasTexts.map((t) => (
-                    <div key={t.id} onMouseDown={(e) => handleItemMouseDown(e, t.id)} onContextMenu={(e) => openContextMenu(e, "text", t.id)}
+                    <div key={t.id} onMouseDown={(e) => handleItemMouseDown(e, "text", t.id)} onContextMenu={(e) => openContextMenu(e, "text", t.id)}
                       onDoubleClick={() => setEditingTextId(t.id)}
                       style={{ position: "absolute", left: t.x, top: t.y, width: t.width, height: t.height, zIndex: t.zIndex || 0,
                         display: "flex", flexDirection: "column",
                         justifyContent: t.valign === "middle" ? "center" : t.valign === "bottom" ? "flex-end" : "flex-start",
+                        outline: selectedIds.has(`text:${t.id}`) ? `2px solid ${COLORS.accent}` : "none", outlineOffset: 2,
                         cursor: "grab", padding: 6, border: `1px dashed transparent` }}>
                       <span onMouseDown={(e) => e.stopPropagation()} onClick={() => deleteText(t.id)}
                         style={{ position: "absolute", top: -4, right: -4, cursor: "pointer", fontSize: 11,
@@ -6111,14 +6276,22 @@ function APMDashboardLive() {
                     const sw = s.width || SHAPE_W, sh = s.height || SHAPE_H;
                     const isBasic = def && def.renderMode === "basic";
                     return (
-                      <div key={s.id} onMouseDown={(e) => handleItemMouseDown(e, s.id)} onContextMenu={(e) => openContextMenu(e, "shape", s.id)}
+                      <div key={s.id} onMouseDown={(e) => handleItemMouseDown(e, "shape", s.id)} onContextMenu={(e) => openContextMenu(e, "shape", s.id)}
                         style={{ position: "absolute", left: s.x, top: s.y, width: sw, height: sh, zIndex: s.zIndex || 0,
                           display: "flex", flexDirection: isBasic ? undefined : "column", alignItems: "center", justifyContent: "center",
+                          outline: selectedIds.has(`shape:${s.id}`) ? `2px solid ${COLORS.accent}` : "none", outlineOffset: 2,
+                          boxShadow: s.highlightColor ? `0 0 0 3px ${s.highlightColor}` : "none", borderRadius: isBasic ? 0 : 8,
                           cursor: "grab", padding: isBasic ? 0 : 6 }}>
                         <span onMouseDown={(e) => e.stopPropagation()} onClick={() => deleteShape(s.id)}
                           style={{ position: "absolute", top: -2, right: -2, cursor: "pointer", fontSize: 11,
                             color: "rgba(28,42,58,0.4)", background: "#F3F4F7", borderRadius: "50%", width: 16, height: 16,
                             display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2 }}>✕</span>
+                        {s.highlightLabel && (
+                          <span style={{ position: "absolute", top: -10, left: -2, fontSize: 8.5, fontWeight: 700,
+                            background: s.highlightColor, color: "#fff", padding: "1px 5px", borderRadius: 4, whiteSpace: "nowrap", zIndex: 2 }}>
+                            {s.highlightLabel}
+                          </span>
+                        )}
 
                         {isBasic ? (
                           <>
