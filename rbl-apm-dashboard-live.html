@@ -893,6 +893,23 @@ const fmtWhen = (iso) => {
   return then.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: then.getFullYear() === new Date().getFullYear() ? undefined : "numeric" });
 };
 
+// First-of-month for start through first-of-month for end, inclusive — the
+// tick marks along the Initiatives Roadmap's time axis.
+function monthsBetween(start, end) {
+  const months = [];
+  let d = new Date(start.getFullYear(), start.getMonth(), 1);
+  const endD = new Date(end.getFullYear(), end.getMonth(), 1);
+  while (d <= endD) {
+    months.push(new Date(d));
+    d = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+  }
+  return months;
+}
+const INITIATIVE_STEREOTYPE_COLORS = {
+  Transformation: COLORS.accent2, Migration: COLORS.info, Retirement: COLORS.risk,
+  Modernisation: COLORS.accent, Compliance: COLORS.warning, Commercial: "#2C7A8C",
+};
+
 // Generic sortable/filterable table — every <table> in the app used to be
 // hand-rolled with no sort or filter affordance at all. One reusable
 // component instead of duplicating sort/filter logic per view; each mounted
@@ -1357,6 +1374,9 @@ function APMDashboardLive() {
   const [ownershipLoading, setOwnershipLoading] = useState(false);
   const [ownershipExpanded, setOwnershipExpanded] = useState(null);
   const [ownershipError, setOwnershipError] = useState("");
+  const [initiatives, setInitiatives] = useState([]);
+  const [initiativesLoading, setInitiativesLoading] = useState(false);
+  const [initiativesError, setInitiativesError] = useState("");
   const zCounterRef = useRef(1);
   // Click-vs-drag threshold for canvas item mousedown — lets a plain click on
   // a sticky's textarea (or any other in-item control) still place a text
@@ -1875,6 +1895,9 @@ function APMDashboardLive() {
   useEffect(() => {
     if (view === "ownership") loadOwnershipCoverage();
   }, [view]);
+  useEffect(() => {
+    if (view === "initiatives") loadInitiatives();
+  }, [view]);
 
   // Once the workspace/canvas list loads, open whatever canvas comes first —
   // otherwise the person lands on an empty tree with nothing selected.
@@ -1931,6 +1954,24 @@ function APMDashboardLive() {
       setOwnershipStats({});
     } finally {
       setOwnershipLoading(false);
+    }
+  };
+
+  const loadInitiatives = async () => {
+    setInitiativesLoading(true);
+    try {
+      const apiUrl = deriveQueryApiUrl(uri, dbName);
+      const authHeader = "Basic " + btoa(`${username}:${password}`);
+      const rows = await runCypher(apiUrl, authHeader,
+        `MATCH (n:Instance:Initiative) RETURN properties(n) AS props ORDER BY n.name`
+      );
+      setInitiatives(rows.map((r) => r.props));
+      setInitiativesError("");
+    } catch (e) {
+      setInitiativesError(`Couldn't load initiatives: ${e.message}`);
+      setInitiatives([]);
+    } finally {
+      setInitiativesLoading(false);
     }
   };
 
@@ -2805,6 +2846,7 @@ function APMDashboardLive() {
   const MODERNISATION_NAV_ITEMS = [
     ["obsolescence", "Tech Obsolescence", "obsolescence"],
     ["cloudmigration", "Cloud Migration", "cloudmigration"],
+    ["initiatives", "Initiatives Roadmap", "initiatives"],
   ];
   const JOURNEY_NAV_ITEMS = [
     ["journeytrace", "Journey Trace", "journeytrace"],
@@ -2824,7 +2866,7 @@ function APMDashboardLive() {
     blocked: "costrisk", decisionlog: "costrisk", dependencies: "costrisk", redundancy: "costrisk",
     health: "datatrust", fieldreview: "datatrust", ownership: "datatrust",
     ai: "ai",
-    obsolescence: "modernisation", cloudmigration: "modernisation",
+    obsolescence: "modernisation", cloudmigration: "modernisation", initiatives: "modernisation",
     journeytrace: "journeys", maturity: "journeys",
   };
   const goToView = (key) => {
@@ -4262,6 +4304,7 @@ function APMDashboardLive() {
     redundancy: "Redundancy", ai: "AI Pathfinder",
     obsolescence: "Tech Obsolescence", cloudmigration: "Cloud Migration", techradar: "Tech Radar",
     fieldreview: "Field Review", ontology: "Ontology Manager", ownership: "Ownership Coverage",
+    initiatives: "Initiatives Roadmap",
     journeytrace: "Journey Trace", maturity: "Capability Maturity", decisionlog: "Decision Log",
   };
   const profileApp = view === "profile" ? apps.find((a) => a.id === profileAppId) : null;
@@ -5808,6 +5851,142 @@ function APMDashboardLive() {
               })()}
             </div>
           )}
+          {view === "initiatives" && (() => {
+            const parseDate = (s) => {
+              if (!s) return null;
+              const d = new Date(s);
+              return isNaN(d.getTime()) ? null : d;
+            };
+            const withDates = initiatives.map((i) => ({ ...i, _start: parseDate(i.start_date), _target: parseDate(i.target_date) }));
+            const scheduled = withDates.filter((i) => i._start && i._target && i._target >= i._start).sort((a, b) => a._start - b._start);
+            const unscheduled = withDates.filter((i) => !(i._start && i._target && i._target >= i._start));
+
+            const inProgress = initiatives.filter((i) => i.status === "In Progress").length;
+            const totalForecast = initiatives.reduce((s, i) => s + (Number(i.forecast_cost) || 0), 0);
+            const totalBenefit = initiatives.reduce((s, i) => s + (Number(i.expected_benefit) || 0), 0);
+
+            let axisStart = null, axisEnd = null, months = [];
+            if (scheduled.length > 0) {
+              axisStart = scheduled.reduce((min, i) => (i._start < min ? i._start : min), scheduled[0]._start);
+              axisEnd = scheduled.reduce((max, i) => (i._target > max ? i._target : max), scheduled[0]._target);
+              months = monthsBetween(axisStart, axisEnd);
+            }
+            const axisSpanMs = axisStart && axisEnd ? axisEnd.getTime() - axisStart.getTime() : 0;
+            const today = new Date();
+            const todayPct = axisSpanMs > 0 && today >= axisStart && today <= axisEnd
+              ? ((today.getTime() - axisStart.getTime()) / axisSpanMs) * 100 : null;
+            const cardStyle = { background: COLORS.card, border: `1px solid ${COLORS.border}`,
+              boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", padding: "16px 18px", borderRadius: 18 };
+
+            return (
+              <div>
+                <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginBottom: 20, maxWidth: 720, lineHeight: 1.6 }}>
+                  Planned and ongoing changes to the architecture — modernisations, migrations, retirements, and
+                  everything else that moves the portfolio from where it is to where it's headed. Read directly from
+                  the Initiative instances in the graph; StartDate and TargetDate position each bar below, Progress
+                  fills it in. A lightweight roadmap, not a project plan — add or edit initiatives from the Ontology
+                  Manager.
+                </div>
+                {initiativesError && <div style={{ fontSize: 13, color: COLORS.risk, marginBottom: 16 }}>{initiativesError}</div>}
+                {initiativesLoading ? (
+                  <div style={{ fontSize: 13, color: COLORS.inkSecondary }}>Loading…</div>
+                ) : initiatives.length === 0 ? (
+                  <div className="ds-card" style={{ ...cardStyle, borderRadius: 14 }}>
+                    <div style={{ fontSize: 13, color: COLORS.inkSecondary }}>
+                      No Initiative instances found — add one from the Ontology Manager, or sketch it on the
+                      Modelling Canvas and push it to the graph.
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
+                      <div className="ds-card" style={cardStyle}>
+                        <div style={{ fontSize: 26, fontWeight: 600 }}>{initiatives.length}</div>
+                        <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginTop: 4 }}>Total Initiatives</div>
+                      </div>
+                      <div className="ds-card" style={cardStyle}>
+                        <div style={{ fontSize: 26, fontWeight: 600 }}>{inProgress}</div>
+                        <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginTop: 4 }}>In Progress</div>
+                      </div>
+                      <div className="ds-card" style={cardStyle}>
+                        <div style={{ fontSize: 26, fontWeight: 600 }}>{fmtGBP(totalForecast)}</div>
+                        <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginTop: 4 }}>Total Forecast Cost</div>
+                      </div>
+                      <div className="ds-card" style={cardStyle}>
+                        <div style={{ fontSize: 26, fontWeight: 600 }}>{fmtGBP(totalBenefit)}</div>
+                        <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginTop: 4 }}>Total Expected Benefit</div>
+                      </div>
+                    </div>
+
+                    {scheduled.length > 0 && (
+                      <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 18, padding: 20, overflowX: "auto" }}>
+                        <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 16 }}>
+                          {Object.entries(INITIATIVE_STEREOTYPE_COLORS).map(([label, color]) => (
+                            <div key={label} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: COLORS.inkSecondary }}>
+                              <span style={{ width: 9, height: 9, borderRadius: 3, background: color, flexShrink: 0 }} />
+                              {label}
+                            </div>
+                          ))}
+                        </div>
+
+                        <div style={{ minWidth: 720 }}>
+                          <div style={{ display: "flex" }}>
+                            <div style={{ width: 220, flexShrink: 0 }} />
+                            <div style={{ flex: 1, position: "relative", height: 22, borderBottom: `1px solid ${COLORS.border}` }}>
+                              {months.map((m, idx) => (
+                                <div key={idx} style={{ position: "absolute", left: `${((m - axisStart) / axisSpanMs) * 100}%`,
+                                  fontSize: 10.5, color: COLORS.inkSecondary, borderLeft: `1px solid ${COLORS.border}`, paddingLeft: 4, height: "100%" }}>
+                                  {m.toLocaleDateString("en-GB", { month: "short", year: idx === 0 || m.getMonth() === 0 ? "numeric" : undefined })}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          {scheduled.map((i) => {
+                            const left = ((i._start - axisStart) / axisSpanMs) * 100;
+                            const width = Math.max(((i._target - i._start) / axisSpanMs) * 100, 1.5);
+                            const color = INITIATIVE_STEREOTYPE_COLORS[i.stereotype] || COLORS.inkSecondary;
+                            const progress = Math.min(100, Math.max(0, Number(i.progress) || 0));
+                            const muted = i.status === "Cancelled" || i.status === "Shelved";
+                            return (
+                              <div key={i.id} style={{ display: "flex", alignItems: "center", padding: "9px 0", borderTop: `1px solid ${COLORS.border}` }}>
+                                <div style={{ width: 220, flexShrink: 0, paddingRight: 12 }}>
+                                  <div style={{ fontSize: 12.5, fontWeight: 600, opacity: muted ? 0.5 : 1 }}>{i.name}</div>
+                                  <div style={{ fontSize: 10.5, color: COLORS.inkSecondary }}>{i.stereotype || "—"} · {i.status || "—"}</div>
+                                </div>
+                                <div style={{ flex: 1, position: "relative", height: 20 }}>
+                                  {todayPct != null && <div style={{ position: "absolute", left: `${todayPct}%`, top: 0, bottom: 0, width: 1, background: COLORS.border }} />}
+                                  <div title={`${i.name}: ${i.start_date} → ${i.target_date}${i.progress != null ? ` (${progress}% complete)` : ""}`}
+                                    style={{ position: "absolute", left: `${left}%`, width: `${width}%`, height: "100%", borderRadius: 5,
+                                      background: muted ? "#E4E6F0" : `${color}33`, border: `1px solid ${muted ? COLORS.border : color}`, overflow: "hidden" }}>
+                                    <div style={{ width: `${progress}%`, height: "100%", background: muted ? COLORS.border : color }} />
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {unscheduled.length > 0 && (
+                      <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 18, padding: 20, marginTop: 16 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.inkSecondary, marginBottom: 10 }}>
+                          Unscheduled — missing a Start or Target Date
+                        </div>
+                        {unscheduled.map((i) => (
+                          <div key={i.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderTop: `1px solid ${COLORS.border}` }}>
+                            <div style={{ fontSize: 12.5, fontWeight: 500 }}>{i.name}</div>
+                            <div style={{ fontSize: 11.5, color: COLORS.inkSecondary }}>{i.stereotype || "—"} · {i.status || "—"}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            );
+          })()}
           {view === "landing" && (() => {
             const quickStats = [
               { label: "Applications", count: apps.length },
