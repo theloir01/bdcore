@@ -197,11 +197,11 @@ const COLORS = {
 // into one brand color.
 const DEFAULT_BRAND = { name: "The Royal British Legion", subtitle: "Digital, Data & Technology", logo: null, primary: "#0A0E1A", accent: "#0EA968" };
 
-// Modelling Canvas: the 23 real BDCore concept types (whitelist — anything
+// Modelling Canvas: the real BDCore concept types (whitelist — anything
 // pushed to Neo4j must be one of these, no arbitrary labels) and the
 // controlled verb vocabulary, mirrored from chat_server.py's SCHEMA_CONTEXT.
 const CANVAS_CONCEPT_TYPES = [
-  "AIModel", "Application", "Capability", "Control", "Data", "Decision", "Goal",
+  "AIModel", "Application", "Capability", "Control", "Data", "Decision", "Flow", "FlowStep", "Goal",
   "HardwareTechnology", "Initiative", "Interface", "Journey", "JourneyStage", "Location", "Organisation",
   "Outcome", "Process", "Product", "Requirement", "Risk", "SoftwareTechnology", "Strategy",
   "ValueStream", "ValueStreamStage",
@@ -215,7 +215,7 @@ const CONCEPT_TYPE_CATEGORY = {
   Strategy: "Strategic", Goal: "Strategic", Decision: "Strategic", Initiative: "Strategic", Outcome: "Strategic",
   Requirement: "Structural", Capability: "Structural", Process: "Structural", Location: "Structural",
   Organisation: "Structural", Product: "Structural", Journey: "Structural", JourneyStage: "Structural",
-  ValueStream: "Structural", ValueStreamStage: "Structural",
+  ValueStream: "Structural", ValueStreamStage: "Structural", Flow: "Structural", FlowStep: "Structural",
   Application: "Technology", Data: "Technology", SoftwareTechnology: "Technology", HardwareTechnology: "Technology",
   AIModel: "Technology", Interface: "Technology",
   Risk: "GRC", Control: "GRC",
@@ -468,6 +468,8 @@ const CONCEPT_TYPE_STYLE = {
   JourneyStage: { color: "#D98CA3", icon: <svg {...CONCEPT_ICON_COMMON}><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="2.8" fill="#fff" stroke="none" /></svg> },
   ValueStream: { color: "#7A5C3E", icon: <svg {...CONCEPT_ICON_COMMON}><path d="M2 12h3M9 12h3M15.5 12h2" /><circle cx="6" cy="12" r="2.2" /><circle cx="12.5" cy="12" r="2.2" /><path d="M19 8l3.5 4-3.5 4" /></svg> },
   ValueStreamStage: { color: "#B08D6E", icon: <svg {...CONCEPT_ICON_COMMON}><circle cx="12" cy="12" r="8" /><path d="M8.3 12.3l2.4 2.4 5-5.4" /></svg> },
+  Flow: { color: "#1F7A6C", icon: <svg {...CONCEPT_ICON_COMMON}><circle cx="4" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="20" cy="12" r="2" /><path d="M6 12h4M14 12h4" /></svg> },
+  FlowStep: { color: "#4FA898", icon: <svg {...CONCEPT_ICON_COMMON}><rect x="6" y="6" width="12" height="12" rx="2.5" /><circle cx="12" cy="12" r="2.2" fill="#fff" stroke="none" /></svg> },
   Location: { color: "#2C8C7A", icon: <svg {...CONCEPT_ICON_COMMON}><path d="M12 21s7-6.5 7-12a7 7 0 0 0-14 0c0 5.5 7 12 7 12z" /><circle cx="12" cy="9" r="2.3" /></svg> },
   Requirement: { color: "#6456A3", icon: <svg {...CONCEPT_ICON_COMMON}><rect x="5" y="3" width="14" height="18" rx="2" /><path d="M9 3V2h6v1" /><polyline points="8,11 10.5,13.5 16,8" /><line x1="8" y1="17" x2="16" y2="17" /></svg> },
   Interface: { color: "#1B8FA0", icon: <svg {...CONCEPT_ICON_COMMON}><rect x="2" y="9" width="7" height="6" rx="1.5" /><path d="M9 12h3" /><path d="M12 12h3l1.5-3M16.5 9l1.5 3-1.5 3" /><circle cx="20" cy="12" r="2" /></svg> },
@@ -1136,7 +1138,18 @@ function computeDRReadiness(app, controls, depLinks) {
   return { covered: false };
 }
 
-function computeBlastRadius(app, allApps, depLinks, depNodes, processes, orgsByProcess, controls) {
+function computeBlastRadius(app, allApps, depLinks, depNodes, processes, orgsByProcess, controls, flowRows) {
+  // Which end-to-end Flows (functional or technical) would lose a step if
+  // this application went away — the direct "what must be reinstated"
+  // answer a Flow/FlowStep inventory exists to give, grouped so a flow with
+  // several of this app's steps still only shows once.
+  const flowsById = {};
+  (flowRows || []).filter((r) => r.carrierId === app.id).forEach((r) => {
+    if (!flowsById[r.flowId]) flowsById[r.flowId] = { id: r.flowId, name: r.flowName, stereotype: r.flowStereotype, criticality: r.flowCriticality, steps: [] };
+    flowsById[r.flowId].steps.push({ id: r.stepId, name: r.stepName, sequence: r.stepSequence });
+  });
+  const affectedFlows = Object.values(flowsById);
+
   const darkCapabilities = [];
   const degradedCapabilities = [];
   (app.capabilities || []).forEach((cap) => {
@@ -1155,9 +1168,11 @@ function computeBlastRadius(app, allApps, depLinks, depNodes, processes, orgsByP
       .flatMap((p) => orgsByProcess[p.id] || [])
   )];
   const drReadiness = computeDRReadiness(app, controls, depLinks);
+  const criticalFlowCount = affectedFlows.filter((f) => f.criticality === "Critical").length;
   const score = Math.min(100, Math.round(
     darkCapabilities.length * 25 + degradedCapabilities.length * 8 +
     downstreamApps.length * 10 + (CRIT_WEIGHT_BR[app.criticality] || 1) * 5 +
+    affectedFlows.length * 6 + criticalFlowCount * 8 +
     (drReadiness.covered ? 0 : 10)
   ));
   const severity = score >= 70 ? "Severe" : score >= 35 ? "Moderate" : "Limited";
@@ -1170,9 +1185,12 @@ function computeBlastRadius(app, allApps, depLinks, depNodes, processes, orgsByP
   }
   if (app.userCount) recovery.push(`Direct user reach is ${app.userCount} — consider a staged maintenance window.`);
   if (downstreamApps.length > 0) recovery.push(`${downstreamApps.length} other application${downstreamApps.length === 1 ? "" : "s"} technically depend on this — sequence any change carefully.`);
+  if (affectedFlows.length > 0) {
+    recovery.push(`${affectedFlows.length} end-to-end flow${affectedFlows.length === 1 ? "" : "s"} run${affectedFlows.length === 1 ? "s" : ""} a step through this application — reinstate ${affectedFlows.length === 1 ? "it" : "each"} on the replacement before cutover, not after.`);
+  }
   if (!drReadiness.covered) recovery.push("No disaster recovery or backup control found covering this system or its infrastructure — a real readiness gap, not just a technical one.");
   if (recovery.length === 0) recovery.push("No significant dependencies found — this looks like a self-contained change.");
-  return { darkCapabilities, degradedCapabilities, downstreamApps, usersAffected, score, severity, recovery, orgUnits, drReadiness };
+  return { darkCapabilities, degradedCapabilities, downstreamApps, usersAffected, score, severity, recovery, orgUnits, drReadiness, affectedFlows };
 }
 
 const RADAR_RING_ORDER = ["Preferred", "Accepted", "Contained", "Retire"];
@@ -1335,6 +1353,7 @@ function APMDashboardLive() {
   const [selectedJourneyId, setSelectedJourneyId] = useState(null);
   const [depNodes, setDepNodes] = useState([]);
   const [depLinks, setDepLinks] = useState([]);
+  const [flowRows, setFlowRows] = useState([]); // [{carrierId, flowId, flowName, flowStereotype, flowCriticality, stepId, stepName, stepSequence}]
   const [processes, setProcesses] = useState([]);
   const [orgsByProcess, setOrgsByProcess] = useState({});
   const [technologies, setTechnologies] = useState([]);
@@ -1661,6 +1680,18 @@ function APMDashboardLive() {
                 b.lifecycle AS targetLifecycle, b.support_status AS targetSupportStatus,
                 b.tech_category AS targetTechCategory, b.strategic_classification AS targetStrategicClass`
       );
+      // Which Flow/FlowStep instances each Application, SoftwareTechnology, or
+      // HardwareTechnology carries — feeds the Blast Radius panel's "Flows
+      // Affected" section (see computeBlastRadius) directly off real data,
+      // same eager-load pattern as depRows just above since Blast Radius
+      // already assumes everything it needs is preloaded.
+      const flowRows = await runCypher(apiUrl, authHeader,
+        `MATCH (carrier:Instance)-[:SUPPORTS]->(fs:Instance:FlowStep)<-[:CONTAINS]-(f:Instance:Flow)
+         WHERE carrier:Application OR carrier:SoftwareTechnology OR carrier:HardwareTechnology
+         RETURN carrier.id AS carrierId, f.id AS flowId, f.name AS flowName, f.stereotype AS flowStereotype,
+                f.criticality AS flowCriticality, fs.id AS stepId, fs.name AS stepName, fs.sequence AS stepSequence
+         ORDER BY f.name, fs.sequence`
+      );
       const techRows = await runCypher(apiUrl, authHeader,
         `MATCH (t:Instance)
          WHERE t:SoftwareTechnology OR t:HardwareTechnology
@@ -1835,6 +1866,7 @@ function APMDashboardLive() {
       setDecisions(decisionsNormalised);
       setDepNodes([...nodeMap.values()]);
       setDepLinks(depRows.map((r) => ({ sourceId: r.sourceId, targetId: r.targetId, relType: r.relType })));
+      setFlowRows(flowRows);
       setProcesses(processNormalised);
       setOrgsByProcess(orgsByProcess);
       setTechnologies(technologiesNormalised);
@@ -6660,7 +6692,7 @@ function APMDashboardLive() {
             return (
               <div>
                 <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginBottom: 18, maxWidth: 780, lineHeight: 1.6 }}>
-                  Manage the raw graph directly, across all 23 concept types — not just what the APM views happen to
+                  Manage the raw graph directly, across all {CANVAS_CONCEPT_TYPES.length} concept types — not just what the APM views happen to
                   surface. Useful for cleaning up test data (like anything pushed from Modelling Canvas testing) or
                   making changes that don't have a dedicated screen yet.
                 </div>
@@ -7834,7 +7866,7 @@ function APMDashboardLive() {
             if (!app) return <div style={{ fontSize: 13, color: COLORS.inkSecondary }}>Application not found — try refreshing.</div>;
             const stageIdx = currentLifecycleStage(app);
             const daysSinceGoLive = app.activeDate ? Math.round((new Date() - new Date(app.activeDate)) / 86400000) : null;
-            const br = computeBlastRadius(app, apps, depLinks, depNodes, processes, orgsByProcess, controls);
+            const br = computeBlastRadius(app, apps, depLinks, depNodes, processes, orgsByProcess, controls, flowRows);
             const dispo = computeDisposition(app);
             return (
               <div style={{ maxWidth: 820 }}>
@@ -7894,7 +7926,7 @@ function APMDashboardLive() {
                         <div style={{ background: "#fff", borderRadius: 12, padding: 12 }}>
                           <b>Impact If Changed</b>
                           <div style={{ color: COLORS.inkSecondary, marginTop: 3 }}>
-                            {computeBlastRadius(app, apps, depLinks, depNodes, processes, orgsByProcess, controls).severity} blast radius
+                            {computeBlastRadius(app, apps, depLinks, depNodes, processes, orgsByProcess, controls, flowRows).severity} blast radius
                           </div>
                         </div>
                         <div style={{ background: "#fff", borderRadius: 12, padding: 12 }}>
@@ -7943,12 +7975,13 @@ function APMDashboardLive() {
                         </span>
                       )}
                     </div>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, marginBottom: 16 }}>
                       {[
                         { label: "Users Affected", value: br.usersAffected || "—" },
                         { label: "Capabilities Go Dark", value: br.darkCapabilities.length },
                         { label: "Capabilities Degraded", value: br.degradedCapabilities.length },
                         { label: "Apps in Ripple", value: br.downstreamApps.length },
+                        { label: "Flows Affected", value: br.affectedFlows.length },
                       ].map((k, i) => (
                         <div key={i} style={{ background: "#fff", borderRadius: 12, padding: "10px 14px" }}>
                           <div style={{ fontSize: 20, fontWeight: 700 }}>{k.value}</div>
@@ -7969,6 +8002,30 @@ function APMDashboardLive() {
                     {br.degradedCapabilities.length > 0 && (
                       <div style={{ marginBottom: 10, fontSize: 12.5 }}>
                         <b>Degraded:</b> {br.degradedCapabilities.map((d) => `${d.cap} (also covered by ${d.coveredBy.join(", ")})`).join("; ")}
+                      </div>
+                    )}
+                    {br.affectedFlows.length > 0 && (
+                      <div style={{ background: "#fff", borderRadius: 12, padding: 14, marginBottom: 10 }}>
+                        <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 8 }}>Flows to reinstate on a replacement</div>
+                        {br.affectedFlows.map((f) => (
+                          <div key={f.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center",
+                            padding: "6px 0", borderTop: `1px solid ${COLORS.border}` }}>
+                            <div style={{ fontSize: 12.5 }}>
+                              <span style={{ fontWeight: 600 }}>{f.name}</span>
+                              <span style={{ color: COLORS.inkSecondary }}> — step{f.steps.length === 1 ? "" : "s"}: {f.steps.map((s) => s.name).join(", ")}</span>
+                            </div>
+                            <div style={{ display: "flex", gap: 6, flexShrink: 0, marginLeft: 10 }}>
+                              {f.stereotype && (
+                                <span style={{ fontSize: 10.5, fontWeight: 600, padding: "2px 8px", borderRadius: 7,
+                                  background: "#EFEDE5", color: COLORS.inkSecondary }}>{f.stereotype}</span>
+                              )}
+                              {f.criticality === "Critical" && (
+                                <span style={{ fontSize: 10.5, fontWeight: 600, padding: "2px 8px", borderRadius: 7,
+                                  background: "#FBE0D8", color: COLORS.risk }}>Critical</span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     )}
                     <div style={{ background: "#fff", borderRadius: 12, padding: 14, marginTop: 12 }}>

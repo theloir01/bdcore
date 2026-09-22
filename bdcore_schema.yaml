@@ -212,6 +212,35 @@ concept_types:
       - {name: AIAutomationPotential, type: enum, options: [Not Assessed, Low, Medium, High]}
       - {name: HumanInteraction, type: enum, options: [Required, Optional, None]}
 
+  # Flow / FlowStep — a Journey/JourneyStage-shaped pair, but for the
+  # question a Journey can't answer: "if I retire this application, which
+  # end-to-end flows does it break?" A Journey is customer-facing and
+  # experience-shaped; a Flow is asset-facing — functional (a business
+  # process moving through several systems) or technical (data moving
+  # server to server), inventoried so retiring or replacing a participant
+  # is a lookup, not a round of asking around. Each step names what carries
+  # it (an Application, SoftwareTechnology, or HardwareTechnology — the
+  # `supports` verb already used for Application->Process is reused here
+  # for exactly the same reason: it's the same real-world relationship).
+  - name: Flow
+    category: Structural
+    attributes:
+      - *base
+      - {name: Status, type: enum, options: [Planned, Active, Retired]}
+      - {name: Stereotype, type: enum, options: [Functional, Technical]}
+      - {name: Trigger, type: string, purpose: "what starts this flow"}
+      - {name: Criticality, type: enum, options: [Critical, High, Medium, Low]}
+      - {name: Frequency, type: enum, options: [Real-time, Daily, Weekly, Monthly, Ad-hoc]}
+
+  - name: FlowStep
+    category: Structural
+    attributes:
+      - *base
+      - {name: Status, type: enum, options: [Planned, Active, Retired]}
+      - {name: Sequence, type: number}
+      - {name: StepType, type: enum, options: [Trigger, Process, Integration, Decision, Output]}
+      - {name: Criticality, type: enum, options: [Critical, High, Medium, Low]}
+
   - name: ValueStream
     category: Structural
     attributes:
@@ -469,6 +498,11 @@ relationship_types:
   - {verb: performs, source: Organisation, target: Process, category: Structural}
   - {verb: precedes, source: JourneyStage, target: JourneyStage, category: Structural}
   - {verb: enables, source: Capability, target: JourneyStage, category: Structural}
+  - {verb: contains, source: Flow, target: FlowStep, category: Structural}
+  - {verb: precedes, source: FlowStep, target: FlowStep, category: Structural}
+  - {verb: supports, source: Application, target: FlowStep, category: Structural, purpose: "which application carries out this step — the direct link a 'what flows break if I retire this app' query walks"}
+  - {verb: supports, source: SoftwareTechnology, target: FlowStep, category: Structural}
+  - {verb: supports, source: HardwareTechnology, target: FlowStep, category: Structural}
 
   # Technology — how technology supports the enterprise
   - {verb: runs on, source: Application, target: SoftwareTechnology, category: Technology}
