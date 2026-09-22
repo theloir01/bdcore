@@ -4941,7 +4941,13 @@ function APMDashboardLive() {
             </h1>
           </div>
           <div style={{ textAlign: "right" }}>
-            <div style={{ fontSize: 12.5, color: COLORS.inkSecondary }}>
+            <div style={{ fontSize: 12.5, color: COLORS.inkSecondary, display: "flex", alignItems: "center", gap: 10, justifyContent: "flex-end" }}>
+              {view !== "portfolio" && (
+                <span onClick={() => goToView("portfolio")} title="Back to Portfolio Overview"
+                  style={{ cursor: "pointer", fontWeight: 600, color: COLORS.ink }}>
+                  ← Portfolio Overview
+                </span>
+              )}
               {status === "connected" && lastFetched
                 ? `Live from Neo4j · updated ${lastFetched.toLocaleTimeString()}`
                 : "Not connected"}
