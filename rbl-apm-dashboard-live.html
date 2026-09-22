@@ -1353,6 +1353,10 @@ function APMDashboardLive() {
   const [omStatus, setOmStatus] = useState("");
   const [omImportBusy, setOmImportBusy] = useState(false);
   const omCsvInputRef = useRef(null);
+  const [ownershipStats, setOwnershipStats] = useState({}); // { [ConceptType]: { total, owned, missing: [{id,name}] } }
+  const [ownershipLoading, setOwnershipLoading] = useState(false);
+  const [ownershipExpanded, setOwnershipExpanded] = useState(null);
+  const [ownershipError, setOwnershipError] = useState("");
   const zCounterRef = useRef(1);
   // Click-vs-drag threshold for canvas item mousedown — lets a plain click on
   // a sticky's textarea (or any other in-item control) still place a text
@@ -1864,6 +1868,14 @@ function APMDashboardLive() {
     if (canvasChatScrollRef.current) canvasChatScrollRef.current.scrollTop = canvasChatScrollRef.current.scrollHeight;
   }, [canvasChatLog, canvasChatLoading]);
 
+  // Fetches fresh on every visit rather than caching — same reasoning as
+  // loadOmInstances re-fetching on every Ontology Manager type click: a
+  // coverage report showing stale counts after someone just fixed an
+  // ownership gap elsewhere in the app would be actively misleading.
+  useEffect(() => {
+    if (view === "ownership") loadOwnershipCoverage();
+  }, [view]);
+
   // Once the workspace/canvas list loads, open whatever canvas comes first —
   // otherwise the person lands on an empty tree with nothing selected.
   useEffect(() => {
@@ -1889,6 +1901,36 @@ function APMDashboardLive() {
       setOmInstances([]);
     } finally {
       setOmLoading(false);
+    }
+  };
+
+  // One query across every :Instance node rather than 23 separate ones
+  // (one per concept type) — Owner is a base attribute every type shares,
+  // so coverage can be computed for the whole graph in a single round trip.
+  const loadOwnershipCoverage = async () => {
+    setOwnershipLoading(true);
+    try {
+      const apiUrl = deriveQueryApiUrl(uri, dbName);
+      const authHeader = "Basic " + btoa(`${username}:${password}`);
+      const rows = await runCypher(apiUrl, authHeader,
+        `MATCH (n:Instance) RETURN labels(n) AS labels, n.id AS id, n.name AS name, n.owner AS owner`
+      );
+      const byType = {};
+      rows.forEach((r) => {
+        const type = (r.labels || []).find((l) => CANVAS_CONCEPT_TYPES.includes(l));
+        if (!type) return;
+        if (!byType[type]) byType[type] = { total: 0, owned: 0, missing: [] };
+        byType[type].total++;
+        if (r.owner && String(r.owner).trim()) byType[type].owned++;
+        else byType[type].missing.push({ id: r.id, name: r.name });
+      });
+      setOwnershipStats(byType);
+      setOwnershipError("");
+    } catch (e) {
+      setOwnershipError(`Couldn't load ownership coverage: ${e.message}`);
+      setOwnershipStats({});
+    } finally {
+      setOwnershipLoading(false);
     }
   };
 
@@ -2755,6 +2797,7 @@ function APMDashboardLive() {
   const DATA_TRUST_NAV_ITEMS = [
     ["health", "Portfolio Health", "health"],
     ["fieldreview", "Field Review", "fieldreview"],
+    ["ownership", "Ownership Coverage", "ownership"],
   ];
   const AI_NAV_ITEMS = [
     ["ai", "AI Pathfinder", "ai"],
@@ -2779,7 +2822,7 @@ function APMDashboardLive() {
   // or are reached as a sub-tab, so no group needs opening for them.
   const VIEW_GROUP = {
     blocked: "costrisk", decisionlog: "costrisk", dependencies: "costrisk", redundancy: "costrisk",
-    health: "datatrust", fieldreview: "datatrust",
+    health: "datatrust", fieldreview: "datatrust", ownership: "datatrust",
     ai: "ai",
     obsolescence: "modernisation", cloudmigration: "modernisation",
     journeytrace: "journeys", maturity: "journeys",
@@ -4218,7 +4261,7 @@ function APMDashboardLive() {
     capboard: "Capability Board", dependencies: "Dependencies & Impact", health: "Portfolio Health",
     redundancy: "Redundancy", ai: "AI Pathfinder",
     obsolescence: "Tech Obsolescence", cloudmigration: "Cloud Migration", techradar: "Tech Radar",
-    fieldreview: "Field Review", ontology: "Ontology Manager",
+    fieldreview: "Field Review", ontology: "Ontology Manager", ownership: "Ownership Coverage",
     journeytrace: "Journey Trace", maturity: "Capability Maturity", decisionlog: "Decision Log",
   };
   const profileApp = view === "profile" ? apps.find((a) => a.id === profileAppId) : null;
@@ -5323,6 +5366,98 @@ function APMDashboardLive() {
               </div>
             </div>
           )}
+          {view === "ownership" && (() => {
+            const types = Object.keys(ownershipStats).sort((a, b) => {
+              const pa = ownershipStats[a].total ? ownershipStats[a].owned / ownershipStats[a].total : 1;
+              const pb = ownershipStats[b].total ? ownershipStats[b].owned / ownershipStats[b].total : 1;
+              return pa - pb; // worst coverage first
+            });
+            const grandTotal = types.reduce((s, t) => s + ownershipStats[t].total, 0);
+            const grandOwned = types.reduce((s, t) => s + ownershipStats[t].owned, 0);
+            const overallPct = grandTotal ? Math.round((grandOwned / grandTotal) * 100) : 100;
+            const cardStyle = { background: COLORS.card, border: `1px solid ${COLORS.border}`,
+              boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", padding: "16px 18px", borderRadius: 18 };
+            return (
+              <div>
+                <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginBottom: 20, maxWidth: 720, lineHeight: 1.6 }}>
+                  Who owns what, across every concept type in the graph — not just Applications. A record with no
+                  Owner set is nobody's job to keep current, which is exactly the kind of gap that goes stale silently.
+                </div>
+                {ownershipError && <div style={{ fontSize: 13, color: COLORS.risk, marginBottom: 16 }}>{ownershipError}</div>}
+                {ownershipLoading ? (
+                  <div style={{ fontSize: 13, color: COLORS.inkSecondary }}>Loading…</div>
+                ) : (
+                  <>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 24 }}>
+                      <div className="ds-card" style={{ ...cardStyle, borderTop: `3px solid ${overallPct === 100 ? COLORS.accent : overallPct >= 50 ? "#D97706" : COLORS.risk}` }}>
+                        <div style={{ fontSize: 26, fontWeight: 600 }}>{overallPct}%</div>
+                        <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginTop: 4 }}>Overall Ownership Coverage</div>
+                      </div>
+                      <div className="ds-card" style={cardStyle}>
+                        <div style={{ fontSize: 26, fontWeight: 600 }}>{grandOwned} of {grandTotal}</div>
+                        <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginTop: 4 }}>Records With an Owner</div>
+                      </div>
+                      <div className="ds-card" style={cardStyle}>
+                        <div style={{ fontSize: 26, fontWeight: 600 }}>{types.length}</div>
+                        <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginTop: 4 }}>Concept Types In Use</div>
+                      </div>
+                    </div>
+
+                    <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 18, overflow: "hidden" }}>
+                      {types.length === 0 ? (
+                        <div style={{ padding: 20, fontSize: 13, color: COLORS.inkSecondary }}>No instances found in the graph yet.</div>
+                      ) : types.map((t) => {
+                        const s = ownershipStats[t];
+                        const pct = s.total ? Math.round((s.owned / s.total) * 100) : 100;
+                        const expanded = ownershipExpanded === t;
+                        const typeStyle = CONCEPT_TYPE_STYLE[t];
+                        return (
+                          <div key={t} style={{ borderTop: `1px solid ${COLORS.border}`, padding: "14px 18px" }}>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+                              cursor: s.missing.length ? "pointer" : "default" }}
+                              onClick={() => s.missing.length && setOwnershipExpanded(expanded ? null : t)}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <span style={{ width: 18, height: 18, borderRadius: 5, background: typeStyle.color,
+                                  display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                                  {React.cloneElement(typeStyle.icon, { width: 12, height: 12 })}
+                                </span>
+                                <span style={{ fontSize: 13.5, fontWeight: 600 }}>{humanizeLabel(t)}</span>
+                              </div>
+                              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                                <div style={{ width: 120, height: 6, borderRadius: 4, background: "#E4E6F0", overflow: "hidden" }}>
+                                  <div style={{ width: `${pct}%`, height: "100%",
+                                    background: pct === 100 ? COLORS.accent : pct >= 50 ? "#D97706" : COLORS.risk }} />
+                                </div>
+                                <span style={{ fontSize: 12.5, color: COLORS.inkSecondary, minWidth: 90, textAlign: "right" }}>
+                                  {s.owned} of {s.total} ({pct}%)
+                                </span>
+                              </div>
+                            </div>
+                            {expanded && (
+                              <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px dashed ${COLORS.border}` }}>
+                                <div style={{ fontSize: 11.5, color: COLORS.inkSecondary, marginBottom: 8 }}>Missing an owner:</div>
+                                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                                  {s.missing.map((m) => (
+                                    <span key={m.id} style={{ fontSize: 11.5, padding: "3px 9px", borderRadius: 6,
+                                      background: "#FBE0D8", color: COLORS.risk }}>{m.name}</span>
+                                  ))}
+                                </div>
+                                <button onClick={(e) => { e.stopPropagation(); setOmSelectedType(t); loadOmInstances(t); setView("ontology"); }}
+                                  style={{ marginTop: 10, padding: "6px 12px", background: COLORS.card, color: COLORS.ink,
+                                    border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 11.5, cursor: "pointer" }}>
+                                  Review in Ontology Manager →
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+              </div>
+            );
+          })()}
           {view === "ai" && (() => {
             const LEVEL_SCORE = { Low: 1, Medium: 2, High: 3 };
             // Only "High" counts as the high side of either axis (see aiPathfinderQuadrant),
