@@ -909,6 +909,11 @@ const INITIATIVE_STEREOTYPE_COLORS = {
   Transformation: COLORS.accent2, Migration: COLORS.info, Retirement: COLORS.risk,
   Modernisation: COLORS.accent, Compliance: COLORS.warning, Commercial: "#2C7A8C",
 };
+const DATAFLOW_PROTOCOL_COLORS = {
+  "REST API": COLORS.accent2, SOAP: "#2C7A8C", "File Transfer (SFTP)": COLORS.warning,
+  "Database Link": COLORS.info, "Message Queue": COLORS.accent, Webhook: COLORS.accent2Muted,
+  "Batch ETL": "#8B6F47", "Manual/Other": COLORS.inkSecondary,
+};
 
 // Generic sortable/filterable table — every <table> in the app used to be
 // hand-rolled with no sort or filter affordance at all. One reusable
@@ -1377,6 +1382,10 @@ function APMDashboardLive() {
   const [initiatives, setInitiatives] = useState([]);
   const [initiativesLoading, setInitiativesLoading] = useState(false);
   const [initiativesError, setInitiativesError] = useState("");
+  const [dataFlows, setDataFlows] = useState([]);
+  const [dataFlowLoading, setDataFlowLoading] = useState(false);
+  const [dataFlowError, setDataFlowError] = useState("");
+  const [dataFlowFocusId, setDataFlowFocusId] = useState(null);
   const zCounterRef = useRef(1);
   // Click-vs-drag threshold for canvas item mousedown — lets a plain click on
   // a sticky's textarea (or any other in-item control) still place a text
@@ -1898,6 +1907,9 @@ function APMDashboardLive() {
   useEffect(() => {
     if (view === "initiatives") loadInitiatives();
   }, [view]);
+  useEffect(() => {
+    if (view === "dataflow") { loadDataFlows(); setDataFlowFocusId(null); }
+  }, [view]);
 
   // Once the workspace/canvas list loads, open whatever canvas comes first —
   // otherwise the person lands on an empty tree with nothing selected.
@@ -1972,6 +1984,37 @@ function APMDashboardLive() {
       setInitiatives([]);
     } finally {
       setInitiativesLoading(false);
+    }
+  };
+
+  // Interface is the real integration model here (see bdcore_schema.yaml's
+  // own comment on it retiring a bare free-text "integrates with" edge in
+  // favour of a real node with governed protocol/format/frequency
+  // attributes) — an app PROVIDES an interface, another app USES it, and the
+  // interface itself PROVIDES the data that actually flows through it. This
+  // one query walks that whole chain to produce provider -> consumer flow
+  // rows directly, which is exactly the shape the diagram below needs.
+  const loadDataFlows = async () => {
+    setDataFlowLoading(true);
+    try {
+      const apiUrl = deriveQueryApiUrl(uri, dbName);
+      const authHeader = "Basic " + btoa(`${username}:${password}`);
+      const rows = await runCypher(apiUrl, authHeader,
+        `MATCH (provider:Instance:Application)-[:PROVIDES]->(i:Instance:Interface)<-[:USES]-(consumer:Instance:Application)
+         OPTIONAL MATCH (i)-[:PROVIDES]->(d:Instance:Data)
+         RETURN provider.id AS providerId, provider.name AS providerName,
+                consumer.id AS consumerId, consumer.name AS consumerName,
+                i.id AS interfaceId, i.name AS interfaceName, i.protocol AS protocol,
+                i.frequency AS frequency, i.direction AS direction,
+                collect(DISTINCT d.name) AS dataNames`
+      );
+      setDataFlows(rows);
+      setDataFlowError("");
+    } catch (e) {
+      setDataFlowError(`Couldn't load data flows: ${e.message}`);
+      setDataFlows([]);
+    } finally {
+      setDataFlowLoading(false);
     }
   };
 
@@ -2833,6 +2876,7 @@ function APMDashboardLive() {
     ["blocked", "Blocked Decisions", "blocked"],
     ["decisionlog", "Decision Log", "decisionlog"],
     ["dependencies", "Dependencies & Impact", "dependencies"],
+    ["dataflow", "Data Flow", "dataflow"],
     ["redundancy", "Redundancy", "redundancy"],
   ];
   const DATA_TRUST_NAV_ITEMS = [
@@ -2863,7 +2907,7 @@ function APMDashboardLive() {
   // here (brief, portfolio, capboard, canvas, ontology) sit at the top level
   // or are reached as a sub-tab, so no group needs opening for them.
   const VIEW_GROUP = {
-    blocked: "costrisk", decisionlog: "costrisk", dependencies: "costrisk", redundancy: "costrisk",
+    blocked: "costrisk", decisionlog: "costrisk", dependencies: "costrisk", dataflow: "costrisk", redundancy: "costrisk",
     health: "datatrust", fieldreview: "datatrust", ownership: "datatrust",
     ai: "ai",
     obsolescence: "modernisation", cloudmigration: "modernisation", initiatives: "modernisation",
@@ -4304,7 +4348,7 @@ function APMDashboardLive() {
     redundancy: "Redundancy", ai: "AI Pathfinder",
     obsolescence: "Tech Obsolescence", cloudmigration: "Cloud Migration", techradar: "Tech Radar",
     fieldreview: "Field Review", ontology: "Ontology Manager", ownership: "Ownership Coverage",
-    initiatives: "Initiatives Roadmap",
+    initiatives: "Initiatives Roadmap", dataflow: "Data Flow",
     journeytrace: "Journey Trace", maturity: "Capability Maturity", decisionlog: "Decision Log",
   };
   const profileApp = view === "profile" ? apps.find((a) => a.id === profileAppId) : null;
@@ -5983,6 +6027,102 @@ function APMDashboardLive() {
                       </div>
                     )}
                   </>
+                )}
+              </div>
+            );
+          })()}
+          {view === "dataflow" && (() => {
+            const nodesMap = new Map();
+            dataFlows.forEach((f) => {
+              if (f.providerId) nodesMap.set(f.providerId, f.providerName);
+              if (f.consumerId) nodesMap.set(f.consumerId, f.consumerName);
+            });
+            const nodes = [...nodesMap.entries()].map(([id, name]) => ({ id, name }));
+            const W = 760, H = 520, cx = W / 2, cy = H / 2, R = Math.min(W, H) / 2 - 90, NODE_R = 16;
+            const positions = {};
+            nodes.forEach((n, idx) => {
+              const angle = (idx / Math.max(nodes.length, 1)) * 2 * Math.PI - Math.PI / 2;
+              positions[n.id] = { x: cx + R * Math.cos(angle), y: cy + R * Math.sin(angle) };
+            });
+            const connectedIds = dataFlowFocusId ? new Set(
+              dataFlows.filter((f) => f.providerId === dataFlowFocusId || f.consumerId === dataFlowFocusId)
+                .flatMap((f) => [f.providerId, f.consumerId])
+            ) : null;
+            const protocolsInUse = [...new Set(dataFlows.map((f) => f.protocol).filter(Boolean))];
+
+            return (
+              <div>
+                <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginBottom: 20, maxWidth: 720, lineHeight: 1.6 }}>
+                  How applications actually exchange data, read from real Interface instances — which app provides
+                  each integration, which app consumes it, and what data flows through it. Click a node to focus on
+                  just its connections; click it again to clear. This is separate from the Dependencies &amp; Impact
+                  graph, which tracks structural "runs on"/"depends on" relationships rather than integration flow.
+                </div>
+                {dataFlowError && <div style={{ fontSize: 13, color: COLORS.risk, marginBottom: 16 }}>{dataFlowError}</div>}
+                {dataFlowLoading ? (
+                  <div style={{ fontSize: 13, color: COLORS.inkSecondary }}>Loading…</div>
+                ) : nodes.length === 0 ? (
+                  <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: 20 }}>
+                    <div style={{ fontSize: 13, color: COLORS.inkSecondary, lineHeight: 1.6 }}>
+                      No data flows found yet. This needs at least one Interface instance connected to two
+                      applications — one that "provides" it (the producing side) and one that "uses" it (the
+                      consuming side). Add these from the Ontology Manager, or sketch them on the Modelling Canvas.
+                    </div>
+                  </div>
+                ) : (
+                  <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 18, padding: 20 }}>
+                    {protocolsInUse.length > 0 && (
+                      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 12 }}>
+                        {protocolsInUse.map((p) => (
+                          <div key={p} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: COLORS.inkSecondary }}>
+                            <span style={{ width: 16, height: 2, background: DATAFLOW_PROTOCOL_COLORS[p] || COLORS.inkSecondary, flexShrink: 0 }} />
+                            {p}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H}>
+                      <defs>
+                        <marker id="dataflowArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                          <path d="M0,0 L10,5 L0,10 z" fill={COLORS.inkSecondary} />
+                        </marker>
+                      </defs>
+                      {dataFlows.map((f, i) => {
+                        const a = positions[f.providerId], b = positions[f.consumerId];
+                        if (!a || !b) return null;
+                        const dim = connectedIds && !(connectedIds.has(f.providerId) && connectedIds.has(f.consumerId));
+                        const dx = b.x - a.x, dy = b.y - a.y, dist = Math.sqrt(dx * dx + dy * dy) || 1;
+                        const ux = dx / dist, uy = dy / dist;
+                        const x1 = a.x + ux * NODE_R, y1 = a.y + uy * NODE_R;
+                        const x2 = b.x - ux * NODE_R, y2 = b.y - uy * NODE_R;
+                        const color = DATAFLOW_PROTOCOL_COLORS[f.protocol] || COLORS.inkSecondary;
+                        const tooltip = `${f.providerName} → ${f.consumerName} via ${f.interfaceName}` +
+                          (f.protocol ? ` (${f.protocol}${f.frequency ? `, ${f.frequency}` : ""})` : "") +
+                          (f.dataNames && f.dataNames.length ? ` — carries: ${f.dataNames.join(", ")}` : "");
+                        return (
+                          <g key={i} opacity={dim ? 0.15 : 1}>
+                            <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={color} strokeWidth={1.8} markerEnd="url(#dataflowArrow)" />
+                            <title>{tooltip}</title>
+                          </g>
+                        );
+                      })}
+                      {nodes.map((n) => {
+                        const pos = positions[n.id];
+                        const dim = connectedIds && !connectedIds.has(n.id);
+                        const focused = n.id === dataFlowFocusId;
+                        return (
+                          <g key={n.id} transform={`translate(${pos.x},${pos.y})`} opacity={dim ? 0.3 : 1}
+                            style={{ cursor: "pointer" }} onClick={() => setDataFlowFocusId(focused ? null : n.id)}>
+                            <circle r={NODE_R} fill={COLORS.card} stroke={focused ? COLORS.ink : COLORS.border} strokeWidth={focused ? 2.5 : 1.5} />
+                            <text textAnchor="middle" dy={5} fontSize={12} fontWeight={700} fill={COLORS.ink}>{(n.name || "?").charAt(0).toUpperCase()}</text>
+                            <text textAnchor="middle" y={NODE_R + 15} fontSize={10.5} fontWeight={600} fill={COLORS.ink}>
+                              {n.name.length > 20 ? `${n.name.slice(0, 18)}…` : n.name}
+                            </text>
+                          </g>
+                        );
+                      })}
+                    </svg>
+                  </div>
                 )}
               </div>
             );
