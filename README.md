@@ -42,11 +42,22 @@ a visual canvas.
 
 ## Setup
 
-1. **Install Python dependencies:**
+1. **Create and activate a virtual environment, then install dependencies.**
+   A venv keeps this project's packages (Flask, the Neo4j driver, etc.)
+   separate from anything else on your system — the venv itself isn't
+   committed (`venv/` is already gitignored).
 
    ```bash
+   python3 -m venv venv
+   source venv/bin/activate   # Windows: venv\Scripts\activate
+
    pip install -r requirements.txt
    ```
+
+   You'll need that same `source venv/bin/activate` in any new terminal
+   before running `load_schema.py`, `load_instances.py`, or
+   `chat_server.py` — it's what puts the packages you just installed on
+   `PATH` for that shell.
 
 2. **Configure credentials.** Copy `.env.example` to `.env` and fill in
    your real values (never commit `.env` — it's already gitignored):
