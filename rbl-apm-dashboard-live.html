@@ -2022,12 +2022,20 @@ function APMDashboardLive() {
     try {
       const apiUrl = deriveQueryApiUrl(uri, dbName);
       const authHeader = "Basic " + btoa(`${username}:${password}`);
-      const { id, ...rest } = omEditForm;
+      // verified_at is destructured out (not just left in rest) so an edit
+      // can't accidentally re-save whatever verification stamp the record
+      // already had — the explicit "n.verified_at = null" below is the only
+      // thing allowed to touch it on a save, same reasoning as the CSV
+      // import's update path.
+      const { id, verified_at, ...rest } = omEditForm;
       if (omEditingId === "new") {
         const newId = newCanvasId("om");
         await runCypher(apiUrl, authHeader, `CREATE (n:Instance:${omSelectedType} $props)`, { props: { id: newId, ...rest } });
       } else {
-        await runCypher(apiUrl, authHeader, `MATCH (n:Instance:${omSelectedType} {id: $id}) SET n += $props`, { id: omEditingId, props: rest });
+        await runCypher(apiUrl, authHeader,
+          `MATCH (n:Instance:${omSelectedType} {id: $id}) SET n += $props, n.verified_at = null`,
+          { id: omEditingId, props: rest }
+        );
       }
       setOmStatus("Saved.");
       setOmEditingId(null);
@@ -2052,11 +2060,37 @@ function APMDashboardLive() {
     }
   };
 
+  // A verified record is an honest, business-owner-confirmed "this is still
+  // accurate" — not a status that migrates with the data. Saving any other
+  // change to the record (omSaveInstance's edit path, or a CSV re-import)
+  // clears verified_at right back to unset, so a green badge always means
+  // "confirmed since the last edit," never a stale leftover from before
+  // someone changed the record without re-checking it.
+  const omVerifyInstance = async (instance) => {
+    try {
+      const apiUrl = deriveQueryApiUrl(uri, dbName);
+      const authHeader = "Basic " + btoa(`${username}:${password}`);
+      const now = new Date().toISOString();
+      await runCypher(apiUrl, authHeader,
+        `MATCH (n:Instance:${omSelectedType} {id: $id}) SET n.verified_at = $now`,
+        { id: instance.id, now }
+      );
+      setOmInstances((prev) => prev.map((x) => (x.id === instance.id ? { ...x, verified_at: now } : x)));
+    } catch (e) {
+      setOmStatus(`Verify failed: ${e.message}`);
+    }
+  };
+
   const exportOmInstancesToCSV = () => {
     const attrs = schemaAttributes[omSelectedType] || [];
-    const headers = ["ID", "Name", ...attrs.map((a) => humanizeLabel(a.name))];
+    // "Verified" is read-only here, deliberately — it's not in schemaAttributes
+    // so re-importing this same file won't map a "Verified" column to
+    // anything (see importOmInstancesFromCSV's headerMap), which is exactly
+    // right: verification is a business-owner action taken in the app, not
+    // something a spreadsheet edit should be able to grant.
+    const headers = ["ID", "Name", "Verified", ...attrs.map((a) => humanizeLabel(a.name))];
     const rows = omInstances.map((inst) => [
-      inst.id, inst.name,
+      inst.id, inst.name, inst.verified_at ? new Date(inst.verified_at).toLocaleDateString() : "",
       ...attrs.map((a) => {
         const v = inst[toSnakeCase(a.name)];
         return Array.isArray(v) ? v.join("; ") : (v ?? "");
@@ -2146,8 +2180,10 @@ function APMDashboardLive() {
           );
         }
         if (toUpdate.length) {
+          // Same "any edit clears verification" rule as omSaveInstance —
+          // a CSV re-import overwriting a record's fields is an edit too.
           await runCypher(apiUrl, authHeader,
-            `UNWIND $rows AS row MATCH (n:Instance:${omSelectedType} {id: row.id}) SET n += row`,
+            `UNWIND $rows AS row MATCH (n:Instance:${omSelectedType} {id: row.id}) SET n += row, n.verified_at = null`,
             { rows: toUpdate }
           );
         }
@@ -6033,8 +6069,19 @@ function APMDashboardLive() {
                       columns={[
                         { key: "name", label: "Name" },
                         { key: "id", label: "ID", render: (inst) => <span style={{ color: COLORS.inkSecondary, fontSize: 12 }}>{inst.id}</span> },
+                        { key: "verified_at", label: "Verified", render: (inst) => inst.verified_at ? (
+                            <span title={new Date(inst.verified_at).toLocaleString()}
+                              style={{ fontSize: 11.5, color: COLORS.accent, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                              ✓ {fmtWhen(inst.verified_at)}
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: 11.5, color: COLORS.inkSecondary }}>Not verified</span>
+                          ) },
                         { key: "actions", label: "", sortable: false, align: "right", render: (inst) => (
                             <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                              <button onClick={() => omVerifyInstance(inst)} title="Confirm this record is still accurate"
+                                style={{ padding: "4px 10px", background: COLORS.card,
+                                color: COLORS.accent, border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 11.5, cursor: "pointer" }}>Verify</button>
                               <button onClick={() => omStartEdit(inst)} style={{ padding: "4px 10px", background: COLORS.card,
                                 color: COLORS.ink, border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 11.5, cursor: "pointer" }}>Edit</button>
                               <button onClick={() => omDeleteInstance(inst)} style={{ padding: "4px 10px", background: COLORS.card,
