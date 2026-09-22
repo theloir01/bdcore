@@ -1439,11 +1439,10 @@ function APMDashboardLive() {
   const [editingConceptId, setEditingConceptId] = useState(null);
   const [canvasStatus, setCanvasStatus] = useState(""); // saving/pushing feedback
   const [profileAppId, setProfileAppId] = useState(null);
-  const [showBlastRadius, setShowBlastRadius] = useState(false);
+  const [profileTab, setProfileTab] = useState("overview"); // "overview" | "impact"
   const [hoveredTech, setHoveredTech] = useState(null);
   const [capBoardColorBy, setCapBoardColorBy] = useState("disposition");
   const [fieldReviewKey, setFieldReviewKey] = useState("serviceLevel");
-  const [showRationalization, setShowRationalization] = useState(false);
   const [briefDRExpanded, setBriefDRExpanded] = useState(false);
   const [askState, setAskState] = useState({});
 
@@ -1948,6 +1947,12 @@ function APMDashboardLive() {
   useEffect(() => {
     if (view === "dataflow") { loadDataFlows(); setDataFlowFocusId(null); }
   }, [view]);
+  // A stale "Impact & Risk" tab left open from the last profile visited
+  // would otherwise silently carry over to whichever application this
+  // click just opened — reset to the tab every profile starts on.
+  useEffect(() => {
+    setProfileTab("overview");
+  }, [profileAppId]);
   useEffect(() => {
     if ((view === "ontology" || view === "canvas") && organisationOptions.length === 0 && uri && password) {
       loadOrganisationOptions();
@@ -4935,10 +4940,24 @@ function APMDashboardLive() {
               {pageTitle}
             </h1>
           </div>
-          <div style={{ fontSize: 12.5, color: COLORS.inkSecondary, textAlign: "right" }}>
-            {status === "connected" && lastFetched
-              ? `Live from Neo4j · updated ${lastFetched.toLocaleTimeString()}`
-              : "Not connected"}
+          <div style={{ textAlign: "right" }}>
+            <div style={{ fontSize: 12.5, color: COLORS.inkSecondary }}>
+              {status === "connected" && lastFetched
+                ? `Live from Neo4j · updated ${lastFetched.toLocaleTimeString()}`
+                : "Not connected"}
+            </div>
+            {view === "portfolio" && (
+              <div style={{ display: "flex", gap: 6, marginTop: 8, justifyContent: "flex-end" }}>
+                {[["health", "Portfolio Health"], ["dependencies", "Dependencies & Impact"],
+                  ["redundancy", "Redundancy"], ["blocked", "Blocked Decisions"]].map(([key, label]) => (
+                  <button key={key} onClick={() => goToView(key)} title={`Jump to ${label}`}
+                    style={{ padding: "5px 11px", fontSize: 11.5, fontWeight: 600, borderRadius: 7, cursor: "pointer",
+                      border: `1px solid ${COLORS.border}`, background: COLORS.card, color: COLORS.inkSecondary }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -7880,20 +7899,6 @@ function APMDashboardLive() {
                     <div>
                       <div style={{ fontSize: 13, color: COLORS.inkSecondary, fontWeight: 500 }}>{app.category} · {app.hosting}</div>
                     </div>
-                    <div style={{ display: "flex", gap: 8 }}>
-                      <button onClick={() => setShowRationalization(!showRationalization)}
-                        style={{ padding: "8px 14px", background: showRationalization ? "#2C3B4E" : COLORS.card,
-                          color: showRationalization ? "#fff" : COLORS.ink, border: `1px solid ${COLORS.border}`,
-                          borderRadius: 8, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>
-                        {showRationalization ? "Hide" : "Show"} Rationalization
-                      </button>
-                      <button onClick={() => setShowBlastRadius(!showBlastRadius)}
-                        style={{ padding: "8px 14px", background: showBlastRadius ? "#2C3B4E" : COLORS.card,
-                          color: showBlastRadius ? "#fff" : COLORS.ink, border: `1px solid ${COLORS.border}`,
-                          borderRadius: 8, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>
-                        {showBlastRadius ? "Hide" : "Show"} Blast Radius
-                      </button>
-                    </div>
                   </div>
                   <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                     <span style={{ background: app.status === "Retiring" ? "#FBE0D8" : "#DCEAE1",
@@ -7904,7 +7909,19 @@ function APMDashboardLive() {
                   </div>
                 </div>
 
-                {showRationalization && (() => {
+                <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
+                  {[["overview", "Overview"], ["impact", "Impact & Risk"]].map(([key, label]) => (
+                    <button key={key} onClick={() => setProfileTab(key)}
+                      style={{ padding: "8px 16px", fontSize: 12.5, fontWeight: 600, borderRadius: 8, cursor: "pointer",
+                        border: `1px solid ${profileTab === key ? COLORS.ink : COLORS.border}`,
+                        background: profileTab === key ? COLORS.ink : COLORS.card,
+                        color: profileTab === key ? "#fff" : COLORS.ink }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                {profileTab === "impact" && (() => {
                   const blocking = blockedDecisions.filter((d) => d.appId === app.id);
                   const gaps = [];
                   if (!app.owner) gaps.push("No owner defined");
@@ -7946,7 +7963,7 @@ function APMDashboardLive() {
                   );
                 })()}
 
-                {showBlastRadius && (
+                {profileTab === "impact" && (
                   <div style={{ background: "#FBF3EC", border: `1px solid #E0C9A6`, borderRadius: 18, padding: 20, marginBottom: 20 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
                       <div>
@@ -8037,6 +8054,7 @@ function APMDashboardLive() {
                   </div>
                 )}
 
+                {profileTab === "overview" && (<>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 20 }}>
                   {[
                     { label: "Technical Health", value: healthLabel[app.techHealth] || "—" },
@@ -8108,6 +8126,7 @@ function APMDashboardLive() {
                       : app.capabilities.map((c) => <div key={c} style={{ fontSize: 12.5, padding: "6px 0", borderTop: `1px solid ${COLORS.border}` }}>{c}</div>)}
                   </div>
                 </div>
+                </>)}
               </div>
             );
           })()}
