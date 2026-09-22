@@ -149,6 +149,16 @@ nodes:
 - {id: js10, concept_type: JourneyStage, name: Complete payment and receive confirmation, status: Active, sequence: 3, customer_need: Complete the donation securely and receive confirmation, channel: Public
     website and payment channel, importance: Critical, criticality: Critical, pain_point: Payment or confirmation failure can undermine supporter trust, performance_measure: Successful payment rate and
     confirmation time, risk_level: High, stereotype: Fulfilment}
+- {id: f1, concept_type: Flow, name: Welfare Referral Handoff, status: Active, stereotype: Functional, trigger: A welfare enquiry is submitted through the website or by phone, criticality: Critical, frequency: Daily}
+- {id: fs1, concept_type: FlowStep, name: Capture welfare enquiry, status: Active, sequence: 1, step_type: Trigger, criticality: High}
+- {id: fs2, concept_type: FlowStep, name: Create supporter record and initial case note, status: Active, sequence: 2, step_type: Process, criticality: Critical}
+- {id: fs3, concept_type: FlowStep, name: Open welfare case and assign case worker, status: Active, sequence: 3, step_type: Integration, criticality: Critical}
+- {id: fs4, concept_type: FlowStep, name: Assess, decide, and deliver support, status: Active, sequence: 4, step_type: Process, criticality: Critical}
+- {id: fs5, concept_type: FlowStep, name: Log outcome back to supporter record, status: Active, sequence: 5, step_type: Output, criticality: Medium}
+- {id: f2, concept_type: Flow, name: Nightly Donor & Member Database Replication, status: Active, stereotype: Technical, trigger: Scheduled nightly batch window, criticality: High, frequency: Daily}
+- {id: fs6, concept_type: FlowStep, name: Extract changed records from SQL Server, status: Active, sequence: 1, step_type: Trigger, criticality: High}
+- {id: fs7, concept_type: FlowStep, name: Transfer extract across on-prem server infrastructure, status: Active, sequence: 2, step_type: Integration, criticality: High}
+- {id: fs8, concept_type: FlowStep, name: Transform and load into the integration platform, status: Active, sequence: 3, step_type: Process, criticality: Medium}
 - {id: vs1, concept_type: ValueStream, name: "Donor Gives to RBL", status: Active, stereotype: Core, trigger_event: "A member of the public decides to donate", value_delivered: "Donor receives confirmation, a tax receipt if Gift Aid eligible, and is retained for future engagement", stakeholder: "Individual donor", strategic_importance: Critical}
 - {id: vss1, concept_type: ValueStreamStage, name: "Donor Discovers Giving Opportunity", status: Active, sequence: 1, value_item: "Awareness of a specific way to give"}
 - {id: vss2, concept_type: ValueStreamStage, name: "Donor Makes Donation", status: Active, sequence: 2, value_item: "Donation captured and payment confirmed"}
@@ -617,6 +627,37 @@ relationships:
 - {source: a15, verb: augments, target: js6, criticality: High, status: Active, strength: 75, type: member self-service and renewal assistance}
 - {source: a15, verb: uses, target: aim3, criticality: Medium, status: Active, strength: 85, type: renewal propensity and timing}
 - {source: a15, verb: consumes, target: dt3, criticality: High, status: Active, strength: 85, type: membership record and renewal context}
+
+  # --- FLOW ---
+  # Functional flow: the welfare referral handoff, asset-facing counterpart
+  # to Journey j1 above — j1 answers "what does the beneficiary experience,"
+  # this answers "which systems actually carry each step, so we know what
+  # has to be reinstated if one of them is replaced."
+- {source: f1, verb: contains, target: fs1, criticality: Critical, status: Active, strength: 100}
+- {source: f1, verb: contains, target: fs2, criticality: Critical, status: Active, strength: 100}
+- {source: f1, verb: contains, target: fs3, criticality: Critical, status: Active, strength: 100}
+- {source: f1, verb: contains, target: fs4, criticality: Critical, status: Active, strength: 100}
+- {source: f1, verb: contains, target: fs5, criticality: Critical, status: Active, strength: 100}
+- {source: fs1, verb: precedes, target: fs2, criticality: High, status: Active, strength: 100}
+- {source: fs2, verb: precedes, target: fs3, criticality: High, status: Active, strength: 100}
+- {source: fs3, verb: precedes, target: fs4, criticality: High, status: Active, strength: 100}
+- {source: fs4, verb: precedes, target: fs5, criticality: High, status: Active, strength: 100}
+- {source: a2, verb: supports, target: fs1, criticality: High, status: Active, strength: 80}
+- {source: a1, verb: supports, target: fs2, criticality: Critical, status: Active, strength: 90}
+- {source: a8, verb: supports, target: fs3, criticality: Critical, status: Active, strength: 90}
+- {source: a8, verb: supports, target: fs4, criticality: Critical, status: Active, strength: 90}
+- {source: a1, verb: supports, target: fs5, criticality: Medium, status: Active, strength: 75}
+  # Technical flow: server-to-server replication, ties directly into the
+  # SQL Server modernisation initiative (i3) already in this dataset — the
+  # same infrastructure that's approaching EOL is a live participant here.
+- {source: f2, verb: contains, target: fs6, criticality: High, status: Active, strength: 100}
+- {source: f2, verb: contains, target: fs7, criticality: High, status: Active, strength: 100}
+- {source: f2, verb: contains, target: fs8, criticality: High, status: Active, strength: 100}
+- {source: fs6, verb: precedes, target: fs7, criticality: High, status: Active, strength: 100}
+- {source: fs7, verb: precedes, target: fs8, criticality: High, status: Active, strength: 100}
+- {source: st5, verb: supports, target: fs6, criticality: High, status: Active, strength: 90}
+- {source: h2, verb: supports, target: fs7, criticality: High, status: Active, strength: 85}
+- {source: a3, verb: supports, target: fs8, criticality: Medium, status: Active, strength: 85}
 - {source: a15, verb: runs on, target: st1, criticality: Medium, status: Active, strength: 75, type: model hosting}
 - {source: i6, verb: implements, target: a13, criticality: Critical, status: Shelved, strength: 85, type: AI-assisted grant triage pilot}
 - {source: i6, verb: implements, target: aim1, criticality: Critical, status: Shelved, strength: 80, type: case assessment model}
