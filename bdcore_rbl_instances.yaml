@@ -18,9 +18,9 @@ nodes:
     comfortably supports', options_considered: Stay on the current managed service; move to a cloud-native platform (e.g. Azure SQL / Synapse-style); adopt a separate analytics platform alongside the existing
     service, chosen_option: 'Not yet finalised — proposed, pending review', consequences: 'Easier (anticipated): elastic scaling for reporting workloads, reduced patching overhead. Harder (anticipated):
     migration effort from the current managed instance; team upskilling required.', confidence: Medium, impact_level: High, stereotype: Architecture}
-- {id: i1, concept_type: Initiative, name: CRM Modernisation Programme, status: In Progress, sponsor: 'Executive Director: Digital, Data & Technology', priority: Critical, stereotype: Modernisation}
-- {id: i2, concept_type: Initiative, name: Enterprise Data Integration Programme, status: In Progress, sponsor: 'Head of Data, Insight and Fundraising CRM', priority: High, stereotype: Modernisation}
-- {id: i3, concept_type: Initiative, name: Legacy SQL Server Infrastructure Modernisation, status: In Progress, sponsor: 'Executive Director: Digital, Data & Technology', priority: High, stereotype: Modernisation}
+- {id: i1, concept_type: Initiative, name: CRM Modernisation Programme, status: In Progress, sponsor: 'Executive Director: Digital, Data & Technology', priority: Critical, stereotype: Modernisation, start_date: '2025-09-01', target_date: '2026-08-31', budget: 450000, forecast_cost: 420000, progress: 55}
+- {id: i2, concept_type: Initiative, name: Enterprise Data Integration Programme, status: In Progress, sponsor: 'Head of Data, Insight and Fundraising CRM', priority: High, stereotype: Modernisation, start_date: '2025-11-01', target_date: '2026-10-31', budget: 180000, forecast_cost: 165000, progress: 35}
+- {id: i3, concept_type: Initiative, name: Legacy SQL Server Infrastructure Modernisation, status: In Progress, sponsor: 'Executive Director: Digital, Data & Technology', priority: High, stereotype: Modernisation, start_date: '2026-01-01', target_date: '2026-07-31', budget: 95000, forecast_cost: 90000, progress: 20}
 - {id: i4, concept_type: Initiative, name: '[FICTIONAL] Tiered Membership Pricing Change', status: Shelved, sponsor: Head of Membership, start_date: '2025-11-01', target_date: '2026-01-15', forecast_cost: 35000,
   description: 'Wanted to offer tiered membership pricing; the membership database''s flat record structure couldn''t express tiers without a costly rebuild, so it was shelved.', stereotype: Commercial}
 - {id: i5, concept_type: Initiative, name: '[FICTIONAL] Corporate Partner Revenue-Share Integration', status: Shelved, sponsor: Head of Corporate Partnerships, start_date: '2025-06-01', target_date: '2025-09-01',
@@ -100,6 +100,13 @@ nodes:
   # proper node with real attributes.
 - {id: iface1, concept_type: Interface, name: Talend to Dynamics 365 Donor/Member ETL Feed, status: Active, direction: Outbound, protocol: Batch ETL, data_format: CSV, frequency: Daily, auth_method: API
     Key, data_classification: Confidential}
+- {id: iface2, concept_type: Interface, name: PayPal Donation Webhook, status: Active, direction: Outbound, protocol: Webhook, data_format: JSON, frequency: Real-time, auth_method: API Key, data_classification: Confidential}
+- {id: iface3, concept_type: Interface, name: Website Donation & Signup Feed, status: Active, direction: Outbound, protocol: REST API, data_format: JSON, frequency: Near Real-time, auth_method: OAuth2, data_classification: Confidential}
+- {id: iface4, concept_type: Interface, name: Membership Database Live Link, status: Active, direction: Bidirectional, protocol: Database Link, data_format: N/A, frequency: Real-time, auth_method: Basic Auth, data_classification: Internal}
+- {id: iface5, concept_type: Interface, name: Welfare Case Data API, status: Active, direction: Outbound, protocol: REST API, data_format: JSON, frequency: Near Real-time, auth_method: OAuth2, data_classification: Restricted}
+- {id: iface6, concept_type: Interface, name: Benefits Platform Payroll Export, status: Active, direction: Outbound, protocol: Batch ETL, data_format: CSV, frequency: Weekly, auth_method: API Key, data_classification: Confidential}
+- {id: iface7, concept_type: Interface, name: Poppy Shop Sales Reconciliation Feed, status: Active, direction: Outbound, protocol: File Transfer (SFTP), data_format: Fixed-Width, frequency: Daily, auth_method: Certificate, data_classification: Confidential}
+- {id: iface8, concept_type: Interface, name: CRM Donor Engagement Event Stream, status: Active, direction: Outbound, protocol: Message Queue, data_format: JSON, frequency: Real-time, auth_method: Certificate, data_classification: Internal}
 - {id: p1, concept_type: Process, name: Poppy Appeal Collection & Fundraising, status: Active, criticality: Critical, automation_level: Partial, frequency: Daily, roles: 'Fundraising Officer, Community
     Fundraising Coordinator', stereotype: Core}
 - {id: p2, concept_type: Process, name: Welfare Grant Assessment, status: Active, criticality: Critical, automation_level: Manual, frequency: Daily, roles: 'Grants Caseworker, Welfare Officer', stereotype: Core}
@@ -322,6 +329,27 @@ relationships:
 - {source: a3, verb: provides, target: iface1, criticality: High, status: Active, strength: 85}
 - {source: a1, verb: uses, target: iface1, criticality: High, status: Active, strength: 85}
 - {source: iface1, verb: provides, target: dt1}
+- {source: a4, verb: provides, target: iface2, criticality: High, status: Active, strength: 90}
+- {source: a1, verb: uses, target: iface2, criticality: High, status: Active, strength: 90}
+- {source: iface2, verb: provides, target: dt1}
+- {source: a2, verb: provides, target: iface3, criticality: Medium, status: Active, strength: 80}
+- {source: a1, verb: uses, target: iface3, criticality: Medium, status: Active, strength: 80}
+- {source: iface3, verb: provides, target: dt1}
+- {source: a7, verb: provides, target: iface4, criticality: High, status: Active, strength: 85}
+- {source: a15, verb: uses, target: iface4, criticality: High, status: Active, strength: 85}
+- {source: iface4, verb: provides, target: dt3}
+- {source: a8, verb: provides, target: iface5, criticality: Critical, status: Active, strength: 90}
+- {source: a13, verb: uses, target: iface5, criticality: Critical, status: Active, strength: 90}
+- {source: iface5, verb: provides, target: dt2}
+- {source: a9, verb: provides, target: iface6, criticality: Medium, status: Active, strength: 70}
+- {source: a12, verb: uses, target: iface6, criticality: Medium, status: Active, strength: 70}
+- {source: iface6, verb: provides, target: dt4}
+- {source: a10, verb: provides, target: iface7, criticality: Medium, status: Active, strength: 75}
+- {source: a12, verb: uses, target: iface7, criticality: Medium, status: Active, strength: 75}
+- {source: iface7, verb: provides, target: dt5}
+- {source: a1, verb: provides, target: iface8, criticality: Medium, status: Active, strength: 65}
+- {source: a11, verb: uses, target: iface8, criticality: Medium, status: Active, strength: 65}
+- {source: iface8, verb: provides, target: dt1}
 
   # --- CAPABILITY HIERARCHY ---
   # ILLUSTRATIVE breakdown — the actual fix for "draw a capability map"
