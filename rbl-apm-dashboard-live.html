@@ -3025,6 +3025,11 @@ function APMDashboardLive() {
     costrisk: <svg {...ICON_COMMON}><polyline points="3,7 10,14 14,10 21,17" /><polyline points="21,10 21,17 14,17" /></svg>,
     datatrust: <svg {...ICON_COMMON}><path d="M12 3 L20 6.5 V11.5 C20 16.5 16.5 20 12 21.5 C7.5 20 4 16.5 4 11.5 V6.5 Z" /><polyline points="9,12 11,14.5 15,9.5" /></svg>,
     canvas: <svg {...ICON_COMMON}><rect x="3" y="4" width="18" height="14" rx="2" /><path d="M7 17 L7 20 M17 17 L17 20 M7 20 L17 20" /><circle cx="9" cy="10" r="1.6" fill="currentColor" stroke="none" /><path d="M13 9 L18 9 L18 12 L13 12 Z" /></svg>,
+    maturity: <svg {...ICON_COMMON}><line x1="3" y1="21" x2="21" y2="21" /><rect x="4.5" y="14" width="3.5" height="7" /><rect x="10.25" y="9" width="3.5" height="12" /><rect x="16" y="4" width="3.5" height="17" /></svg>,
+    ownership: <svg {...ICON_COMMON}><circle cx="9.5" cy="8" r="3.2" /><path d="M3.5 20c0-4 2.5-6.2 6-6.2s6 2.2 6 6.2" /><path d="M15.5 14.5l2 2 4-4" /></svg>,
+    businessunits: <svg {...ICON_COMMON}><rect x="9" y="3" width="6" height="4.5" rx="1" /><rect x="3" y="16.5" width="6" height="4.5" rx="1" /><rect x="15" y="16.5" width="6" height="4.5" rx="1" /><path d="M12 7.5v4.5M6 12v4.5M18 12v4.5M6 12h12" /></svg>,
+    initiatives: <svg {...ICON_COMMON}><rect x="3" y="5" width="11" height="3.2" rx="1" /><rect x="8" y="11" width="13" height="3.2" rx="1" /><rect x="5" y="17" width="9" height="3.2" rx="1" /></svg>,
+    dataflow: <svg {...ICON_COMMON}><rect x="2" y="9" width="6" height="6" rx="1.2" /><rect x="16" y="2" width="6" height="6" rx="1.2" /><rect x="16" y="16" width="6" height="6" rx="1.2" /><path d="M8 11l7.5 -6M8 13l7.5 6" /></svg>,
   };
 
   // --- Modelling Canvas functions ---
@@ -6251,8 +6256,24 @@ function APMDashboardLive() {
                         <div style={{ fontSize: 13, fontWeight: 600, color: COLORS.risk }}>
                           {unassigned.appCount} application{unassigned.appCount === 1 ? "" : "s"} and {unassigned.capCount} capabilit{unassigned.capCount === 1 ? "y" : "ies"} have no business unit assigned
                         </div>
-                        <div style={{ fontSize: 12, color: COLORS.risk, marginTop: 3 }}>
+                        <div style={{ fontSize: 12, color: COLORS.risk, marginTop: 3, marginBottom: unassigned.appCount || unassigned.capCount ? 10 : 0 }}>
                           Assign an Organisation to each from the Ontology Manager to include them in the analysis below.
+                        </div>
+                        <div style={{ display: "flex", gap: 8 }}>
+                          {unassigned.appCount > 0 && (
+                            <button onClick={() => { setOmSelectedType("Application"); loadOmInstances("Application"); setView("ontology"); }}
+                              style={{ padding: "6px 12px", background: "#fff", color: COLORS.risk,
+                                border: `1px solid ${COLORS.riskMuted}`, borderRadius: 8, fontSize: 11.5, cursor: "pointer" }}>
+                              Review Applications in Ontology Manager →
+                            </button>
+                          )}
+                          {unassigned.capCount > 0 && (
+                            <button onClick={() => { setOmSelectedType("Capability"); loadOmInstances("Capability"); setView("ontology"); }}
+                              style={{ padding: "6px 12px", background: "#fff", color: COLORS.risk,
+                                border: `1px solid ${COLORS.riskMuted}`, borderRadius: 8, fontSize: 11.5, cursor: "pointer" }}>
+                              Review Capabilities in Ontology Manager →
+                            </button>
+                          )}
                         </div>
                       </div>
                     )}
