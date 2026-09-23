@@ -2990,6 +2990,7 @@ function APMDashboardLive() {
   // order, only the table display does.
   const [portfolioSortKey, setPortfolioSortKey] = useState("name");
   const [portfolioSortDir, setPortfolioSortDir] = useState("asc");
+  const [appsViewMode, setAppsViewMode] = useState("cards");
   const PORTFOLIO_SORT_VALUE = {
     name: (a) => a.name, vendor: (a) => a.vendor || "", status: (a) => a.status,
     hosting: (a) => a.hosting, criticality: (a) => CRIT_WEIGHT_BR[a.criticality] || 0,
@@ -6023,6 +6024,183 @@ function APMDashboardLive() {
                 </div>
               </div>
 
+              <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18, overflow: "hidden", marginBottom: 28 }}>
+                <div style={{ padding: "16px 18px 4px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                  <div style={{ fontSize: 15, fontWeight: 600 }}>
+                    Inventory ({filteredApps.length} of {apps.length})
+                    {aiResultFilter && (
+                      <span style={{ marginLeft: 10, fontSize: 11.5, fontWeight: 600, color: COLORS.accent, background: `${COLORS.accent}18`,
+                        padding: "3px 9px", borderRadius: 8 }}>
+                        ✦ AI-matched
+                        <span onClick={() => setAiResultFilter(null)} style={{ marginLeft: 6, cursor: "pointer", textDecoration: "underline" }}>Clear</span>
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <div style={{ display: "flex", border: `1px solid ${COLORS.border}`, borderRadius: 8, overflow: "hidden" }}>
+                      <button onClick={() => setAppsViewMode("cards")} title="Card view"
+                        style={{ padding: "6px 9px", background: appsViewMode === "cards" ? COLORS.ink : COLORS.card,
+                          color: appsViewMode === "cards" ? "#fff" : COLORS.inkSecondary, border: "none", cursor: "pointer",
+                          display: "flex", alignItems: "center" }}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <rect x="3" y="3" width="7" height="7" rx="1.2" /><rect x="14" y="3" width="7" height="7" rx="1.2" />
+                          <rect x="3" y="14" width="7" height="7" rx="1.2" /><rect x="14" y="14" width="7" height="7" rx="1.2" />
+                        </svg>
+                      </button>
+                      <button onClick={() => setAppsViewMode("table")} title="Table view"
+                        style={{ padding: "6px 9px", background: appsViewMode === "table" ? COLORS.ink : COLORS.card,
+                          color: appsViewMode === "table" ? "#fff" : COLORS.inkSecondary, border: "none",
+                          borderLeft: `1px solid ${COLORS.border}`, cursor: "pointer", display: "flex", alignItems: "center" }}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
+                        </svg>
+                      </button>
+                    </div>
+                    <button onClick={exportAppsToCSV}
+                      style={{ padding: "6px 14px", background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.border}`,
+                        borderRadius: 8, fontSize: 12.5, cursor: "pointer" }}>
+                      ⭳ Export CSV
+                    </button>
+                  </div>
+                </div>
+                {appsViewMode === "cards" ? (
+                  <div style={{ padding: 18 }}>
+                    {sortedFilteredApps.length === 0 ? (
+                      <div style={{ fontSize: 12.5, color: COLORS.inkSecondary, padding: "20px 0", textAlign: "center" }}>
+                        No applications match the current filters.
+                      </div>
+                    ) : (
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 14 }}>
+                        {sortedFilteredApps.map((a) => (
+                          <div key={a.id} style={{ border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: 14,
+                            gridColumn: editingAppId === a.id ? "1 / -1" : undefined }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8, gap: 8 }}>
+                              <div onClick={() => { setProfileAppId(a.id); setView("profile"); }} style={{ cursor: "pointer", minWidth: 0 }}>
+                                <div style={{ fontSize: 13.5, fontWeight: 600, textDecoration: "underline", textDecorationColor: COLORS.border }}>{a.name}</div>
+                                <div style={{ fontSize: 11.5, color: COLORS.inkSecondary, marginTop: 2 }}>{a.vendor || "No vendor"}</div>
+                              </div>
+                              {a.architectureStyle && a.architectureStyle !== "Traditional" && (
+                                <span style={{ background: COLORS.accent, color: "#fff", fontSize: 10, fontWeight: 600,
+                                  padding: "1px 6px", borderRadius: 6, flexShrink: 0 }}>
+                                  {a.architectureStyle}
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+                              <span style={{ fontSize: 10.5, fontWeight: 600, padding: "2px 8px", borderRadius: 6, background: "#EFEDE5", color: COLORS.inkSecondary }}>
+                                {a.status}
+                              </span>
+                              <span style={{ fontSize: 10.5, fontWeight: 600, padding: "2px 8px", borderRadius: 6,
+                                background: DISPOSITION_INFO[a.disposition.code].color, color: "#fff" }}>
+                                {a.disposition.code}
+                              </span>
+                              {a.risks.length > 0 && (
+                                <span style={{ fontSize: 10.5, fontWeight: 600, padding: "2px 8px", borderRadius: 6, background: "#FBE0D8", color: COLORS.risk }}>
+                                  {a.risks.length} flagged
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ fontSize: 11.5, color: COLORS.inkSecondary, lineHeight: 1.7 }}>
+                              <div>{a.hosting} · {a.criticality} criticality</div>
+                              <div>{fmtGBP(a.tco)} est. annual TCO</div>
+                            </div>
+                            <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+                              <button onClick={() => (editingAppId === a.id ? setEditingAppId(null) : startEdit(a))}
+                                style={{ flex: 1, padding: "5px 0", background: editingAppId === a.id ? "#2C3B4E" : "#F6F4EF",
+                                  color: editingAppId === a.id ? "#fff" : COLORS.ink, border: `1px solid ${COLORS.border}`,
+                                  borderRadius: 7, fontSize: 11.5, cursor: "pointer" }}>
+                                {editingAppId === a.id ? "Close" : "Edit"}
+                              </button>
+                              <button onClick={() => deleteApplication(a)}
+                                style={{ flex: 1, padding: "5px 0", background: "#F6F4EF", color: COLORS.risk,
+                                  border: `1px solid ${COLORS.border}`, borderRadius: 7, fontSize: 11.5, cursor: "pointer" }}>
+                                Delete
+                              </button>
+                            </div>
+                            {editingAppId === a.id && (
+                              <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px dashed ${COLORS.border}` }}>
+                                <EditFormFields />
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                <table>
+                  <thead>
+                    <tr style={{ borderTop: `1px solid ${COLORS.border}` }}>
+                      {[["name", "Application"], ["vendor", "Vendor"], ["status", "Status"], ["hosting", "Hosting"],
+                        ["criticality", "Criticality"], ["disposition", "Disposition"], ["tco", "Est. Annual TCO"], ["risk", "Risk"]]
+                        .map(([key, label]) => (
+                          <th key={key} onClick={() => togglePortfolioSort(key)} style={{ cursor: "pointer", userSelect: "none" }}>
+                            {label}{portfolioSortKey === key ? (portfolioSortDir === "asc" ? " ▲" : " ▼") : ""}
+                          </th>
+                        ))}
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortedFilteredApps.map((a) => (
+                      <React.Fragment key={a.id}>
+                        <tr>
+                          <td style={{ fontWeight: 500 }}>
+                            <span onClick={() => { setProfileAppId(a.id); setView("profile"); }}
+                              style={{ cursor: "pointer", textDecoration: "underline", textDecorationColor: COLORS.border }}>
+                              {a.name}
+                            </span>
+                            {a.architectureStyle && a.architectureStyle !== "Traditional" && (
+                              <span style={{ marginLeft: 6, background: COLORS.accent, color: "#fff", fontSize: 10,
+                                fontWeight: 600, padding: "1px 6px", borderRadius: 6, verticalAlign: "middle" }}>
+                                {a.architectureStyle}
+                              </span>
+                            )}
+                          </td>
+                          <td>{a.vendor || "—"}</td>
+                          <td>{a.status}</td>
+                          <td>{a.hosting}</td>
+                          <td>{a.criticality}</td>
+                          <td>
+                            <span style={{ background: DISPOSITION_INFO[a.disposition.code].color, color: "#fff",
+                              padding: "2px 8px", borderRadius: 8, fontSize: 11 }}>{a.disposition.code}</span>
+                          </td>
+                          <td>{fmtGBP(a.tco)}</td>
+                          <td>
+                            {a.risks.length > 0
+                              ? <span style={{ color: COLORS.risk, fontSize: 11.5, fontWeight: 600 }}>{a.risks.length} flagged</span>
+                              : "—"}
+                          </td>
+                          <td>
+                            <div style={{ display: "flex", gap: 6 }}>
+                              <button onClick={() => (editingAppId === a.id ? setEditingAppId(null) : startEdit(a))}
+                                style={{ padding: "4px 10px", background: editingAppId === a.id ? "#2C3B4E" : COLORS.card,
+                                  color: editingAppId === a.id ? "#fff" : COLORS.ink, border: `1px solid ${COLORS.border}`,
+                                  borderRadius: 8, fontSize: 11.5, cursor: "pointer" }}>
+                                {editingAppId === a.id ? "Close" : "Edit"}
+                              </button>
+                              <button onClick={() => deleteApplication(a)}
+                                style={{ padding: "4px 10px", background: COLORS.card, color: COLORS.risk,
+                                  border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 11.5, cursor: "pointer" }}>
+                                Delete
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                        {editingAppId === a.id && (
+                          <tr>
+                            <td colSpan={9} style={{ background: "#F3F4F7", padding: 16 }}>
+                              <EditFormFields />
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    ))}
+                  </tbody>
+                </table>
+                )}
+              </div>
+
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 28 }}>
                 {[
                   { label: "Applications Shown", value: kpis.total, glyph: "▦", color: COLORS.accent },
@@ -6159,96 +6337,6 @@ function APMDashboardLive() {
                     </div>
                   </div>
                 ))}
-              </div>
-
-              <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18, overflow: "hidden" }}>
-                <div style={{ padding: "16px 18px 4px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-                  <div style={{ fontSize: 15, fontWeight: 600 }}>
-                    Inventory ({filteredApps.length} of {apps.length})
-                    {aiResultFilter && (
-                      <span style={{ marginLeft: 10, fontSize: 11.5, fontWeight: 600, color: COLORS.accent, background: `${COLORS.accent}18`,
-                        padding: "3px 9px", borderRadius: 8 }}>
-                        ✦ AI-matched
-                        <span onClick={() => setAiResultFilter(null)} style={{ marginLeft: 6, cursor: "pointer", textDecoration: "underline" }}>Clear</span>
-                      </span>
-                    )}
-                  </div>
-                  <button onClick={exportAppsToCSV}
-                    style={{ padding: "6px 14px", background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.border}`,
-                      borderRadius: 8, fontSize: 12.5, cursor: "pointer" }}>
-                    ⭳ Export CSV
-                  </button>
-                </div>
-                <table>
-                  <thead>
-                    <tr style={{ borderTop: `1px solid ${COLORS.border}` }}>
-                      {[["name", "Application"], ["vendor", "Vendor"], ["status", "Status"], ["hosting", "Hosting"],
-                        ["criticality", "Criticality"], ["disposition", "Disposition"], ["tco", "Est. Annual TCO"], ["risk", "Risk"]]
-                        .map(([key, label]) => (
-                          <th key={key} onClick={() => togglePortfolioSort(key)} style={{ cursor: "pointer", userSelect: "none" }}>
-                            {label}{portfolioSortKey === key ? (portfolioSortDir === "asc" ? " ▲" : " ▼") : ""}
-                          </th>
-                        ))}
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sortedFilteredApps.map((a) => (
-                      <React.Fragment key={a.id}>
-                        <tr>
-                          <td style={{ fontWeight: 500 }}>
-                            <span onClick={() => { setProfileAppId(a.id); setView("profile"); }}
-                              style={{ cursor: "pointer", textDecoration: "underline", textDecorationColor: COLORS.border }}>
-                              {a.name}
-                            </span>
-                            {a.architectureStyle && a.architectureStyle !== "Traditional" && (
-                              <span style={{ marginLeft: 6, background: COLORS.accent, color: "#fff", fontSize: 10,
-                                fontWeight: 600, padding: "1px 6px", borderRadius: 6, verticalAlign: "middle" }}>
-                                {a.architectureStyle}
-                              </span>
-                            )}
-                          </td>
-                          <td>{a.vendor || "—"}</td>
-                          <td>{a.status}</td>
-                          <td>{a.hosting}</td>
-                          <td>{a.criticality}</td>
-                          <td>
-                            <span style={{ background: DISPOSITION_INFO[a.disposition.code].color, color: "#fff",
-                              padding: "2px 8px", borderRadius: 8, fontSize: 11 }}>{a.disposition.code}</span>
-                          </td>
-                          <td>{fmtGBP(a.tco)}</td>
-                          <td>
-                            {a.risks.length > 0
-                              ? <span style={{ color: COLORS.risk, fontSize: 11.5, fontWeight: 600 }}>{a.risks.length} flagged</span>
-                              : "—"}
-                          </td>
-                          <td>
-                            <div style={{ display: "flex", gap: 6 }}>
-                              <button onClick={() => (editingAppId === a.id ? setEditingAppId(null) : startEdit(a))}
-                                style={{ padding: "4px 10px", background: editingAppId === a.id ? "#2C3B4E" : COLORS.card,
-                                  color: editingAppId === a.id ? "#fff" : COLORS.ink, border: `1px solid ${COLORS.border}`,
-                                  borderRadius: 8, fontSize: 11.5, cursor: "pointer" }}>
-                                {editingAppId === a.id ? "Close" : "Edit"}
-                              </button>
-                              <button onClick={() => deleteApplication(a)}
-                                style={{ padding: "4px 10px", background: COLORS.card, color: COLORS.risk,
-                                  border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 11.5, cursor: "pointer" }}>
-                                Delete
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                        {editingAppId === a.id && (
-                          <tr>
-                            <td colSpan={9} style={{ background: "#F3F4F7", padding: 16 }}>
-                              <EditFormFields />
-                            </td>
-                          </tr>
-                        )}
-                      </React.Fragment>
-                    ))}
-                  </tbody>
-                </table>
               </div>
             </>
           )}
