@@ -302,7 +302,9 @@ const GUIDE_SECTIONS = [
         tips: [
           "Type a question into the Ask box — e.g. \"which applications have no owner?\" — instead of building filters by hand.",
           "The Refine bar sets filters from a plain-language instruction, e.g. \"show only cloud-hosted critical apps.\"",
-          "Bubble size on the quadrant chart is TCO; click a 6R Disposition bar to filter the table below to just that disposition.",
+          "The Inventory itself leads the page, right under the filters — toggle it between a card grid and a sortable table with the two icons above it.",
+          "Bubble size on the quadrant chart is TCO; click a 6R Disposition bar to filter the Inventory to just that disposition.",
+          "Every section below the filters — Inventory, the quadrant chart, 6R Disposition, Capability Coverage — collapses via the chevron in its header; all start open.",
           "Switch to the Capability Board sub-tab for the same portfolio grouped by capability instead of by application.",
         ] },
     ],
@@ -354,6 +356,14 @@ const GUIDE_SECTIONS = [
         tips: [
           "The \"Data Gaps\" list is worst-first — fix the most incomplete records first for the biggest jump in the completeness score.",
           "Click \"Edit\" on any flagged app to fix it inline, without leaving the page.",
+        ] },
+      { key: "renewals", label: "Renewals & Reviews",
+        description: "A portfolio-wide \"what needs a human right now\" board: contract/licence renewals coming due (Expired, Within 3/6/12 months), plus a Needs Review column for applications with no owner or not re-verified in the last 12 months.",
+        tips: [
+          "An application can land in a timing column, the Needs Review column, both, or neither — the two are independent signals, not one combined score.",
+          "Set an application's Renewal Date from Ontology Manager to have it show up in the right timing column here.",
+          "Retired and Retiring applications are excluded from both facets — there's nothing to renew or review on something already on its way out.",
+          "Click any card to jump straight to that application's Profile.",
         ] },
       { key: "fieldreview", label: "Field Review",
         description: "Checks fields against each other for values that don't logically agree — e.g. a system marked Critical should almost always have Platinum support.",
@@ -435,6 +445,8 @@ const GUIDE_SECTIONS = [
         tips: [
           "A sticky note can be converted into a real, typed concept with attributes; shapes, arrows, and plain text stay purely visual and are never written to the graph, even after a push.",
           "\"Add From Graph\" pulls in real existing instances to build a picture around, instead of starting from a blank canvas.",
+          "Drag any item straight from the Concept or Shape palette onto the canvas to place it exactly where you drop it — or click it to place at the default spot, same as before.",
+          "\"+ Import Palette\" builds a custom shape palette from your own icons — drop in a whole vendor .zip exactly as downloaded (AWS, Azure, Cisco, …; nested folders and duplicate sizes are sorted out automatically) or select individual .svg/.png files. The palette is saved to the graph, so everyone connected sees it too.",
           "Drag the background to pan, scroll to zoom, and hover a connection line to bend it around something in the way.",
           "Nothing is real until you hit \"Push to Graph\" — sketch and rearrange as much as you like before then.",
         ] },
