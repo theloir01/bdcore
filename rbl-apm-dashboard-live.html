@@ -6532,6 +6532,18 @@ function APMDashboardLive() {
             const cardStyle = { background: COLORS.card, border: `1px solid ${COLORS.border}`,
               boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", padding: "18px 20px", borderRadius: 18 };
 
+            // The renewal-conversation number: how much of the three £ exposures
+            // has actually come back out of the estate since the first snapshot,
+            // not what's still at risk. Each metric is clamped at 0 so a metric
+            // that got worse never nets against one that improved — this total
+            // only ever claims real, already-measured reduction.
+            const gbpRecoveryRows = hasTrend ? METRICS.filter((m) => m.unit === "gbp").map((m) => {
+              const f = Number(first[m.key]) || 0, l = Number(latest[m.key]) || 0;
+              const recovered = m.good === "down" ? Math.max(0, f - l) : Math.max(0, l - f);
+              return { label: m.label, recovered };
+            }) : [];
+            const totalRecovered = gbpRecoveryRows.reduce((s, r) => s + r.recovered, 0);
+
             return (
               <div>
                 <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginBottom: 20, maxWidth: 760, lineHeight: 1.6 }}>
@@ -6540,6 +6552,37 @@ function APMDashboardLive() {
                   app connects each day; every point on the charts below was actually true on that date. Come back
                   over time to see whether the gaps this tool finds are actually closing.
                 </div>
+
+                {hasTrend && (
+                  <div style={{ background: "linear-gradient(135deg, #0A0E1A 0%, #16342A 100%)", borderRadius: 20, padding: "32px 36px", marginBottom: 24,
+                    position: "relative", overflow: "hidden" }}>
+                    <div style={{ position: "absolute", top: -80, right: -80, width: 280, height: 280, borderRadius: "50%",
+                      background: "radial-gradient(circle, rgba(14,169,104,0.32) 0%, rgba(14,169,104,0) 70%)" }} />
+                    <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 32, position: "relative" }}>
+                      <div>
+                        <div style={{ fontSize: 12.5, color: "#B7C0C9", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>
+                          Value Recovered Since {new Date(first.timestamp).toLocaleDateString()}
+                        </div>
+                        <div style={{ fontSize: 52, fontWeight: 700, letterSpacing: "-0.02em", color: "#fff", lineHeight: 1 }}>{fmtGBP(totalRecovered)}</div>
+                        <div style={{ fontSize: 13.5, color: "#B7C0C9", marginTop: 14, maxWidth: 480, lineHeight: 1.6 }}>
+                          Real reduction in redundant spend, blocked-decision cost, and obsolescence exposure — measured
+                          against the first recorded snapshot, not projected. This is the renewal number: {fmtGBP(totalRecovered)} has
+                          already come back out of the estate this tool has been watching.
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", gap: 14 }}>
+                        {gbpRecoveryRows.map((row) => (
+                          <div key={row.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center",
+                            borderTop: "1px solid rgba(255,255,255,0.14)", paddingTop: 10 }}>
+                            <span style={{ fontSize: 12.5, color: "#B7C0C9" }}>{row.label}</span>
+                            <span style={{ fontSize: 16, fontWeight: 700, color: "#fff" }}>{row.recovered > 0 ? fmtGBP(row.recovered) : "No change yet"}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {valueSnapshotsError && <div style={{ fontSize: 13, color: COLORS.risk, marginBottom: 16 }}>{valueSnapshotsError}</div>}
 
                 <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
@@ -6591,14 +6634,24 @@ function APMDashboardLive() {
                                 {delta === 0 ? "No change" : `${delta > 0 ? "▲" : "▼"} ${fmtMetric(m.unit, Math.abs(delta))}`} since {new Date(first.timestamp).toLocaleDateString()}
                               </div>
                             )}
-                            {hasTrend && (
-                              <svg width="100%" height={50} viewBox="0 0 220 50" style={{ marginTop: 8, display: "block" }}>
-                                <path d={path} fill="none" stroke={lineColor} strokeWidth={2} />
-                                {points.map((p, i) => (
-                                  <circle key={i} cx={p.x} cy={p.y} r={4} fill={lineColor} stroke={COLORS.card} strokeWidth={2} />
-                                ))}
-                              </svg>
-                            )}
+                            {hasTrend && (() => {
+                              const startP = points[0], endP = points[points.length - 1];
+                              const labelY = (p) => p.y < 25 ? p.y + 15 : p.y - 9;
+                              return (
+                                <svg width="100%" height={50} viewBox="0 0 220 50" style={{ marginTop: 8, display: "block", overflow: "visible" }}>
+                                  <path d={path} fill="none" stroke={lineColor} strokeWidth={2} />
+                                  {points.map((p, i) => (
+                                    <circle key={i} cx={p.x} cy={p.y} r={4} fill={lineColor} stroke={COLORS.card} strokeWidth={2} />
+                                  ))}
+                                  <text x={startP.x} y={labelY(startP)} textAnchor="start" fontSize="9.5" fontWeight="600" fill={COLORS.inkSecondary}>
+                                    {fmtMetric(m.unit, firstVal)}
+                                  </text>
+                                  <text x={endP.x} y={labelY(endP)} textAnchor="end" fontSize="9.5" fontWeight="700" fill={lineColor}>
+                                    {fmtMetric(m.unit, latestVal)}
+                                  </text>
+                                </svg>
+                              );
+                            })()}
                             <div style={{ fontSize: 11, color: COLORS.inkSecondary, marginTop: 8, lineHeight: 1.4 }}>{m.desc}</div>
                           </div>
                         );
