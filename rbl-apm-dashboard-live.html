@@ -1811,7 +1811,7 @@ function APMDashboardLive() {
         aiReadiness: row.app.ai_readiness || null, aiRelevance: row.app.ai_relevance || null,
         aiAvailability: row.app.ai_availability || null, aiTargetPattern: row.app.ai_target_pattern || null,
         aiPathfinderStatus: row.app.ai_pathfinder_status || null, reviewDate: row.app.review_date || null,
-        organisation: row.app.organisation || null,
+        organisation: row.app.organisation || null, verified_at: row.app.verified_at || null,
       }));
 
       const nodeMap = new Map();
@@ -1900,6 +1900,7 @@ function APMDashboardLive() {
         startDate: row.initiative.start_date, targetDate: row.initiative.target_date,
         cost: row.initiative.forecast_cost != null ? Number(row.initiative.forecast_cost) : null,
         description: row.initiative.description, appId: row.appId, appName: row.appName,
+        owner: row.initiative.owner || null, verified_at: row.initiative.verified_at || null,
       })));
       setControls(controlRows);
       const schemaAttrs = {};
@@ -6516,7 +6517,8 @@ function APMDashboardLive() {
               { key: "redundancyWasteGBP", label: "Redundant Spend", unit: "gbp", good: "down",
                 desc: "Annual TCO still being spent on a system already decided to be replaced." },
               { key: "blockedDecisionCostGBP", label: "Blocked Decision Cost", unit: "gbp", good: "down",
-                desc: "Annual workaround cost from decisions a system couldn't bend to accommodate." },
+                desc: "Annual workaround cost from decisions a system couldn't bend to accommodate.",
+                qualifier: "forecast, not invoiced", qualifierTitle: "Sourced from each initiative's forecast_cost field — a planning estimate, not a reconciled invoice." },
               { key: "eolExposureGBP", label: "Obsolescence Exposure", unit: "gbp", good: "down",
                 desc: "TCO of applications running on unsupported or end-of-life technology." },
               { key: "drGapCount", label: "Critical Apps Without DR", unit: "count", good: "down",
@@ -6532,17 +6534,56 @@ function APMDashboardLive() {
             const cardStyle = { background: COLORS.card, border: `1px solid ${COLORS.border}`,
               boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", padding: "18px 20px", borderRadius: 18 };
 
-            // The renewal-conversation number: how much of the three £ exposures
-            // has actually come back out of the estate since the first snapshot,
-            // not what's still at risk. Each metric is clamped at 0 so a metric
-            // that got worse never nets against one that improved — this total
-            // only ever claims real, already-measured reduction.
+            // The renewal-conversation numbers: how much of each £ exposure has
+            // actually come back out of the estate since the first snapshot, not
+            // what's still at risk. Each metric is clamped at 0 so a metric that
+            // got worse never nets against one that improved.
+            //
+            // Split into two totals rather than one blended figure, because they
+            // carry different certainty: Redundant Spend and Blocked Decision Cost
+            // are measured TCO/forecast-cost fields coming back down — realized
+            // savings. Obsolescence Exposure is TCO no longer sitting on unsupported
+            // tech — risk avoided, not cash recovered. A CFO reads those two
+            // differently and shouldn't have to un-blend them by hand.
+            //
+            // Each row is also scoped to the exact records behind that figure —
+            // not the whole-graph ownership/verification stat shown further down —
+            // so "is this number trustworthy" can be answered for the number in
+            // front of you, not the estate in general.
+            const redundantSpendRecords = redundancyGroups.map((g) => {
+              const retiring = g.apps.find((a) => a.status === "Retiring");
+              return retiring || [...g.apps].sort((a, b) => (a.businessValue || 0) - (b.businessValue || 0))[0];
+            }).filter(Boolean);
+            const blockedCostRecords = blockedDecisions.filter((d) => d.cost != null);
+            const obsolescenceRecords = (() => {
+              const seen = new Set(), list = [];
+              atRiskTech.forEach((t) => t.exposedApps.forEach((a) => { if (!seen.has(a.id)) { seen.add(a.id); list.push(a); } }));
+              return list;
+            })();
+            const CONTRIB_RECORDS = {
+              redundancyWasteGBP: redundantSpendRecords,
+              blockedDecisionCostGBP: blockedCostRecords,
+              eolExposureGBP: obsolescenceRecords,
+            };
             const gbpRecoveryRows = hasTrend ? METRICS.filter((m) => m.unit === "gbp").map((m) => {
               const f = Number(first[m.key]) || 0, l = Number(latest[m.key]) || 0;
               const recovered = m.good === "down" ? Math.max(0, f - l) : Math.max(0, l - f);
-              return { label: m.label, recovered };
+              const records = CONTRIB_RECORDS[m.key] || [];
+              const total = records.length;
+              const owned = records.filter((r) => r.owner && String(r.owner).trim()).length;
+              const verified = records.filter((r) => r.verified_at).length;
+              return { key: m.key, label: m.label, qualifier: m.qualifier, qualifierTitle: m.qualifierTitle, recovered, confidence: { total, owned, verified } };
             }) : [];
-            const totalRecovered = gbpRecoveryRows.reduce((s, r) => s + r.recovered, 0);
+            const REALIZED_KEYS = ["redundancyWasteGBP", "blockedDecisionCostGBP"];
+            const realizedRows = gbpRecoveryRows.filter((r) => REALIZED_KEYS.includes(r.key));
+            const riskRows = gbpRecoveryRows.filter((r) => !REALIZED_KEYS.includes(r.key));
+            const totalRealized = realizedRows.reduce((s, r) => s + r.recovered, 0);
+            const totalRiskReduced = riskRows.reduce((s, r) => s + r.recovered, 0);
+            const confidenceLabel = (c) => {
+              if (c.total === 0) return { text: "No contributing records right now", color: "#8B93A6" };
+              return { text: `${c.verified} of ${c.total} record${c.total === 1 ? "" : "s"} verified, ${c.owned} of ${c.total} owned`,
+                color: c.verified === c.total ? COLORS.accentMuted : COLORS.warning };
+            };
 
             return (
               <div>
@@ -6554,32 +6595,44 @@ function APMDashboardLive() {
                 </div>
 
                 {hasTrend && (
-                  <div style={{ background: "linear-gradient(135deg, #0A0E1A 0%, #16342A 100%)", borderRadius: 20, padding: "32px 36px", marginBottom: 24,
-                    position: "relative", overflow: "hidden" }}>
-                    <div style={{ position: "absolute", top: -80, right: -80, width: 280, height: 280, borderRadius: "50%",
-                      background: "radial-gradient(circle, rgba(14,169,104,0.32) 0%, rgba(14,169,104,0) 70%)" }} />
-                    <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 32, position: "relative" }}>
-                      <div>
-                        <div style={{ fontSize: 12.5, color: "#B7C0C9", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>
-                          Value Recovered Since {new Date(first.timestamp).toLocaleDateString()}
-                        </div>
-                        <div style={{ fontSize: 52, fontWeight: 700, letterSpacing: "-0.02em", color: "#fff", lineHeight: 1 }}>{fmtGBP(totalRecovered)}</div>
-                        <div style={{ fontSize: 13.5, color: "#B7C0C9", marginTop: 14, maxWidth: 480, lineHeight: 1.6 }}>
-                          Real reduction in redundant spend, blocked-decision cost, and obsolescence exposure — measured
-                          against the first recorded snapshot, not projected. This is the renewal number: {fmtGBP(totalRecovered)} has
-                          already come back out of the estate this tool has been watching.
-                        </div>
-                      </div>
-                      <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", gap: 14 }}>
-                        {gbpRecoveryRows.map((row) => (
-                          <div key={row.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center",
-                            borderTop: "1px solid rgba(255,255,255,0.14)", paddingTop: 10 }}>
-                            <span style={{ fontSize: 12.5, color: "#B7C0C9" }}>{row.label}</span>
-                            <span style={{ fontSize: 16, fontWeight: 700, color: "#fff" }}>{row.recovered > 0 ? fmtGBP(row.recovered) : "No change yet"}</span>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 24 }}>
+                    {[
+                      { heading: "Realized Savings Since", total: totalRealized, rows: realizedRows, glow: "rgba(14,169,104,0.32)",
+                        body: `Actual reduction in TCO and forecast cost already reflected in the graph — cash, not risk. ${fmtGBP(totalRealized)} has come back out of the estate since the first snapshot.` },
+                      { heading: "Risk Exposure Reduced Since", total: totalRiskReduced, rows: riskRows, glow: "rgba(59,130,246,0.30)",
+                        body: `TCO of applications no longer sitting on unsupported or end-of-life technology — risk avoided, not cash recovered. Kept separate from savings on purpose.` },
+                    ].map((panel) => (
+                      <div key={panel.heading} style={{ background: "linear-gradient(135deg, #0A0E1A 0%, #16342A 100%)", borderRadius: 20, padding: "28px 30px",
+                        position: "relative", overflow: "hidden" }}>
+                        <div style={{ position: "absolute", top: -80, right: -80, width: 240, height: 240, borderRadius: "50%",
+                          background: `radial-gradient(circle, ${panel.glow} 0%, rgba(0,0,0,0) 70%)` }} />
+                        <div style={{ position: "relative" }}>
+                          <div style={{ fontSize: 12, color: "#B7C0C9", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>
+                            {panel.heading} {new Date(first.timestamp).toLocaleDateString()}
                           </div>
-                        ))}
+                          <div style={{ fontSize: 40, fontWeight: 700, letterSpacing: "-0.02em", color: "#fff", lineHeight: 1 }}>{fmtGBP(panel.total)}</div>
+                          <div style={{ fontSize: 12.5, color: "#B7C0C9", marginTop: 12, lineHeight: 1.6 }}>{panel.body}</div>
+                          <div style={{ marginTop: 18, display: "flex", flexDirection: "column", gap: 12 }}>
+                            {panel.rows.map((row) => {
+                              const conf = confidenceLabel(row.confidence);
+                              return (
+                                <div key={row.key} style={{ borderTop: "1px solid rgba(255,255,255,0.14)", paddingTop: 10 }}>
+                                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                                    <span style={{ fontSize: 12.5, color: "#B7C0C9" }}>
+                                      {row.label}{row.qualifier && <span style={{ color: "#7C8598" }} title={row.qualifierTitle}> ({row.qualifier})</span>}
+                                    </span>
+                                    <span style={{ fontSize: 15, fontWeight: 700, color: "#fff", flexShrink: 0, marginLeft: 10 }}>
+                                      {row.recovered > 0 ? fmtGBP(row.recovered) : "No change yet"}
+                                    </span>
+                                  </div>
+                                  <div style={{ fontSize: 10.5, color: conf.color, marginTop: 3 }}>{conf.text}</div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
                       </div>
-                    </div>
+                    ))}
                   </div>
                 )}
 
