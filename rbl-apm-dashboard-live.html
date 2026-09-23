@@ -920,16 +920,20 @@ const DATAFLOW_PROTOCOL_COLORS = {
 // A minimal SVG path for a sparkline — one line per Value Delivered metric
 // card, each with its own unit (£, count, %), so a shared multi-axis chart
 // would just confuse scale; small independent sparklines don't need one.
-function sparklinePath(values, w, h, pad) {
-  if (values.length < 2) return "";
+function sparklinePoints(values, w, h, pad) {
+  if (values.length < 2) return [];
   const min = Math.min(...values), max = Math.max(...values);
   const span = max - min || 1;
   const stepX = (w - pad * 2) / (values.length - 1);
-  return values.map((v, i) => {
-    const x = pad + i * stepX;
-    const y = pad + (h - pad * 2) * (1 - (v - min) / span);
-    return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
-  }).join(" ");
+  return values.map((v, i) => ({
+    x: pad + i * stepX,
+    y: pad + (h - pad * 2) * (1 - (v - min) / span),
+  }));
+}
+function sparklinePath(values, w, h, pad) {
+  return sparklinePoints(values, w, h, pad)
+    .map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`)
+    .join(" ");
 }
 
 // Generic sortable/filterable table — every <table> in the app used to be
@@ -6575,6 +6579,7 @@ function APMDashboardLive() {
                         const improved = m.good === "down" ? delta < 0 : delta > 0;
                         const worsened = m.good === "down" ? delta > 0 : delta < 0;
                         const series = valueSnapshots.map((s) => Number(s[m.key]) || 0);
+                        const points = sparklinePoints(series, 220, 50, 6);
                         const path = sparklinePath(series, 220, 50, 6);
                         const lineColor = improved ? COLORS.accent : worsened ? COLORS.risk : COLORS.inkSecondary;
                         return (
@@ -6589,6 +6594,9 @@ function APMDashboardLive() {
                             {hasTrend && (
                               <svg width="100%" height={50} viewBox="0 0 220 50" style={{ marginTop: 8, display: "block" }}>
                                 <path d={path} fill="none" stroke={lineColor} strokeWidth={2} />
+                                {points.map((p, i) => (
+                                  <circle key={i} cx={p.x} cy={p.y} r={4} fill={lineColor} stroke={COLORS.card} strokeWidth={2} />
+                                ))}
                               </svg>
                             )}
                             <div style={{ fontSize: 11, color: COLORS.inkSecondary, marginTop: 8, lineHeight: 1.4 }}>{m.desc}</div>
