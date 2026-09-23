@@ -220,6 +220,40 @@ const CONCEPT_TYPE_CATEGORY = {
   AIModel: "Technology", Interface: "Technology",
   Risk: "GRC", Control: "GRC",
 };
+// Plain-language definitions for the Help glossary — hand-authored, since
+// bdcore_schema.yaml documents each ATTRIBUTE's purpose but never the concept
+// type itself. Kept in sync by hand like CONCEPT_TYPE_CATEGORY above; the
+// allowed-relationships half of the glossary is NOT hand-authored — it reads
+// schemaRelationships live off the connected graph, so it can't drift from
+// the real schema the way a second hard-coded copy of the relationship list
+// would.
+const CONCEPT_DEFINITIONS = {
+  Strategy: "A high-level direction the organisation is pursuing — corporate, business-unit, or functional — that goals, initiatives, and capability investment should ultimately trace back to.",
+  Goal: "A specific, measurable target in service of a Strategy, with a defined success measure and target value to track progress against.",
+  Decision: "A recorded architectural, investment, or governance decision — what was chosen, why, what alternatives were considered, and what it makes easier or harder going forward.",
+  Requirement: "A functional or non-functional need something else in the graph must satisfy, with explicit acceptance criteria for knowing when it's actually met.",
+  Initiative: "A funded piece of change work — a transformation, migration, retirement, or modernisation programme — with its own budget, forecast cost, and expected benefit.",
+  Outcome: "A real-world result a Strategy or Initiative was meant to produce, tracked against a target and an actual value so realised benefit can be measured, not just claimed.",
+  Capability: "A business ability the organisation has or needs — what it can DO, independent of who does it or what system supports it — scored across six maturity dimensions (governance, policies, process, people, applications, metrics).",
+  Process: "A repeatable sequence of work that realises a Capability — who performs it, how automated it is, how critical it is, and how ready it is for AI.",
+  Location: "A physical place in the organisation's geography, country down to floor — mainly used to answer data-residency and jurisdiction questions.",
+  Organisation: "A unit of the organisation itself — a business unit, department, team, external partner, or vendor — arranged in a parent/child hierarchy.",
+  Product: "Something the organisation offers to a customer segment — internal, external, platform, or service — tracked by revenue, cost to serve, and lifecycle stage.",
+  Journey: "An end-to-end experience a customer, employee, or partner goes through, told from their point of view. Its ordered steps are JourneyStages.",
+  JourneyStage: "One step in a Journey — what the person needs at that point, what channel they're on, and what pain point exists there today.",
+  Flow: "An end-to-end sequence of work told from the asset's point of view rather than a person's — functional (a business process moving through several systems) or technical (data moving server to server) — inventoried so retiring a participant is a lookup, not a round of asking around. Its ordered steps are FlowSteps.",
+  FlowStep: "One step in a Flow, naming what carries it — an Application, SoftwareTechnology, or HardwareTechnology — and where it sits in sequence.",
+  ValueStream: "The end-to-end sequence that creates value for a stakeholder — core streams create direct value, support streams enable core ones, management streams govern and steer. Its ordered increments are ValueStreamStages.",
+  ValueStreamStage: "One increment of value delivered within a ValueStream, in sequence.",
+  Application: "A software system the organisation runs — its cost, criticality, technical health, hosting model, and AI readiness all live here. The central entity most of the rest of this tool is built around.",
+  Data: "A named data asset — master, reference, transactional, or analytical — with its own classification, sensitivity, quality, and regulatory relevance, independent of which application happens to store it.",
+  SoftwareTechnology: "A platform, framework, database, middleware, or runtime an Application runs on — tracked for lifecycle status (Current through Unsupported) so obsolescence risk can be traced to every Application exposed to it.",
+  HardwareTechnology: "A physical or virtualised infrastructure component — server, storage, network, end-user device, or IoT — that an Application or SoftwareTechnology runs on.",
+  AIModel: "A model the organisation has deployed or is evaluating — foundation, generative, predictive, or otherwise — governed separately from the Applications that use it, with its own risk, explainability, and human-oversight attributes.",
+  Interface: "A specific integration between two systems — its protocol, data format, frequency, and auth method — the thing that actually breaks when one side changes.",
+  Risk: "Something that could go wrong, scored by likelihood × impact, that a Control exists to mitigate and that can affect any other concept in the graph.",
+  Control: "A safeguard — preventive, detective, corrective, or compensating — that constrains a Risk, with its own effectiveness and compliance-requirement tracking.",
+};
 const CONCEPT_CATEGORY_ORDER = ["Strategic", "Structural", "Technology", "GRC"];
 const CONCEPT_CATEGORY_LABEL = { Strategic: "Strategic", Structural: "Structural", Technology: "Technology", GRC: "Governance, Risk & Compliance" };
 function groupConceptTypesByCategory(types) {
@@ -1407,6 +1441,7 @@ function APMDashboardLive() {
   const [contextMenu, setContextMenu] = useState(null); // { x, y, kind, id }
   const [omSelectedType, setOmSelectedType] = useState("Application");
   const [omTypePickerOpen, setOmTypePickerOpen] = useState(false);
+  const [helpSearch, setHelpSearch] = useState("");
   const [omInstances, setOmInstances] = useState([]);
   const [omLoading, setOmLoading] = useState(false);
   const [omEditingId, setOmEditingId] = useState(null); // real id, or "new"
@@ -4614,6 +4649,7 @@ function APMDashboardLive() {
     initiatives: "Initiatives Roadmap", dataflow: "Data Flow", businessunits: "Business Units",
     valuedelivered: "Value Delivered",
     journeytrace: "Journey Trace", maturity: "Capability Maturity", decisionlog: "Decision Log",
+    help: "Help",
   };
   const profileApp = view === "profile" ? apps.find((a) => a.id === profileAppId) : null;
   const activeCanvasMeta = activeCanvasId ? canvasList.find((c) => c.id === activeCanvasId) : null;
@@ -5106,6 +5142,20 @@ function APMDashboardLive() {
           {!sidebarCollapsed && view === "ontology" && (
             <div style={{ padding: "8px 14px 0", fontSize: 11.5, color: COLORS.inkSecondary, lineHeight: 1.6 }}>
               Pick a concept type and manage its instances directly — the type selector and table are in the main panel.
+            </div>
+          )}
+
+          <button className={view === "help" ? "ds-nav-pill ds-nav-pill-active" : "ds-nav-pill"} title="Help"
+            onClick={() => setView("help")} style={navButtonStyle("help", sidebarCollapsed)}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
+              strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+              <circle cx="12" cy="12" r="9" /><path d="M9.5 9.2a2.5 2.5 0 0 1 4.8 1c0 1.6-2.3 1.8-2.3 3.4" /><circle cx="12" cy="17" r="0.7" fill="currentColor" stroke="none" />
+            </svg>
+            {!sidebarCollapsed && <span>Help</span>}
+          </button>
+          {!sidebarCollapsed && view === "help" && (
+            <div style={{ padding: "8px 14px 0", fontSize: 11.5, color: COLORS.inkSecondary, lineHeight: 1.6 }}>
+              What each concept means, and what it's allowed to connect to.
             </div>
           )}
 
@@ -7329,6 +7379,94 @@ function APMDashboardLive() {
                     </div>
                   </div>
                 )}
+              </div>
+            );
+          })()}
+
+          {view === "help" && (() => {
+            const q = helpSearch.trim().toLowerCase();
+            const matches = (t) => !q || t.toLowerCase().includes(q) || (CONCEPT_DEFINITIONS[t] || "").toLowerCase().includes(q);
+            const groups = groupConceptTypesByCategory(CANVAS_CONCEPT_TYPES)
+              .map((g) => ({ ...g, types: g.types.filter(matches) }))
+              .filter((g) => g.types.length > 0);
+            const cardStyle = { background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: "16px 18px" };
+            return (
+              <div>
+                <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginBottom: 18, maxWidth: 780, lineHeight: 1.6 }}>
+                  What each of the {CANVAS_CONCEPT_TYPES.length} concept types in the ontology means, and what it's
+                  actually allowed to connect to. The relationships below are read live from your schema — the same
+                  rules the Modelling Canvas and Ontology Manager enforce — not a separate description that could
+                  drift out of date.
+                </div>
+
+                <input value={helpSearch} onChange={(e) => setHelpSearch(e.target.value)}
+                  placeholder="Search concepts — e.g. &quot;Application&quot; or &quot;retire&quot;…"
+                  style={{ width: "100%", maxWidth: 420, padding: "9px 12px", fontSize: 13, border: `1px solid ${COLORS.border}`,
+                    borderRadius: 9, marginBottom: 22, background: COLORS.card }} />
+
+                {groups.length === 0 ? (
+                  <div style={{ fontSize: 13, color: COLORS.inkSecondary }}>No concepts match "{helpSearch}".</div>
+                ) : groups.map((group) => (
+                  <div key={group.key} style={{ marginBottom: 28 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.inkSecondary, textTransform: "uppercase",
+                      letterSpacing: "0.05em", marginBottom: 10 }}>
+                      {group.label}
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(360px, 1fr))", gap: 14 }}>
+                      {group.types.map((t) => {
+                        const s = CONCEPT_TYPE_STYLE[t];
+                        const outgoing = schemaRelationships.filter((r) => r.source === t);
+                        const incoming = schemaRelationships.filter((r) => r.target === t);
+                        return (
+                          <div key={t} className="ds-card" style={cardStyle}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                              <span style={{ width: 28, height: 28, borderRadius: 8, background: s.color,
+                                display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                                {React.cloneElement(s.icon, { width: 15, height: 15 })}
+                              </span>
+                              <div style={{ fontSize: 14.5, fontWeight: 700 }}>{humanizeLabel(t)}</div>
+                            </div>
+                            <div style={{ fontSize: 12.5, color: COLORS.ink, lineHeight: 1.55, marginBottom: 12 }}>
+                              {CONCEPT_DEFINITIONS[t] || "No definition written yet."}
+                            </div>
+                            {(outgoing.length > 0 || incoming.length > 0) ? (
+                              <div style={{ fontSize: 11.5, lineHeight: 1.7 }}>
+                                {outgoing.length > 0 && (
+                                  <div style={{ marginBottom: incoming.length > 0 ? 6 : 0 }}>
+                                    <span style={{ color: COLORS.inkSecondary, fontWeight: 600 }}>Can: </span>
+                                    {outgoing.map((r, i) => (
+                                      <span key={i}>
+                                        {i > 0 && <span style={{ color: COLORS.inkSecondary }}>, </span>}
+                                        <span style={{ color: COLORS.accent, fontWeight: 600 }}>{r.verb}</span>{" "}
+                                        <span style={{ color: COLORS.inkSecondary }}>→</span> {humanizeLabel(r.target)}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                                {incoming.length > 0 && (
+                                  <div>
+                                    <span style={{ color: COLORS.inkSecondary, fontWeight: 600 }}>Referenced by: </span>
+                                    {incoming.map((r, i) => (
+                                      <span key={i}>
+                                        {i > 0 && <span style={{ color: COLORS.inkSecondary }}>, </span>}
+                                        {humanizeLabel(r.source)} <span style={{ color: COLORS.inkSecondary }}>→</span>{" "}
+                                        <span style={{ color: COLORS.accent, fontWeight: 600 }}>{r.verb}</span>
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div style={{ fontSize: 11.5, color: COLORS.inkSecondary }}>
+                                {schemaRelationships.length === 0 ? "Connect to load allowed relationships." : "No relationships defined for this type yet."}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
               </div>
             );
           })()}
