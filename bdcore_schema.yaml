@@ -288,6 +288,7 @@ concept_types:
       - {name: SunsetDate, type: date}
       - {name: RetiringDate, type: date}
       - {name: DecommissionDate, type: date}
+      - {name: RenewalDate, type: date, purpose: "next contract, subscription or licence renewal/expiry date — drives the Renewals & Reviews board"}
       - {name: AIEnabled, type: enum, options: [Yes, No]}
       - {name: HumanOversight, type: enum, options: [Required, Recommended, None]}
       - {name: AIImpactType, type: enum, options: [Assist, Augment, Automate, Replace]}
