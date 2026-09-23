@@ -917,6 +917,21 @@ const DATAFLOW_PROTOCOL_COLORS = {
   "Batch ETL": "#8B6F47", "Manual/Other": COLORS.inkSecondary,
 };
 
+// A minimal SVG path for a sparkline — one line per Value Delivered metric
+// card, each with its own unit (£, count, %), so a shared multi-axis chart
+// would just confuse scale; small independent sparklines don't need one.
+function sparklinePath(values, w, h, pad) {
+  if (values.length < 2) return "";
+  const min = Math.min(...values), max = Math.max(...values);
+  const span = max - min || 1;
+  const stepX = (w - pad * 2) / (values.length - 1);
+  return values.map((v, i) => {
+    const x = pad + i * stepX;
+    const y = pad + (h - pad * 2) * (1 - (v - min) / span);
+    return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(" ");
+}
+
 // Generic sortable/filterable table — every <table> in the app used to be
 // hand-rolled with no sort or filter affordance at all. One reusable
 // component instead of duplicating sort/filter logic per view; each mounted
@@ -1410,6 +1425,11 @@ function APMDashboardLive() {
   const [businessUnitsLoading, setBusinessUnitsLoading] = useState(false);
   const [businessUnitsError, setBusinessUnitsError] = useState("");
   const [businessUnitExpanded, setBusinessUnitExpanded] = useState(null);
+  const [valueSnapshots, setValueSnapshots] = useState([]);
+  const [valueSnapshotsLoading, setValueSnapshotsLoading] = useState(false);
+  const [valueSnapshotsError, setValueSnapshotsError] = useState("");
+  const [valueSnapshotBusy, setValueSnapshotBusy] = useState(false);
+  const [snapshotCheckedThisSession, setSnapshotCheckedThisSession] = useState(false);
   const zCounterRef = useRef(1);
   // Click-vs-drag threshold for canvas item mousedown — lets a plain click on
   // a sticky's textarea (or any other in-item control) still place a text
@@ -1961,6 +1981,12 @@ function APMDashboardLive() {
   useEffect(() => {
     if (view === "businessunits") loadBusinessUnits();
   }, [view]);
+  useEffect(() => {
+    if (view === "valuedelivered") loadValueSnapshots();
+  }, [view]);
+  useEffect(() => {
+    if (status === "connected" && apps.length > 0) maybeRecordValueSnapshot();
+  }, [status, apps.length]);
 
   // Once the workspace/canvas list loads, open whatever canvas comes first —
   // otherwise the person lands on an empty tree with nothing selected.
@@ -2671,6 +2697,91 @@ function APMDashboardLive() {
     [appsWithDisposition, controls, depLinks]);
   const totalAtStake = totalBlockedCost + redundancyWaste + totalTcoExposed;
 
+  // ValueSnapshot lives outside the governed ontology — a system/telemetry
+  // record, same idea as Workspace/Canvas nodes, not a business concept
+  // someone would model on the canvas. Each snapshot is a real, timestamped
+  // read of numbers already computed elsewhere in this file (redundancy
+  // waste, blocked-decision cost, EOL exposure, DR gaps) plus ownership and
+  // verification coverage across the whole graph — nothing here is a new
+  // metric invented for this view, which is the whole point: a trend line
+  // is only defensible if every point on it is a real historical fact, not
+  // freshly-computed spin.
+  const loadValueSnapshots = async () => {
+    setValueSnapshotsLoading(true);
+    try {
+      const apiUrl = deriveQueryApiUrl(uri, dbName);
+      const authHeader = "Basic " + btoa(`${username}:${password}`);
+      const rows = await runCypher(apiUrl, authHeader,
+        `MATCH (v:ValueSnapshot) RETURN properties(v) AS props ORDER BY v.timestamp`
+      );
+      setValueSnapshots(rows.map((r) => r.props));
+      setValueSnapshotsError("");
+    } catch (e) {
+      setValueSnapshotsError(`Couldn't load value snapshots: ${e.message}`);
+      setValueSnapshots([]);
+    } finally {
+      setValueSnapshotsLoading(false);
+    }
+  };
+
+  const recordValueSnapshotNow = async () => {
+    setValueSnapshotBusy(true);
+    try {
+      const apiUrl = deriveQueryApiUrl(uri, dbName);
+      const authHeader = "Basic " + btoa(`${username}:${password}`);
+      const coverageRows = await runCypher(apiUrl, authHeader,
+        `MATCH (n:Instance) RETURN n.owner AS owner, n.verified_at AS verifiedAt`
+      );
+      const total = coverageRows.length || 1;
+      const ownershipCoveragePct = Math.round((coverageRows.filter((r) => r.owner && String(r.owner).trim()).length / total) * 100);
+      const verificationCoveragePct = Math.round((coverageRows.filter((r) => r.verifiedAt).length / total) * 100);
+      const id = newCanvasId("vsnap");
+      const now = new Date().toISOString();
+      await runCypher(apiUrl, authHeader,
+        `CREATE (v:ValueSnapshot {id: $id, timestamp: $now, redundancyWasteGBP: $redundancyWasteGBP,
+          blockedDecisionCostGBP: $blockedDecisionCostGBP, eolExposureGBP: $eolExposureGBP,
+          drGapCount: $drGapCount, appCount: $appCount, ownershipCoveragePct: $ownershipCoveragePct,
+          verificationCoveragePct: $verificationCoveragePct})`,
+        {
+          id, now,
+          redundancyWasteGBP: Math.round(redundancyWaste), blockedDecisionCostGBP: Math.round(totalBlockedCost),
+          eolExposureGBP: Math.round(totalTcoExposed), drGapCount: criticalNoDR.length, appCount: apps.length,
+          ownershipCoveragePct, verificationCoveragePct,
+        }
+      );
+      await loadValueSnapshots();
+    } catch (e) {
+      setValueSnapshotsError(`Couldn't record a snapshot: ${e.message}`);
+    } finally {
+      setValueSnapshotBusy(false);
+    }
+  };
+
+  // Runs once per session, after real data has actually loaded — capped to
+  // one automatic snapshot per calendar day so simply opening the app
+  // several times a day can't inflate the trend with duplicate points.
+  // Someone can still add more via "Record Snapshot Now" on the view
+  // itself; that's a deliberate human action, not automatic noise, so it
+  // isn't capped the same way.
+  const maybeRecordValueSnapshot = async () => {
+    if (snapshotCheckedThisSession) return;
+    setSnapshotCheckedThisSession(true);
+    try {
+      const apiUrl = deriveQueryApiUrl(uri, dbName);
+      const authHeader = "Basic " + btoa(`${username}:${password}`);
+      const latestRows = await runCypher(apiUrl, authHeader,
+        `MATCH (v:ValueSnapshot) RETURN v.timestamp AS timestamp ORDER BY v.timestamp DESC LIMIT 1`
+      );
+      const today = new Date().toISOString().slice(0, 10);
+      const latestDate = latestRows[0] && latestRows[0].timestamp ? String(latestRows[0].timestamp).slice(0, 10) : null;
+      if (latestDate === today) return;
+      await recordValueSnapshotNow();
+    } catch (e) {
+      // Background/best-effort — a failure here shouldn't disrupt the rest
+      // of the app, so it's swallowed rather than surfaced as an error.
+    }
+  };
+
   // Field-distribution reviews: same generic pattern (count the distribution,
   // flag values that look inconsistent with a correlated field), applied to
   // three different fields with three different, explainable consistency rules
@@ -2968,6 +3079,7 @@ function APMDashboardLive() {
 
   const NAV_ITEMS = [
     ["brief", "Executive Brief", "brief"],
+    ["valuedelivered", "Value Delivered", "valuedelivered"],
     ["portfolio", "Portfolio Overview", "portfolio"],
   ];
   const COST_RISK_NAV_ITEMS = [
@@ -3067,6 +3179,7 @@ function APMDashboardLive() {
     businessunits: <svg {...ICON_COMMON}><rect x="9" y="3" width="6" height="4.5" rx="1" /><rect x="3" y="16.5" width="6" height="4.5" rx="1" /><rect x="15" y="16.5" width="6" height="4.5" rx="1" /><path d="M12 7.5v4.5M6 12v4.5M18 12v4.5M6 12h12" /></svg>,
     initiatives: <svg {...ICON_COMMON}><rect x="3" y="5" width="11" height="3.2" rx="1" /><rect x="8" y="11" width="13" height="3.2" rx="1" /><rect x="5" y="17" width="9" height="3.2" rx="1" /></svg>,
     dataflow: <svg {...ICON_COMMON}><rect x="2" y="9" width="6" height="6" rx="1.2" /><rect x="16" y="2" width="6" height="6" rx="1.2" /><rect x="16" y="16" width="6" height="6" rx="1.2" /><path d="M8 11l7.5 -6M8 13l7.5 6" /></svg>,
+    valuedelivered: <svg {...ICON_COMMON}><path d="M3 19h18" /><path d="M4 15.5 L9 10 L13 13.5 L20 6" /><path d="M15 6h5v5" /></svg>,
   };
 
   // --- Modelling Canvas functions ---
@@ -4453,6 +4566,7 @@ function APMDashboardLive() {
     obsolescence: "Tech Obsolescence", cloudmigration: "Cloud Migration", techradar: "Tech Radar",
     fieldreview: "Field Review", ontology: "Ontology Manager", ownership: "Ownership Coverage",
     initiatives: "Initiatives Roadmap", dataflow: "Data Flow", businessunits: "Business Units",
+    valuedelivered: "Value Delivered",
     journeytrace: "Journey Trace", maturity: "Capability Maturity", decisionlog: "Decision Log",
   };
   const profileApp = view === "profile" ? apps.find((a) => a.id === profileAppId) : null;
@@ -4941,7 +5055,13 @@ function APMDashboardLive() {
             </h1>
           </div>
           <div style={{ textAlign: "right" }}>
-            <div style={{ fontSize: 12.5, color: COLORS.inkSecondary }}>
+            <div style={{ fontSize: 12.5, color: COLORS.inkSecondary, display: "flex", alignItems: "center", gap: 10, justifyContent: "flex-end" }}>
+              {view !== "portfolio" && (
+                <span onClick={() => goToView("portfolio")} title="Back to Portfolio Overview"
+                  style={{ cursor: "pointer", fontWeight: 600, color: COLORS.ink }}>
+                  ← Portfolio Overview
+                </span>
+              )}
               {status === "connected" && lastFetched
                 ? `Live from Neo4j · updated ${lastFetched.toLocaleTimeString()}`
                 : "Not connected"}
@@ -6381,6 +6501,105 @@ function APMDashboardLive() {
                           </div>
                         );
                       })}
+                    </div>
+                  </>
+                )}
+              </div>
+            );
+          })()}
+          {view === "valuedelivered" && (() => {
+            const METRICS = [
+              { key: "redundancyWasteGBP", label: "Redundant Spend", unit: "gbp", good: "down",
+                desc: "Annual TCO still being spent on a system already decided to be replaced." },
+              { key: "blockedDecisionCostGBP", label: "Blocked Decision Cost", unit: "gbp", good: "down",
+                desc: "Annual workaround cost from decisions a system couldn't bend to accommodate." },
+              { key: "eolExposureGBP", label: "Obsolescence Exposure", unit: "gbp", good: "down",
+                desc: "TCO of applications running on unsupported or end-of-life technology." },
+              { key: "drGapCount", label: "Critical Apps Without DR", unit: "count", good: "down",
+                desc: "Critical-criticality applications with no disaster recovery or backup control found." },
+              { key: "ownershipCoveragePct", label: "Ownership Coverage", unit: "pct", good: "up",
+                desc: "Share of every record in the graph with an Owner confirmed." },
+              { key: "verificationCoveragePct", label: "Verification Coverage", unit: "pct", good: "up",
+                desc: "Share of every record confirmed current by a business owner, not just present." },
+            ];
+            const fmtMetric = (unit, v) => unit === "gbp" ? fmtGBP(v) : unit === "pct" ? `${v}%` : String(v);
+            const first = valueSnapshots[0], latest = valueSnapshots[valueSnapshots.length - 1];
+            const hasTrend = valueSnapshots.length >= 2;
+            const cardStyle = { background: COLORS.card, border: `1px solid ${COLORS.border}`,
+              boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", padding: "18px 20px", borderRadius: 18 };
+
+            return (
+              <div>
+                <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginBottom: 20, maxWidth: 760, lineHeight: 1.6 }}>
+                  A running, timestamped record of the real numbers this platform surfaces — not a forecast, and
+                  nothing here is recomputed retroactively. One snapshot is taken automatically the first time the
+                  app connects each day; every point on the charts below was actually true on that date. Come back
+                  over time to see whether the gaps this tool finds are actually closing.
+                </div>
+                {valueSnapshotsError && <div style={{ fontSize: 13, color: COLORS.risk, marginBottom: 16 }}>{valueSnapshotsError}</div>}
+
+                <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
+                  <button onClick={recordValueSnapshotNow} disabled={valueSnapshotBusy}
+                    style={{ padding: "8px 14px", background: valueSnapshotBusy ? "#DCDFE6" : COLORS.ink, color: "#fff",
+                      border: "none", borderRadius: 8, fontSize: 12.5, fontWeight: 600, cursor: valueSnapshotBusy ? "default" : "pointer" }}>
+                    {valueSnapshotBusy ? "Recording…" : "Record Snapshot Now"}
+                  </button>
+                </div>
+
+                {valueSnapshotsLoading ? (
+                  <div style={{ fontSize: 13, color: COLORS.inkSecondary }}>Loading…</div>
+                ) : valueSnapshots.length === 0 ? (
+                  <div className="ds-card" style={{ ...cardStyle, borderRadius: 14 }}>
+                    <div style={{ fontSize: 13, color: COLORS.inkSecondary, lineHeight: 1.6 }}>
+                      No snapshots recorded yet. One gets taken automatically next time the app connects — or click
+                      "Record Snapshot Now" above to start the record today.
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {!hasTrend && (
+                      <div className="ds-card" style={{ background: "#EFEDE5", border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: "14px 18px", marginBottom: 20 }}>
+                        <div style={{ fontSize: 13, color: COLORS.ink, lineHeight: 1.6 }}>
+                          Only one snapshot so far — recorded {new Date(first.timestamp).toLocaleDateString()}. Today's
+                          numbers are shown below, but there isn't enough history yet for a trend. Come back another
+                          day, or click "Record Snapshot Now" to add a second point right now.
+                        </div>
+                      </div>
+                    )}
+
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
+                      {METRICS.map((m) => {
+                        const latestVal = Number(latest[m.key]) || 0;
+                        const firstVal = Number(first[m.key]) || 0;
+                        const delta = latestVal - firstVal;
+                        const improved = m.good === "down" ? delta < 0 : delta > 0;
+                        const worsened = m.good === "down" ? delta > 0 : delta < 0;
+                        const series = valueSnapshots.map((s) => Number(s[m.key]) || 0);
+                        const path = sparklinePath(series, 220, 50, 6);
+                        const lineColor = improved ? COLORS.accent : worsened ? COLORS.risk : COLORS.inkSecondary;
+                        return (
+                          <div key={m.key} className="ds-card" style={cardStyle}>
+                            <div style={{ fontSize: 12, color: COLORS.inkSecondary, marginBottom: 4 }}>{m.label}</div>
+                            <div style={{ fontSize: 24, fontWeight: 700 }}>{fmtMetric(m.unit, latestVal)}</div>
+                            {hasTrend && (
+                              <div style={{ fontSize: 11.5, fontWeight: 600, color: lineColor, marginTop: 2 }}>
+                                {delta === 0 ? "No change" : `${delta > 0 ? "▲" : "▼"} ${fmtMetric(m.unit, Math.abs(delta))}`} since {new Date(first.timestamp).toLocaleDateString()}
+                              </div>
+                            )}
+                            {hasTrend && (
+                              <svg width="100%" height={50} viewBox="0 0 220 50" style={{ marginTop: 8, display: "block" }}>
+                                <path d={path} fill="none" stroke={lineColor} strokeWidth={2} />
+                              </svg>
+                            )}
+                            <div style={{ fontSize: 11, color: COLORS.inkSecondary, marginTop: 8, lineHeight: 1.4 }}>{m.desc}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <div style={{ fontSize: 11.5, color: COLORS.inkSecondary, marginTop: 16 }}>
+                      {valueSnapshots.length} snapshot{valueSnapshots.length === 1 ? "" : "s"} recorded since {new Date(first.timestamp).toLocaleDateString()} —
+                      latest taken {new Date(latest.timestamp).toLocaleDateString()}, across {latest.appCount} application{latest.appCount === 1 ? "" : "s"}.
                     </div>
                   </>
                 )}
