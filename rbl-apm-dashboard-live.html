@@ -1831,6 +1831,12 @@ function APMDashboardLive() {
   const [omTypePickerOpen, setOmTypePickerOpen] = useState(false);
   const [helpTab, setHelpTab] = useState("guide"); // "guide" | "glossary"
   const [helpSearch, setHelpSearch] = useState("");
+  // Which chapter's content the Help content pane shows — "All" shows every
+  // chapter stacked (the old always-scroll behavior), anything else shows
+  // just that one chapter so landing on Help doesn't dump the whole manual
+  // on screen at once. Each tab remembers its own selection.
+  const [helpGuideChapter, setHelpGuideChapter] = useState("Executive Overview");
+  const [helpGlossaryChapter, setHelpGlossaryChapter] = useState("Strategic");
   const [omInstances, setOmInstances] = useState([]);
   const [omLoading, setOmLoading] = useState(false);
   const [omEditingId, setOmEditingId] = useState(null); // real id, or "new"
@@ -8266,85 +8272,125 @@ function APMDashboardLive() {
 
           {view === "help" && (() => {
             const q = helpSearch.trim().toLowerCase();
+            const isSearching = q.length > 0;
             const matches = (t) => !q || t.toLowerCase().includes(q) || (CONCEPT_DEFINITIONS[t] || "").toLowerCase().includes(q);
             const groups = groupConceptTypesByCategory(CANVAS_CONCEPT_TYPES)
               .map((g) => ({ ...g, types: g.types.filter(matches) }))
               .filter((g) => g.types.length > 0);
+            const glossaryGroupsToShow = isSearching
+              ? groups
+              : groups.filter((g) => helpGlossaryChapter === "All" || g.label === helpGlossaryChapter);
+            const guideItemMatches = (item) => !q || item.label.toLowerCase().includes(q) ||
+              item.description.toLowerCase().includes(q) || item.tips.some((tip) => tip.toLowerCase().includes(q));
+            const guideSectionsMatched = GUIDE_SECTIONS
+              .map((section) => ({ ...section, items: section.items.filter(guideItemMatches) }))
+              .filter((section) => section.items.length > 0);
+            const guideSectionsToShow = isSearching
+              ? guideSectionsMatched
+              : guideSectionsMatched.filter((s) => helpGuideChapter === "All" || s.title === helpGuideChapter);
             const cardStyle = { background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: "20px 24px" };
             const tabStyle = (key) => ({ padding: "9px 16px", fontSize: 13, fontWeight: 600, borderRadius: 9,
               cursor: "pointer", border: `1px solid ${helpTab === key ? COLORS.ink : COLORS.border}`,
               background: helpTab === key ? COLORS.ink : COLORS.card, color: helpTab === key ? "#fff" : COLORS.ink });
+            const chapterBtnStyle = (active) => ({ display: "block", width: "100%", textAlign: "left", padding: "8px 12px",
+              fontSize: 12.5, fontWeight: active ? 700 : 500, borderRadius: 8, cursor: "pointer", border: "none",
+              background: active ? `${COLORS.accent}18` : "transparent", color: active ? COLORS.accent : COLORS.inkSecondary,
+              marginBottom: 2 });
+            const Rail = ({ chapters, active, onSelect }) => (
+              <div style={{ width: 210, flexShrink: 0, position: "sticky", top: 20, alignSelf: "flex-start" }}>
+                <button onClick={() => { onSelect("All"); setHelpSearch(""); }} style={chapterBtnStyle(!isSearching && active === "All")}>
+                  All chapters
+                </button>
+                {chapters.map((c) => (
+                  <button key={c} onClick={() => { onSelect(c); setHelpSearch(""); }} style={chapterBtnStyle(!isSearching && active === c)}>
+                    {c}
+                  </button>
+                ))}
+              </div>
+            );
             return (
               <div>
-                <div style={{ display: "flex", gap: 8, marginBottom: 22 }}>
+                <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
                   <button onClick={() => setHelpTab("guide")} style={tabStyle("guide")}>Site Guide</button>
                   <button onClick={() => setHelpTab("glossary")} style={tabStyle("glossary")}>Concept Glossary</button>
                 </div>
 
+                <input value={helpSearch} onChange={(e) => setHelpSearch(e.target.value)}
+                  placeholder={helpTab === "guide" ? "Search the guide — e.g. \"renewal\" or \"palette\"…" : "Search concepts — e.g. \"Application\" or \"retire\"…"}
+                  style={{ width: "100%", maxWidth: 420, padding: "9px 12px", fontSize: 13, border: `1px solid ${COLORS.border}`,
+                    borderRadius: 9, marginBottom: 22, background: COLORS.card }} />
+
                 {helpTab === "guide" && (
-                  <div>
-                    <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginBottom: 24, maxWidth: 780, lineHeight: 1.6 }}>
-                      What each view in the product shows, and how to actually get the most out of it — organised the
-                      same way as the sidebar, so this reads as a map of the real thing rather than a separate document.
-                    </div>
-                    {GUIDE_SECTIONS.map((section) => (
-                      <div key={section.title} style={{ marginBottom: 28 }}>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.inkSecondary, textTransform: "uppercase",
-                          letterSpacing: "0.05em", marginBottom: 10 }}>
-                          {section.title}
+                  <div style={{ display: "flex", gap: 28 }}>
+                    <Rail chapters={GUIDE_SECTIONS.map((s) => s.title)} active={helpGuideChapter} onSelect={setHelpGuideChapter} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      {!isSearching && (
+                        <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginBottom: 24, maxWidth: 780, lineHeight: 1.6 }}>
+                          What each view in the product shows, and how to actually get the most out of it — organised the
+                          same way as the sidebar, so this reads as a map of the real thing rather than a separate document.
                         </div>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                          {section.items.map((item) => (
-                            <div key={item.key} className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`,
-                              borderRadius: 14, padding: "20px 24px" }}>
-                              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 8 }}>
-                                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                                  <span style={{ width: 32, height: 32, borderRadius: 9, background: COLORS.ink,
-                                    display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, color: "#fff" }}>
-                                    {React.cloneElement(ICONS[item.key] || ICONS.help, { width: 17, height: 17 })}
+                      )}
+                      {isSearching && guideSectionsToShow.length === 0 ? (
+                        <div style={{ fontSize: 13, color: COLORS.inkSecondary }}>No guide entries match "{helpSearch}".</div>
+                      ) : guideSectionsToShow.map((section) => (
+                        <div key={section.title} style={{ marginBottom: 28 }}>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.inkSecondary, textTransform: "uppercase",
+                            letterSpacing: "0.05em", marginBottom: 10 }}>
+                            {section.title}
+                          </div>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                            {section.items.map((item) => (
+                              <div key={item.key} className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`,
+                                borderRadius: 14, padding: "20px 24px" }}>
+                                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 8 }}>
+                                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                                    <span style={{ width: 32, height: 32, borderRadius: 9, background: COLORS.ink,
+                                      display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, color: "#fff" }}>
+                                      {React.cloneElement(ICONS[item.key] || ICONS.help, { width: 17, height: 17 })}
+                                    </span>
+                                    <div style={{ fontSize: 16, fontWeight: 700 }}>{item.label}</div>
+                                  </div>
+                                  <span onClick={() => goToView(item.key)}
+                                    style={{ fontSize: 12.5, fontWeight: 600, color: COLORS.accent, cursor: "pointer", flexShrink: 0 }}>
+                                    Open →
                                   </span>
-                                  <div style={{ fontSize: 16, fontWeight: 700 }}>{item.label}</div>
                                 </div>
-                                <span onClick={() => goToView(item.key)}
-                                  style={{ fontSize: 12.5, fontWeight: 600, color: COLORS.accent, cursor: "pointer", flexShrink: 0 }}>
-                                  Open →
-                                </span>
+                                <div style={{ fontSize: 13, color: COLORS.ink, lineHeight: 1.6, marginBottom: item.tips.length ? 14 : 0, maxWidth: 820 }}>
+                                  {item.description}
+                                </div>
+                                {item.tips.length > 0 && (
+                                  <ul style={{ margin: 0, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 6 }}>
+                                    {item.tips.map((tip, i) => (
+                                      <li key={i} style={{ fontSize: 12.5, color: COLORS.inkSecondary, lineHeight: 1.55, maxWidth: 780 }}>{tip}</li>
+                                    ))}
+                                  </ul>
+                                )}
                               </div>
-                              <div style={{ fontSize: 13, color: COLORS.ink, lineHeight: 1.6, marginBottom: item.tips.length ? 14 : 0, maxWidth: 820 }}>
-                                {item.description}
-                              </div>
-                              {item.tips.length > 0 && (
-                                <ul style={{ margin: 0, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 6 }}>
-                                  {item.tips.map((tip, i) => (
-                                    <li key={i} style={{ fontSize: 12.5, color: COLORS.inkSecondary, lineHeight: 1.55, maxWidth: 780 }}>{tip}</li>
-                                  ))}
-                                </ul>
-                              )}
-                            </div>
-                          ))}
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 )}
 
                 {helpTab === "glossary" && (
-                  <div>
+                  <div style={{ display: "flex", gap: 28 }}>
+                    <Rail chapters={groupConceptTypesByCategory(CANVAS_CONCEPT_TYPES).map((g) => g.label)}
+                      active={helpGlossaryChapter} onSelect={setHelpGlossaryChapter} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                {!isSearching && (
                 <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginBottom: 18, maxWidth: 780, lineHeight: 1.6 }}>
                   What each of the {CANVAS_CONCEPT_TYPES.length} concept types in the ontology means, and what it's
                   actually allowed to connect to. The relationships below are read live from your schema — the same
                   rules the Modelling Canvas and Ontology Manager enforce — not a separate description that could
                   drift out of date.
                 </div>
+                )}
 
-                <input value={helpSearch} onChange={(e) => setHelpSearch(e.target.value)}
-                  placeholder="Search concepts — e.g. &quot;Application&quot; or &quot;retire&quot;…"
-                  style={{ width: "100%", maxWidth: 420, padding: "9px 12px", fontSize: 13, border: `1px solid ${COLORS.border}`,
-                    borderRadius: 9, marginBottom: 22, background: COLORS.card }} />
-
-                {groups.length === 0 ? (
+                {glossaryGroupsToShow.length === 0 ? (
                   <div style={{ fontSize: 13, color: COLORS.inkSecondary }}>No concepts match "{helpSearch}".</div>
-                ) : groups.map((group) => (
+                ) : glossaryGroupsToShow.map((group) => (
                   <div key={group.key} style={{ marginBottom: 28 }}>
                     <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.inkSecondary, textTransform: "uppercase",
                       letterSpacing: "0.05em", marginBottom: 10 }}>
@@ -8418,6 +8464,7 @@ function APMDashboardLive() {
                     </div>
                   </div>
                 ))}
+                    </div>
                   </div>
                 )}
               </div>
