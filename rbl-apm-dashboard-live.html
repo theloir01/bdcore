@@ -1406,6 +1406,7 @@ function APMDashboardLive() {
   const [hoveredEdgeId, setHoveredEdgeId] = useState(null);
   const [contextMenu, setContextMenu] = useState(null); // { x, y, kind, id }
   const [omSelectedType, setOmSelectedType] = useState("Application");
+  const [omTypePickerOpen, setOmTypePickerOpen] = useState(false);
   const [omInstances, setOmInstances] = useState([]);
   const [omLoading, setOmLoading] = useState(false);
   const [omEditingId, setOmEditingId] = useState(null); // real id, or "new"
@@ -2361,6 +2362,34 @@ function APMDashboardLive() {
     URL.revokeObjectURL(url);
   };
 
+  // A blank starting point for whoever has to fill this in, not just a list
+  // of column names: the second row is a guide (valid enum options, expected
+  // format) rather than a real record. It's safe to leave that row in when
+  // re-uploading — Name is blank, so importOmInstancesFromCSV skips it as
+  // just another incomplete row, the same as any other blank line would be.
+  const omCsvColumnHint = (attr) => {
+    if (attr.type === "enum") return `One of: ${(attr.options || []).join(", ")}`;
+    if (attr.type === "multi_enum") return `One or more of: ${(attr.options || []).join(", ")} (separate with ;)`;
+    if (attr.type === "number") return "Number, e.g. 42";
+    if (attr.type === "currency") return "Number, e.g. 150000 (no currency symbol)";
+    if (attr.type === "date") return "Date, e.g. 2026-01-31";
+    if (attr.type === "ref") return "Organisation name, exactly as it appears in the graph";
+    return "Free text";
+  };
+  const downloadOmCsvTemplate = () => {
+    const attrs = schemaAttributes[omSelectedType] || [];
+    const headers = ["ID", "Name", ...attrs.map((a) => humanizeLabel(a.name))];
+    const hintRow = ["", "(leave this row's Name blank — it's a guide, and rows with no Name are skipped on import)", ...attrs.map(omCsvColumnHint)];
+    const csv = [headers, hintRow].map((row) => row.map(csvEscape).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${omSelectedType.toLowerCase()}-import-template.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   // Bulk-loads a CSV exported from here (or hand-built to match its headers)
   // back into the graph for whichever type is currently selected. A row
   // whose "ID" column matches an instance already loaded in omInstances gets
@@ -2417,8 +2446,16 @@ function APMDashboardLive() {
               const matched = vals.map((v) => (attr.options || []).find((o) => o.toLowerCase() === v.toLowerCase())).filter(Boolean);
               if (matched.length !== vals.length) warnings.push(`Row ${rowIdx + 2}: one or more ${attr.name} values weren't valid options — those were dropped.`);
               if (matched.length) props[key] = matched;
+            } else if (attr.type === "ref") {
+              // The edit form stores the target's id, not its name, so a CSV
+              // (where nobody knows the id) needs the same name → id lookup
+              // the dropdown does, or every imported ref would silently be
+              // an unresolvable id-shaped string instead of a working link.
+              const match = organisationOptions.find((o) => o.name.toLowerCase() === raw.toLowerCase());
+              if (!match) { warnings.push(`Row ${rowIdx + 2}: no Organisation named "${raw}" for ${attr.name} — left blank.`); return; }
+              props[key] = match.id;
             } else {
-              props[key] = raw; // string / date / ref — same as the rest of the app, no format validation
+              props[key] = raw; // string / date — same as the rest of the app, no format validation
             }
           });
           if (!name) { warnings.push(`Row ${rowIdx + 2}: missing Name — row skipped.`); skippedCount++; return; }
@@ -7090,36 +7127,41 @@ function APMDashboardLive() {
                   making changes that don't have a dedicated screen yet.
                 </div>
 
-                {groupConceptTypesByCategory(CANVAS_CONCEPT_TYPES).map((group) => (
-                  <div key={group.key} style={{ marginBottom: 14 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.inkSecondary, textTransform: "uppercase",
-                      letterSpacing: "0.05em", marginBottom: 6 }}>
-                      {group.label}
+                {/* The currently-managed type is the one thing this screen needs to
+                    make obvious at a glance — it used to be just one more chip lost
+                    in a wall of 24, indistinguishable at a scan. Now it's a named,
+                    colored header, and the full picker (still grouped the same way)
+                    only appears when you deliberately ask to change type. */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <span style={{ width: 36, height: 36, borderRadius: 10, background: typeStyle.color,
+                      display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      {React.cloneElement(typeStyle.icon, { width: 19, height: 19 })}
+                    </span>
+                    <div>
+                      <div style={{ fontSize: 17, fontWeight: 700, lineHeight: 1.2 }}>{humanizeLabel(omSelectedType)}</div>
+                      <div style={{ fontSize: 12, color: COLORS.inkSecondary }}>
+                        {omInstances.length} record{omInstances.length === 1 ? "" : "s"} · {CONCEPT_TYPE_CATEGORY[omSelectedType] || "Other"}
+                      </div>
                     </div>
-                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                      {group.types.map((t) => {
-                        const s = CONCEPT_TYPE_STYLE[t];
-                        return (
-                          <button key={t} onClick={() => { setOmSelectedType(t); loadOmInstances(t); }}
-                            style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", fontSize: 12, fontWeight: 600,
-                              borderRadius: 8, cursor: "pointer", border: `1px solid ${omSelectedType === t ? s.color : COLORS.border}`,
-                              background: omSelectedType === t ? s.color : COLORS.card, color: omSelectedType === t ? "#fff" : COLORS.ink }}>
-                            <span style={{ width: 16, height: 16, borderRadius: 4, background: omSelectedType === t ? "rgba(255,255,255,0.25)" : s.color,
-                              display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                              {React.cloneElement(s.icon, { width: 11, height: 11 })}
-                            </span>
-                            {humanizeLabel(t)}
-                          </button>
-                        );
-                      })}
-                    </div>
+                    <button onClick={() => setOmTypePickerOpen((p) => !p)}
+                      style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", fontSize: 12, fontWeight: 600,
+                        borderRadius: 8, cursor: "pointer", border: `1px solid ${COLORS.border}`,
+                        background: omTypePickerOpen ? COLORS.ink : COLORS.card, color: omTypePickerOpen ? "#fff" : COLORS.ink }}>
+                      {omTypePickerOpen ? "Done" : "Change type"}
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                        style={{ transform: omTypePickerOpen ? "rotate(180deg)" : "none", transition: "transform 0.15s ease" }}>
+                        <polyline points="6,9 12,15 18,9" />
+                      </svg>
+                    </button>
                   </div>
-                ))}
-
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600 }}>{omInstances.length} {omSelectedType}{omInstances.length === 1 ? "" : "s"}</div>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     {omStatus && <span style={{ fontSize: 12, color: COLORS.inkSecondary }}>{omStatus}</span>}
+                    <button onClick={downloadOmCsvTemplate}
+                      style={{ padding: "7px 14px", background: "transparent", color: COLORS.inkSecondary, border: `1px solid ${COLORS.border}`,
+                        borderRadius: 8, fontSize: 12.5, cursor: "pointer" }}>
+                      ⬇ CSV Template
+                    </button>
                     <button onClick={exportOmInstancesToCSV} disabled={omInstances.length === 0}
                       style={{ padding: "7px 14px", background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.border}`,
                         borderRadius: 8, fontSize: 12.5, cursor: omInstances.length === 0 ? "default" : "pointer",
@@ -7142,6 +7184,37 @@ function APMDashboardLive() {
                       border: "none", borderRadius: 8, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>+ New {omSelectedType}</button>
                   </div>
                 </div>
+
+                {omTypePickerOpen && (
+                  <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14,
+                    padding: 16, marginBottom: 18 }}>
+                    {groupConceptTypesByCategory(CANVAS_CONCEPT_TYPES).map((group) => (
+                      <div key={group.key} style={{ marginBottom: 14 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.inkSecondary, textTransform: "uppercase",
+                          letterSpacing: "0.05em", marginBottom: 6 }}>
+                          {group.label}
+                        </div>
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                          {group.types.map((t) => {
+                            const s = CONCEPT_TYPE_STYLE[t];
+                            return (
+                              <button key={t} onClick={() => { setOmSelectedType(t); loadOmInstances(t); setOmTypePickerOpen(false); }}
+                                style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", fontSize: 12, fontWeight: 600,
+                                  borderRadius: 8, cursor: "pointer", border: `1px solid ${omSelectedType === t ? s.color : COLORS.border}`,
+                                  background: omSelectedType === t ? s.color : COLORS.card, color: omSelectedType === t ? "#fff" : COLORS.ink }}>
+                                <span style={{ width: 16, height: 16, borderRadius: 4, background: omSelectedType === t ? "rgba(255,255,255,0.25)" : s.color,
+                                  display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                                  {React.cloneElement(s.icon, { width: 11, height: 11 })}
+                                </span>
+                                {humanizeLabel(t)}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 {omLoading ? (
                   <div style={{ fontSize: 13, color: COLORS.inkSecondary }}>Loading…</div>
