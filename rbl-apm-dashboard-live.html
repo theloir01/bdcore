@@ -266,6 +266,188 @@ function groupConceptTypesByCategory(types) {
     .filter((cat) => groups[cat])
     .map((cat) => ({ key: cat, label: CONCEPT_CATEGORY_LABEL[cat] || cat, types: groups[cat] }));
 }
+
+// Help › Site Guide content — hand-authored, mirroring the sidebar's own
+// section structure (Executive Overview / APM's five groups / Workspaces /
+// Ontology Manager) so the guide reads as a map of the real nav, not a
+// separate document. Each item's description and tips describe only real,
+// verified behavior — nothing here is aspirational copy for a feature that
+// doesn't exist.
+const GUIDE_SECTIONS = [
+  {
+    title: "Executive Overview",
+    items: [
+      { key: "brief", label: "Executive Brief",
+        description: "The £ number a CFO or sponsor should see first: total value at stake this year, rolled up from figures already computed elsewhere in the tool — blocked decisions, redundant spend, and technology past its supported life.",
+        tips: [
+          "Every card is clickable — Blocked Decisions and Redundant Spend jump straight to their full detail view.",
+          "\"Critical Systems With No DR\" expands in place rather than navigating away; click a listed app inside it to open that app's Profile.",
+          "Nothing here is a new calculation — verify any figure yourself by drilling into Blocked Decisions, Redundancy, Dependencies & Impact, or Portfolio Health.",
+        ] },
+      { key: "valuedelivered", label: "Value Delivered",
+        description: "The evidence this tool is actually working: the same real numbers as the Executive Brief, tracked over time via automatic daily snapshots — proof the gaps are closing, not just today's total.",
+        tips: [
+          "Realized Savings (cash) is kept deliberately separate from Risk Exposure Reduced (risk avoided, not cash recovered) — read them as two different claims, not one blended number.",
+          "Each recovered-value row is clamped at zero, so a metric that got worse never quietly cancels out one that improved.",
+          "The confidence line under each figure is scoped to the exact records behind that number, not the whole graph's ownership stat.",
+          "One snapshot is taken automatically the first time you connect each day — \"Record Snapshot Now\" adds an extra point immediately if you want one.",
+        ] },
+    ],
+  },
+  {
+    title: "APM",
+    items: [
+      { key: "portfolio", label: "Portfolio Overview",
+        description: "The full application inventory — filterable, plottable on a Business Value vs. Technical Health quadrant, and askable in plain English.",
+        tips: [
+          "Type a question into the Ask box — e.g. \"which applications have no owner?\" — instead of building filters by hand.",
+          "The Refine bar sets filters from a plain-language instruction, e.g. \"show only cloud-hosted critical apps.\"",
+          "Bubble size on the quadrant chart is TCO; click a 6R Disposition bar to filter the table below to just that disposition.",
+          "Switch to the Capability Board sub-tab for the same portfolio grouped by capability instead of by application.",
+        ] },
+    ],
+  },
+  {
+    title: "Cost & Risk",
+    items: [
+      { key: "blocked", label: "Blocked Decisions",
+        description: "Ranks systems by what they're actually costing in blocked decisions and workarounds — not by how old they are. Age has no cost attached; a blocked decision does.",
+        tips: [
+          "Cards are ranked strictly by workaround cost, so the most expensive blocker is always first.",
+          "Click \"Blocked by [app]\" to open that application's Profile directly.",
+          "The \"Age-Flagged, But Blocking Nothing\" panel at the bottom is the point of the view: systems that look old on 6R but aren't actually costing anything — age alone isn't treated as a replacement case here.",
+        ] },
+      { key: "decisionlog", label: "Decision Log",
+        description: "Every recorded Decision, read as an actual decision log — context, options considered, what was chosen, the consequences, and whether it's since been superseded.",
+        tips: [
+          "This is a read-only view — create or edit decisions via Ontology Manager or the Modelling Canvas.",
+          "Filter by status or type using the chips at the top.",
+          "Supersession chains show inline (\"← Superseded by\" / \"→ Supersedes\") so you can trace a decision's full history.",
+        ] },
+      { key: "dependencies", label: "Dependencies & Impact",
+        description: "The structural dependency graph — what runs on what, what depends on what, what integrates with what. Click any node to see its blast radius.",
+        tips: [
+          "A red ring around a node means it's a shared dependency — a single point of failure — computed automatically, not manually flagged.",
+          "Click a node to highlight its connected subgraph and dim everything unrelated; click again to clear.",
+          "Hover an edge to see what that relationship actually means.",
+        ] },
+      { key: "dataflow", label: "Data Flow",
+        description: "How applications actually exchange data, read from real Interface instances — separate from the Dependencies graph, which tracks structural \"runs on\"/\"depends on\" links rather than integration flow.",
+        tips: [
+          "Click a node to focus on just its connections; click again to clear the focus.",
+          "Edge color follows protocol — check the legend at the top.",
+          "If this looks empty, it needs at least one Interface instance connecting two applications — add one from Ontology Manager or sketch it on the Modelling Canvas.",
+        ] },
+      { key: "redundancy", label: "Redundancy",
+        description: "Where you're genuinely paying twice: applications sharing both the same capability AND the same functional category — not just the same capability, which is normal on its own.",
+        tips: [
+          "Each overlap group is sorted by TCO, so the most expensive redundancy surfaces first.",
+          "A green note appears automatically if a group already has an app flagged Retiring — nothing to do there.",
+        ] },
+    ],
+  },
+  {
+    title: "Data Trust",
+    items: [
+      { key: "health", label: "Portfolio Health",
+        description: "Is the data underneath every other view actually trustworthy? A quadrant position or 6R disposition built on an unconfirmed vendor is still a guess.",
+        tips: [
+          "The \"Data Gaps\" list is worst-first — fix the most incomplete records first for the biggest jump in the completeness score.",
+          "Click \"Edit\" on any flagged app to fix it inline, without leaving the page.",
+        ] },
+      { key: "fieldreview", label: "Field Review",
+        description: "Checks fields against each other for values that don't logically agree — e.g. a system marked Critical should almost always have Platinum support.",
+        tips: [
+          "Being flagged here doesn't mean something's wrong — it means it's worth a two-minute look.",
+          "Three checks are available: Service Level vs Criticality, Criticality vs Business Value, and Market Differentiation vs Importance (on Capabilities).",
+        ] },
+      { key: "ownership", label: "Ownership Coverage",
+        description: "Who owns what, across every concept type in the graph — not just Applications. An unowned record is nobody's job to keep current.",
+        tips: [
+          "Rows are sorted worst-coverage-first, not alphabetically or by volume.",
+          "Click a row to expand the actual unowned records as chips, or use \"Review in Ontology Manager →\" to go fix them directly.",
+        ] },
+      { key: "businessunits", label: "Business Units",
+        description: "Applications and capabilities segmented by the business unit that owns them, via the Organisation field on each record — useful for cross-unit comparison of cost, criticality, and portfolio share.",
+        tips: [
+          "Set the Organisation field on a record from Ontology Manager or the Modelling Canvas to have it appear under the right business unit here.",
+          "An \"Unassigned\" group collects anything with no Organisation set — a natural checklist for what still needs one.",
+        ] },
+    ],
+  },
+  {
+    title: "AI",
+    items: [
+      { key: "ai", label: "AI Pathfinder",
+        description: "A practical decision framework for where to focus AI change: AI Readiness (feasibility) against AI Relevance (payoff), placing every scored application into Accelerate, Selective, Prepare, or Deprioritize.",
+        tips: [
+          "The \"Top Pick\" callout is always your single highest readiness+relevance application — the one clear place to start.",
+          "Only a \"High\" score counts as the high side of either axis — Medium doesn't cross the line, so the quadrant is intentionally strict.",
+          "Hover a bubble for AI Availability, Target Pattern, Owner, and status.",
+        ] },
+    ],
+  },
+  {
+    title: "Modernisation",
+    items: [
+      { key: "obsolescence", label: "Tech Obsolescence",
+        description: "Which applications are exposed to ageing infrastructure, and what it would cost if it broke. Exposure is traced transitively through the dependency graph — an app depending on obsolete tech counts even if it's not running on it directly.",
+        tips: [
+          "Switch to the Tech Radar sub-tab for the same technology landscape plotted by category.",
+          "\"View dependency chain →\" on any technology jumps straight to Dependencies & Impact with that node pre-selected.",
+        ] },
+      { key: "cloudmigration", label: "Cloud Migration",
+        description: "Migration sequencing, not just a destination — Wave 1 is the foundation infrastructure that has to be decided first; Wave 2 is everything that depends on it and stays blocked until Wave 1 resolves.",
+        tips: [
+          "Waves are derived automatically from the same dependency graph as Tech Obsolescence — nobody sequences this by hand.",
+          "Cloud TCO and savings figures are an illustrative rule-of-thumb multiplier by 6R disposition, not a costed quote — a starting point for a business case, not the business case itself.",
+        ] },
+      { key: "initiatives", label: "Initiatives Roadmap",
+        description: "Planned and ongoing architecture change, read directly from Initiative instances — a lightweight roadmap, not a project plan.",
+        tips: [
+          "Bar position comes from StartDate/TargetDate, bar fill comes from Progress — set those fields in Ontology Manager to place an initiative correctly.",
+          "Initiatives without both a valid start and target date sit in an unscheduled bucket rather than being guessed onto the timeline.",
+          "Cancelled and Shelved initiatives render muted, not hidden — Shelved specifically means the business wanted it and a system couldn't bend, distinct from Cancelled.",
+        ] },
+    ],
+  },
+  {
+    title: "Journeys & Maturity",
+    items: [
+      { key: "journeytrace", label: "Journey Trace",
+        description: "Walks the chain already wired into your relationship vocabulary — journey → stages → capabilities & processes → applications → technology — and shows exactly where it breaks.",
+        tips: [
+          "A stage flagged \"⚠ No capability or process linked\" or \"⚠ Capability linked, but no application supports it\" is a computed gap, not a manual note — worth fixing at the source.",
+          "Switch journeys using the picker chips at the top.",
+        ] },
+      { key: "maturity", label: "Capability Maturity",
+        description: "A CMMI-style maturity model across six dimensions — Governance, Policies, Process, People, Applications, Metrics — scored 1 (Initial) to 5 (Optimizing) per capability.",
+        tips: [
+          "These starting scores are illustrative, grounded in what the tool already knows about each capability — not a completed real assessment. Overwrite them with genuine scores via Ontology Manager once you've actually done the assessment.",
+        ] },
+    ],
+  },
+  {
+    title: "Workspaces & Ontology",
+    items: [
+      { key: "workspaces", label: "Workspaces",
+        description: "Sketch freely or model real graph data on the same canvas — nothing touches your actual data until you explicitly push it.",
+        tips: [
+          "A sticky note can be converted into a real, typed concept with attributes; shapes, arrows, and plain text stay purely visual and are never written to the graph, even after a push.",
+          "\"Add From Graph\" pulls in real existing instances to build a picture around, instead of starting from a blank canvas.",
+          "Drag the background to pan, scroll to zoom, and hover a connection line to bend it around something in the way.",
+          "Nothing is real until you hit \"Push to Graph\" — sketch and rearrange as much as you like before then.",
+        ] },
+      { key: "ontology", label: "Ontology Manager",
+        description: "Manage the raw graph directly, across all 25 concept types — not just what the APM views happen to surface. The place to clean up test data or make a change that doesn't have a dedicated screen yet.",
+        tips: [
+          "Click \"Change type\" to switch what you're managing — the picker stays out of the way otherwise, so it's always obvious which type is currently active.",
+          "Download a CSV Template for the selected type before bulk-editing offline — it's pre-filled with the right column headers and a guide row showing valid values.",
+          "\"Manage Attributes\" is where you edit picklist (enum) options for a type, not just individual records.",
+        ] },
+    ],
+  },
+];
 const CANVAS_VERBS = [
   "accepts", "affects", "approves investment in", "belongs to", "constrains",
   "consumes investment from", "contains", "contributes to", "delivers", "depends on",
@@ -1441,6 +1623,7 @@ function APMDashboardLive() {
   const [contextMenu, setContextMenu] = useState(null); // { x, y, kind, id }
   const [omSelectedType, setOmSelectedType] = useState("Application");
   const [omTypePickerOpen, setOmTypePickerOpen] = useState(false);
+  const [helpTab, setHelpTab] = useState("guide"); // "guide" | "glossary"
   const [helpSearch, setHelpSearch] = useState("");
   const [omInstances, setOmInstances] = useState([]);
   const [omLoading, setOmLoading] = useState(false);
@@ -3261,6 +3444,9 @@ function APMDashboardLive() {
     dataflow: <svg {...ICON_COMMON}><rect x="2" y="9" width="6" height="6" rx="1.2" /><rect x="16" y="2" width="6" height="6" rx="1.2" /><rect x="16" y="16" width="6" height="6" rx="1.2" /><path d="M8 11l7.5 -6M8 13l7.5 6" /></svg>,
     valuedelivered: <svg {...ICON_COMMON}><path d="M3 19h18" /><path d="M4 15.5 L9 10 L13 13.5 L20 6" /><path d="M15 6h5v5" /></svg>,
     executive: <svg {...ICON_COMMON}><rect x="3" y="7" width="18" height="12" rx="2" /><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><line x1="3" y1="12.5" x2="21" y2="12.5" /></svg>,
+    help: <svg {...ICON_COMMON}><circle cx="12" cy="12" r="9" /><path d="M9.5 9.2a2.5 2.5 0 0 1 4.8 1c0 1.6-2.3 1.8-2.3 3.4" /><circle cx="12" cy="17" r="0.7" fill="currentColor" stroke="none" /></svg>,
+    workspaces: <svg {...ICON_COMMON}><circle cx="6" cy="6" r="2.2" /><circle cx="18" cy="6" r="2.2" /><circle cx="12" cy="18" r="2.2" /><line x1="7.6" y1="7.6" x2="10.7" y2="16.1" /><line x1="16.4" y1="7.6" x2="13.3" y2="16.1" /><line x1="8.2" y1="6" x2="15.8" y2="6" /></svg>,
+    ontology: <svg {...ICON_COMMON}><rect x="4" y="4" width="16" height="16" rx="3" /><path d="M4 10h16M10 4v16" /></svg>,
   };
 
   // --- Modelling Canvas functions ---
@@ -7389,9 +7575,66 @@ function APMDashboardLive() {
             const groups = groupConceptTypesByCategory(CANVAS_CONCEPT_TYPES)
               .map((g) => ({ ...g, types: g.types.filter(matches) }))
               .filter((g) => g.types.length > 0);
-            const cardStyle = { background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: "16px 18px" };
+            const cardStyle = { background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: "20px 24px" };
+            const tabStyle = (key) => ({ padding: "9px 16px", fontSize: 13, fontWeight: 600, borderRadius: 9,
+              cursor: "pointer", border: `1px solid ${helpTab === key ? COLORS.ink : COLORS.border}`,
+              background: helpTab === key ? COLORS.ink : COLORS.card, color: helpTab === key ? "#fff" : COLORS.ink });
             return (
               <div>
+                <div style={{ display: "flex", gap: 8, marginBottom: 22 }}>
+                  <button onClick={() => setHelpTab("guide")} style={tabStyle("guide")}>Site Guide</button>
+                  <button onClick={() => setHelpTab("glossary")} style={tabStyle("glossary")}>Concept Glossary</button>
+                </div>
+
+                {helpTab === "guide" && (
+                  <div>
+                    <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginBottom: 24, maxWidth: 780, lineHeight: 1.6 }}>
+                      What each view in the product shows, and how to actually get the most out of it — organised the
+                      same way as the sidebar, so this reads as a map of the real thing rather than a separate document.
+                    </div>
+                    {GUIDE_SECTIONS.map((section) => (
+                      <div key={section.title} style={{ marginBottom: 28 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.inkSecondary, textTransform: "uppercase",
+                          letterSpacing: "0.05em", marginBottom: 10 }}>
+                          {section.title}
+                        </div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                          {section.items.map((item) => (
+                            <div key={item.key} className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`,
+                              borderRadius: 14, padding: "20px 24px" }}>
+                              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 8 }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                                  <span style={{ width: 32, height: 32, borderRadius: 9, background: COLORS.ink,
+                                    display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, color: "#fff" }}>
+                                    {React.cloneElement(ICONS[item.key] || ICONS.help, { width: 17, height: 17 })}
+                                  </span>
+                                  <div style={{ fontSize: 16, fontWeight: 700 }}>{item.label}</div>
+                                </div>
+                                <span onClick={() => goToView(item.key)}
+                                  style={{ fontSize: 12.5, fontWeight: 600, color: COLORS.accent, cursor: "pointer", flexShrink: 0 }}>
+                                  Open →
+                                </span>
+                              </div>
+                              <div style={{ fontSize: 13, color: COLORS.ink, lineHeight: 1.6, marginBottom: item.tips.length ? 14 : 0, maxWidth: 820 }}>
+                                {item.description}
+                              </div>
+                              {item.tips.length > 0 && (
+                                <ul style={{ margin: 0, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 6 }}>
+                                  {item.tips.map((tip, i) => (
+                                    <li key={i} style={{ fontSize: 12.5, color: COLORS.inkSecondary, lineHeight: 1.55, maxWidth: 780 }}>{tip}</li>
+                                  ))}
+                                </ul>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {helpTab === "glossary" && (
+                  <div>
                 <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginBottom: 18, maxWidth: 780, lineHeight: 1.6 }}>
                   What each of the {CANVAS_CONCEPT_TYPES.length} concept types in the ontology means, and what it's
                   actually allowed to connect to. The relationships below are read live from your schema — the same
@@ -7412,52 +7655,65 @@ function APMDashboardLive() {
                       letterSpacing: "0.05em", marginBottom: 10 }}>
                       {group.label}
                     </div>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(360px, 1fr))", gap: 14 }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                       {group.types.map((t) => {
                         const s = CONCEPT_TYPE_STYLE[t];
                         const outgoing = schemaRelationships.filter((r) => r.source === t);
                         const incoming = schemaRelationships.filter((r) => r.target === t);
+                        const pillStyle = (accent) => ({ display: "inline-flex", alignItems: "center", gap: 5,
+                          padding: "5px 10px", fontSize: 12, borderRadius: 999, background: COLORS.paper,
+                          border: `1px solid ${COLORS.border}`, color: COLORS.ink, lineHeight: 1.3 });
                         return (
                           <div key={t} className="ds-card" style={cardStyle}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-                              <span style={{ width: 28, height: 28, borderRadius: 8, background: s.color,
+                            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
+                              <span style={{ width: 32, height: 32, borderRadius: 9, background: s.color,
                                 display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                                {React.cloneElement(s.icon, { width: 15, height: 15 })}
+                                {React.cloneElement(s.icon, { width: 17, height: 17 })}
                               </span>
-                              <div style={{ fontSize: 14.5, fontWeight: 700 }}>{humanizeLabel(t)}</div>
+                              <div style={{ fontSize: 16, fontWeight: 700 }}>{humanizeLabel(t)}</div>
                             </div>
-                            <div style={{ fontSize: 12.5, color: COLORS.ink, lineHeight: 1.55, marginBottom: 12 }}>
+                            <div style={{ fontSize: 13, color: COLORS.ink, lineHeight: 1.6, marginBottom: 16, maxWidth: 820 }}>
                               {CONCEPT_DEFINITIONS[t] || "No definition written yet."}
                             </div>
                             {(outgoing.length > 0 || incoming.length > 0) ? (
-                              <div style={{ fontSize: 11.5, lineHeight: 1.7 }}>
+                              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                                 {outgoing.length > 0 && (
-                                  <div style={{ marginBottom: incoming.length > 0 ? 6 : 0 }}>
-                                    <span style={{ color: COLORS.inkSecondary, fontWeight: 600 }}>Can: </span>
-                                    {outgoing.map((r, i) => (
-                                      <span key={i}>
-                                        {i > 0 && <span style={{ color: COLORS.inkSecondary }}>, </span>}
-                                        <span style={{ color: COLORS.accent, fontWeight: 600 }}>{r.verb}</span>{" "}
-                                        <span style={{ color: COLORS.inkSecondary }}>→</span> {humanizeLabel(r.target)}
-                                      </span>
-                                    ))}
+                                  <div>
+                                    <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.inkSecondary, textTransform: "uppercase",
+                                      letterSpacing: "0.04em", marginBottom: 7 }}>
+                                      Can connect to
+                                    </div>
+                                    <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+                                      {outgoing.map((r, i) => (
+                                        <span key={i} style={pillStyle()}>
+                                          <span style={{ color: COLORS.accent, fontWeight: 700 }}>{r.verb}</span>
+                                          <span style={{ color: COLORS.inkSecondary }}>→</span>
+                                          {humanizeLabel(r.target)}
+                                        </span>
+                                      ))}
+                                    </div>
                                   </div>
                                 )}
                                 {incoming.length > 0 && (
                                   <div>
-                                    <span style={{ color: COLORS.inkSecondary, fontWeight: 600 }}>Referenced by: </span>
-                                    {incoming.map((r, i) => (
-                                      <span key={i}>
-                                        {i > 0 && <span style={{ color: COLORS.inkSecondary }}>, </span>}
-                                        {humanizeLabel(r.source)} <span style={{ color: COLORS.inkSecondary }}>→</span>{" "}
-                                        <span style={{ color: COLORS.accent, fontWeight: 600 }}>{r.verb}</span>
-                                      </span>
-                                    ))}
+                                    <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.inkSecondary, textTransform: "uppercase",
+                                      letterSpacing: "0.04em", marginBottom: 7 }}>
+                                      Referenced by
+                                    </div>
+                                    <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+                                      {incoming.map((r, i) => (
+                                        <span key={i} style={pillStyle()}>
+                                          {humanizeLabel(r.source)}
+                                          <span style={{ color: COLORS.inkSecondary }}>→</span>
+                                          <span style={{ color: COLORS.accent2, fontWeight: 700 }}>{r.verb}</span>
+                                        </span>
+                                      ))}
+                                    </div>
                                   </div>
                                 )}
                               </div>
                             ) : (
-                              <div style={{ fontSize: 11.5, color: COLORS.inkSecondary }}>
+                              <div style={{ fontSize: 12, color: COLORS.inkSecondary }}>
                                 {schemaRelationships.length === 0 ? "Connect to load allowed relationships." : "No relationships defined for this type yet."}
                               </div>
                             )}
@@ -7467,6 +7723,8 @@ function APMDashboardLive() {
                     </div>
                   </div>
                 ))}
+                  </div>
+                )}
               </div>
             );
           })()}
