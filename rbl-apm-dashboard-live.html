@@ -1288,6 +1288,23 @@ const fmtWhen = (iso) => {
   return then.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: then.getFullYear() === new Date().getFullYear() ? undefined : "numeric" });
 };
 
+// Whole calendar days between now and a future ISO date — negative once
+// that date is in the past (used to bucket the Renewals & Reviews board).
+const daysUntil = (iso) => {
+  if (!iso) return null;
+  const ms = new Date(iso).setHours(0, 0, 0, 0) - new Date().setHours(0, 0, 0, 0);
+  return Math.round(ms / 86400000);
+};
+
+// Whole months since a past ISO date — used for "not reviewed in N months"
+// rather than fmtWhen's day/hour granularity, which reads as too precise
+// for a data-governance staleness signal.
+const monthsSince = (iso) => {
+  if (!iso) return null;
+  const ms = Date.now() - new Date(iso).getTime();
+  return Math.max(0, Math.floor(ms / (1000 * 60 * 60 * 24 * 30.44)));
+};
+
 // First-of-month for start through first-of-month for end, inclusive — the
 // tick marks along the Initiatives Roadmap's time axis.
 function monthsBetween(start, end) {
@@ -2219,7 +2236,7 @@ function APMDashboardLive() {
         userCount: row.app.user_count != null ? Number(row.app.user_count) : null,
         plannedDate: row.app.planned_date || null, activeDate: row.app.active_date || null,
         sunsetDate: row.app.sunset_date || null, retiringDate: row.app.retiring_date || null,
-        decommissionDate: row.app.decommission_date || null,
+        decommissionDate: row.app.decommission_date || null, renewalDate: row.app.renewal_date || null,
         serviceLevel: row.app.service_level || null, rto: row.app.rto || null, rpo: row.app.rpo || null,
         locations: appLocationMap[row.app.id] || [],
         risks: row.risks || [],
@@ -3550,6 +3567,7 @@ function APMDashboardLive() {
   ];
   const DATA_TRUST_NAV_ITEMS = [
     ["health", "Portfolio Health", "health"],
+    ["renewals", "Renewals & Reviews", "renewals"],
     ["fieldreview", "Field Review", "fieldreview"],
     ["ownership", "Ownership Coverage", "ownership"],
     ["businessunits", "Business Units", "businessunits"],
@@ -3578,7 +3596,7 @@ function APMDashboardLive() {
   // or are reached as a sub-tab, so no group needs opening for them.
   const VIEW_GROUP = {
     blocked: "costrisk", decisionlog: "costrisk", dependencies: "costrisk", dataflow: "costrisk", redundancy: "costrisk",
-    health: "datatrust", fieldreview: "datatrust", ownership: "datatrust", businessunits: "datatrust",
+    health: "datatrust", renewals: "datatrust", fieldreview: "datatrust", ownership: "datatrust", businessunits: "datatrust",
     ai: "ai",
     obsolescence: "modernisation", cloudmigration: "modernisation", initiatives: "modernisation",
     journeytrace: "journeys", maturity: "journeys",
@@ -3630,6 +3648,7 @@ function APMDashboardLive() {
     blocked: <svg {...ICON_COMMON}><circle cx="12" cy="12" r="9" /><line x1="6" y1="6" x2="18" y2="18" /></svg>,
     decisionlog: <svg {...ICON_COMMON}><path d="M7 3h8l4 4v14H7z" /><path d="M15 3v4h4" /><line x1="9.5" y1="12" x2="16" y2="12" /><line x1="9.5" y1="16" x2="16" y2="16" /></svg>,
     fieldreview: <svg {...ICON_COMMON}><circle cx="10" cy="10" r="6.5" /><line x1="14.8" y1="14.8" x2="20" y2="20" /></svg>,
+    renewals: <svg {...ICON_COMMON}><rect x="3" y="4.5" width="18" height="16" rx="2" /><line x1="3" y1="9.5" x2="21" y2="9.5" /><line x1="7.5" y1="2.5" x2="7.5" y2="6.5" /><line x1="16.5" y1="2.5" x2="16.5" y2="6.5" /><circle cx="8" cy="14" r="1.1" fill="currentColor" stroke="none" /><circle cx="12" cy="14" r="1.1" fill="currentColor" stroke="none" /><circle cx="16" cy="14" r="1.1" fill="currentColor" stroke="none" /></svg>,
     brief: <svg {...ICON_COMMON}><polygon points="13,2 4,14 12,14 11,22 20,10 12,10 13,2" /></svg>,
     costrisk: <svg {...ICON_COMMON}><polyline points="3,7 10,14 14,10 21,17" /><polyline points="21,10 21,17 14,17" /></svg>,
     datatrust: <svg {...ICON_COMMON}><path d="M12 3 L20 6.5 V11.5 C20 16.5 16.5 20 12 21.5 C7.5 20 4 16.5 4 11.5 V6.5 Z" /><polyline points="9,12 11,14.5 15,9.5" /></svg>,
@@ -5184,7 +5203,7 @@ function APMDashboardLive() {
     capboard: "Capability Board", dependencies: "Dependencies & Impact", health: "Portfolio Health",
     redundancy: "Redundancy", ai: "AI Pathfinder",
     obsolescence: "Tech Obsolescence", cloudmigration: "Cloud Migration", techradar: "Tech Radar",
-    fieldreview: "Field Review", ontology: "Ontology Manager", ownership: "Ownership Coverage",
+    fieldreview: "Field Review", ontology: "Ontology Manager", ownership: "Ownership Coverage", renewals: "Renewals & Reviews",
     initiatives: "Initiatives Roadmap", dataflow: "Data Flow", businessunits: "Business Units",
     valuedelivered: "Value Delivered",
     journeytrace: "Journey Trace", maturity: "Capability Maturity", decisionlog: "Decision Log",
@@ -6554,6 +6573,98 @@ function APMDashboardLive() {
                     </div>
                   </>
                 )}
+              </div>
+            );
+          })()}
+          {view === "renewals" && (() => {
+            // Two independent facets on one board: contract timing (an app
+            // with a RenewalDate gets bucketed by how soon it's due) and data
+            // governance (an app with no owner, or not re-verified in the
+            // last 12 months, needs a human to look at it) — an app can land
+            // in a timing column, the review column, both, or neither.
+            const RENEWAL_WINDOWS = [
+              { key: "expired", label: "Expired", accent: COLORS.risk, test: (d) => d < 0 },
+              { key: "w3", label: "Within 3 months", accent: COLORS.warning, test: (d) => d >= 0 && d <= 90 },
+              { key: "w6", label: "Within 6 months", accent: COLORS.info, test: (d) => d > 90 && d <= 180 },
+              { key: "w12", label: "Within 12 months", accent: COLORS.accentMuted, test: (d) => d > 180 && d <= 365 },
+            ];
+            const liveApps = apps.filter((a) => a.status !== "Retired" && a.status !== "Retiring");
+            const columns = RENEWAL_WINDOWS.map((w) => ({
+              ...w,
+              apps: liveApps
+                .filter((a) => a.renewalDate && w.test(daysUntil(a.renewalDate)))
+                .sort((a, b) => daysUntil(a.renewalDate) - daysUntil(b.renewalDate)),
+            }));
+            const needsReview = liveApps
+              .filter((a) => !a.owner || !a.verified_at || monthsSince(a.verified_at) >= 12)
+              .sort((a, b) => monthsSince(b.verified_at ?? 0) - monthsSince(a.verified_at ?? 0));
+            const withRenewalDate = liveApps.filter((a) => a.renewalDate).length;
+            const renewalCard = (a) => {
+              const d = daysUntil(a.renewalDate);
+              return (
+                <div key={a.id} onClick={() => { setProfileAppId(a.id); setView("profile"); }}
+                  style={{ padding: "10px 12px", borderRadius: 10, background: "#F9F8F4", marginBottom: 8, cursor: "pointer" }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 3 }}>{a.name}</div>
+                  <div style={{ fontSize: 11, color: COLORS.inkSecondary, marginBottom: 5 }}>
+                    {a.owner || "Unowned"}
+                  </div>
+                  <span style={{ fontSize: 10.5, fontWeight: 600, padding: "2px 8px", borderRadius: 6,
+                    background: d < 0 ? "#FBE0D8" : "#FBEAD0", color: d < 0 ? COLORS.risk : "#B45309" }}>
+                    {d < 0 ? `Expired ${Math.abs(d)}d ago` : `Renews in ${d} days`}
+                  </span>
+                </div>
+              );
+            };
+            return (
+              <div>
+                <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginBottom: 20, maxWidth: 780, lineHeight: 1.6 }}>
+                  What needs a human's attention, sorted by urgency — contract and licence renewals coming due on
+                  one side, records nobody owns or hasn't been re-checked in a year on the other. Set an
+                  application's Renewal Date in the Ontology Manager to have it show up here.
+                  {withRenewalDate === 0 && " No applications have a Renewal Date set yet — this board will fill in as you add them."}
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 14 }}>
+                  {columns.map((col) => (
+                    <div key={col.key} className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`,
+                      borderTop: `3px solid ${col.accent}`, borderRadius: 14, padding: 14, display: "flex", flexDirection: "column" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                        <span style={{ fontSize: 12.5, fontWeight: 700 }}>{col.label}</span>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: COLORS.inkSecondary, background: "#EFEDE5",
+                          borderRadius: 8, padding: "1px 7px" }}>{col.apps.length}</span>
+                      </div>
+                      <div style={{ maxHeight: 480, overflowY: "auto" }}>
+                        {col.apps.length === 0
+                          ? <div style={{ fontSize: 11.5, color: COLORS.inkSecondary }}>Nothing in this window</div>
+                          : col.apps.map(renewalCard)}
+                      </div>
+                    </div>
+                  ))}
+                  <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`,
+                    borderTop: `3px solid ${COLORS.accent2}`, borderRadius: 14, padding: 14, display: "flex", flexDirection: "column" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                      <span style={{ fontSize: 12.5, fontWeight: 700 }}>Needs Review</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: COLORS.inkSecondary, background: "#EFEDE5",
+                        borderRadius: 8, padding: "1px 7px" }}>{needsReview.length}</span>
+                    </div>
+                    <div style={{ maxHeight: 480, overflowY: "auto" }}>
+                      {needsReview.length === 0 ? (
+                        <div style={{ fontSize: 11.5, color: COLORS.inkSecondary }}>Everything's owned and current.</div>
+                      ) : needsReview.map((a) => (
+                        <div key={a.id} onClick={() => { setProfileAppId(a.id); setView("profile"); }}
+                          style={{ padding: "10px 12px", borderRadius: 10, background: "#F9F8F4", marginBottom: 8, cursor: "pointer" }}>
+                          <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 3 }}>{a.name}</div>
+                          <div style={{ fontSize: 11, color: COLORS.inkSecondary, marginBottom: 5 }}>
+                            {a.owner || "Unowned"}
+                          </div>
+                          <span style={{ fontSize: 10.5, fontWeight: 600, padding: "2px 8px", borderRadius: 6,
+                            background: "#EDE8F7", color: COLORS.accent2 }}>
+                            {a.verified_at ? `Not reviewed in ${monthsSince(a.verified_at)} months` : "Never reviewed"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               </div>
             );
           })()}
