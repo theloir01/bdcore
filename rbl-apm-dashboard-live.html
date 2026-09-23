@@ -1668,6 +1668,7 @@ function APMDashboardLive() {
   const canvasRef = useRef(null);
   const chatScrollRef = useRef(null);
   const [canvasOffset, setCanvasOffset] = useState({ x: 400, y: 300 });
+  const [canvasDragOver, setCanvasDragOver] = useState(false);
   const [canvasScale, setCanvasScale] = useState(1);
   const [stickies, setStickies] = useState([]);
   const [canvasConcepts, setCanvasConcepts] = useState([]);
@@ -3995,8 +3996,8 @@ function APMDashboardLive() {
     }]);
   };
 
-  const addConcept = (conceptType) => {
-    const center = canvasCenter();
+  const addConcept = (conceptType, dropPoint) => {
+    const center = dropPoint || canvasCenter();
     const pos = findFreePosition(center.x - CONCEPT_W / 2, center.y - CONCEPT_H / 2, allCanvasItems(), CONCEPT_W, CONCEPT_H);
     const concept = { id: newCanvasId("concept"), x: pos.x, y: pos.y, width: CONCEPT_W, height: CONCEPT_H, conceptType, name: `New ${conceptType}`, attributes: {}, pushed: false, zIndex: zCounterRef.current++ };
     setCanvasConcepts((prev) => [...prev, concept]);
@@ -4017,10 +4018,10 @@ function APMDashboardLive() {
   const SHAPE_W = 92, SHAPE_H = 76;
   const SHAPE_CATEGORY_COLOR = { Basic: "#4A5A78", Cloud: "#2C7A8C", Network: "#5A6B99", Security: "#F0384D", Generic: "#7A6A73", BPM: "#0EA968" };
 
-  const addShape = (category, shapeKey) => {
+  const addShape = (category, shapeKey, dropPoint) => {
     const def = SHAPE_INDEX[shapeKey];
     if (!def) return;
-    const center = canvasCenter();
+    const center = dropPoint || canvasCenter();
     const pos = findFreePosition(center.x - SHAPE_W / 2, center.y - SHAPE_H / 2, allCanvasItems(), SHAPE_W, SHAPE_H);
     setShapes((prev) => [...prev, {
       id: newCanvasId("shape"), x: pos.x, y: pos.y, width: SHAPE_W, height: SHAPE_H, zIndex: zCounterRef.current++,
@@ -4028,6 +4029,44 @@ function APMDashboardLive() {
     }]);
     setShowShapePalette(false);
   };
+
+  // Drag-and-drop placement, Visio-style: a palette item (concept type or
+  // shape) is draggable, and dropping it on the canvas places it exactly
+  // where the cursor lands — via the same screenToCanvas conversion the
+  // rest of the canvas already uses for pan/zoom-aware coordinates —
+  // instead of always dumping new items at the viewport center and making
+  // the user drag them into place afterward. Click-to-place from the
+  // palette buttons still works exactly as before; this is additive.
+  const PALETTE_DRAG_MIME = "application/x-bdcore-palette-item";
+  const handlePaletteDragStart = (e, payload) => {
+    e.dataTransfer.setData(PALETTE_DRAG_MIME, JSON.stringify(payload));
+    e.dataTransfer.effectAllowed = "copy";
+  };
+  const handleCanvasDragOver = (e) => {
+    if (!e.dataTransfer.types.includes(PALETTE_DRAG_MIME)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+    if (!canvasDragOver) setCanvasDragOver(true);
+  };
+  const handleCanvasDragLeave = (e) => {
+    if (e.target === canvasRef.current) setCanvasDragOver(false);
+  };
+  const handleCanvasDrop = (e) => {
+    const raw = e.dataTransfer.getData(PALETTE_DRAG_MIME);
+    setCanvasDragOver(false);
+    if (!raw) return;
+    e.preventDefault();
+    let payload;
+    try { payload = JSON.parse(raw); } catch { return; }
+    const point = screenToCanvas(e.clientX, e.clientY);
+    if (payload.kind === "concept") {
+      addConcept(payload.conceptType, point);
+      setShowConceptPicker(false);
+    } else if (payload.kind === "shape") {
+      addShape(payload.category, payload.shapeKey, point);
+    }
+  };
+
   // Turns a /canvas-chat plan (pulled real entities + new concepts/shapes/
   // stickies + connections) into actual canvas objects. Builds everything in
   // local arrays first rather than calling setState per item — React state
@@ -7841,9 +7880,11 @@ function APMDashboardLive() {
                             {group.types.map((t) => {
                               const style = CONCEPT_TYPE_STYLE[t];
                               return (
-                                <button key={t} onClick={() => { handleConceptTypeChosen(t); setConceptPickerPos(null); }} title={humanizeLabel(t)}
+                                <button key={t} draggable
+                                  onDragStart={(e) => handlePaletteDragStart(e, { kind: "concept", conceptType: t })}
+                                  onClick={() => { handleConceptTypeChosen(t); setConceptPickerPos(null); }} title={`${humanizeLabel(t)} — click to place, or drag onto the canvas`}
                                   style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 8px", background: "#F6F4EF",
-                                    border: "none", borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 500, textAlign: "left", minWidth: 0 }}>
+                                    border: "none", borderRadius: 8, cursor: "grab", fontSize: 11, fontWeight: 500, textAlign: "left", minWidth: 0 }}>
                                   <span style={{ width: 20, height: 20, borderRadius: 5, background: style.color, flexShrink: 0,
                                     display: "flex", alignItems: "center", justifyContent: "center" }}>{style.icon}</span>
                                   <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{humanizeLabel(t)}</span>
@@ -7910,9 +7951,11 @@ function APMDashboardLive() {
                       </div>
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6 }}>
                         {SHAPE_LIBRARY[shapePaletteCategory].map((s) => (
-                          <button key={s.key} onClick={() => addShape(shapePaletteCategory, s.key)}
+                          <button key={s.key} draggable
+                            onDragStart={(e) => handlePaletteDragStart(e, { kind: "shape", category: shapePaletteCategory, shapeKey: s.key })}
+                            onClick={() => addShape(shapePaletteCategory, s.key)} title={`${s.label} — click to place, or drag onto the canvas`}
                             style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "8px 4px",
-                              background: "#F6F4EF", border: "none", borderRadius: 8, cursor: "pointer" }}>
+                              background: "#F6F4EF", border: "none", borderRadius: 8, cursor: "grab" }}>
                             <div style={{ color: SHAPE_CATEGORY_COLOR[shapePaletteCategory], width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center" }}>
                               {s.renderMode === "basic"
                                 ? <svg width="26" height="26" viewBox="0 0 26 26">{renderBasicShapeSvg(s.key, 26, 26, SHAPE_CATEGORY_COLOR[shapePaletteCategory])}</svg>
@@ -7966,8 +8009,10 @@ function APMDashboardLive() {
               <div ref={canvasRef} data-canvas-bg="true"
                 onMouseDown={handleCanvasMouseDown} onMouseMove={handleCanvasMouseMove}
                 onMouseUp={handleCanvasMouseUp} onMouseLeave={handleCanvasMouseUp} onWheel={handleCanvasWheel}
+                onDragOver={handleCanvasDragOver} onDragLeave={handleCanvasDragLeave} onDrop={handleCanvasDrop}
                 style={{ position: "relative", width: "100%", height: "calc(100vh - 320px)", minHeight: 520, overflow: "hidden", background: "#EFEDE5",
-                  border: `1px solid ${COLORS.border}`, borderRadius: 16, cursor: dragState && dragState.type === "pan" ? "grabbing" : "grab",
+                  border: canvasDragOver ? `2px dashed ${COLORS.accent}` : `1px solid ${COLORS.border}`, borderRadius: 16,
+                  cursor: dragState && dragState.type === "pan" ? "grabbing" : "grab",
                   backgroundImage: "radial-gradient(circle, #DCDACE 1px, transparent 1px)", backgroundSize: "22px 22px" }}>
                 <div data-canvas-bg="true" style={{ position: "absolute", left: 0, top: 0,
                   transform: `translate(${canvasOffset.x}px, ${canvasOffset.y}px) scale(${canvasScale})`,
