@@ -512,6 +512,44 @@ function renderChatMarkdown(text) {
   return <div className="chat-markdown" dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
+// The other spot raw markup reaches dangerouslySetInnerHTML: a vendor icon
+// pack (AWS, Azure, Cisco, …) is arbitrary SVG a person uploads, saved to
+// Neo4j, and rendered back to everyone else connected to that graph — so it
+// goes through the same DOMPurify pass, using the SVG profile so real vendor
+// artwork (paths, groups, gradients) survives while <script>, <foreignObject>,
+// event-handler attributes, and javascript: URIs don't. width/height are
+// then normalised to 100% so the icon scales inside whatever box it's
+// dropped into, regardless of the intrinsic size baked into the source file.
+// Returns null (reject the file) rather than guess at anything malformed.
+function sanitizeSvgIcon(svgText) {
+  if (typeof DOMPurify === "undefined" || typeof svgText !== "string") return null;
+  const clean = DOMPurify.sanitize(svgText, {
+    USE_PROFILES: { svg: true, svgFilters: true },
+    FORBID_TAGS: ["foreignObject", "script", "style"],
+  });
+  if (!clean || !/<svg[\s>]/i.test(clean)) return null;
+  try {
+    const doc = new DOMParser().parseFromString(clean, "image/svg+xml");
+    if (doc.querySelector("parsererror")) return null;
+    const svgEl = doc.querySelector("svg");
+    if (!svgEl) return null;
+    if (!svgEl.getAttribute("viewBox")) {
+      const w = parseFloat(svgEl.getAttribute("width")) || 24;
+      const h = parseFloat(svgEl.getAttribute("height")) || 24;
+      svgEl.setAttribute("viewBox", `0 0 ${w} ${h}`);
+    }
+    svgEl.setAttribute("width", "100%");
+    svgEl.setAttribute("height", "100%");
+    return new XMLSerializer().serializeToString(svgEl);
+  } catch (e) {
+    return null;
+  }
+}
+function labelFromIconFileName(name) {
+  const base = name.replace(/\.svg$/i, "").replace(/[-_]+/g, " ").trim();
+  return base.replace(/\w\S*/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()) || name;
+}
+
 function estimateConceptHeight(name, width, baseHeight) {
   const charsPerLine = Math.max(8, Math.floor((width - 24) / 8)); // was 6.5 — too narrow for the actual bold name font, undershot on medium-length names
   const lines = Math.max(1, Math.ceil((name || "").length / charsPerLine));
@@ -1669,6 +1707,17 @@ function APMDashboardLive() {
   const chatScrollRef = useRef(null);
   const [canvasOffset, setCanvasOffset] = useState({ x: 400, y: 300 });
   const [canvasDragOver, setCanvasDragOver] = useState(false);
+  // Vendor icon packs (AWS, Azure, Cisco, …) a person uploads — stored on
+  // Neo4j as a ShapePalette node per pack, same precedent as Workspace/Canvas,
+  // so a Cloud SA's palette is visible to a Network SA on the same graph too.
+  const [customPalettes, setCustomPalettes] = useState([]); // [{id, name, icons: [{key,label,svg}]}]
+  const [showImportPalette, setShowImportPalette] = useState(false);
+  const [importPaletteName, setImportPaletteName] = useState("");
+  const [importPaletteTargetId, setImportPaletteTargetId] = useState(""); // "" = create a new palette
+  const [importPaletteStaged, setImportPaletteStaged] = useState([]); // [{key,label,svg,fileName} | {fileName,error}]
+  const [importPaletteBusy, setImportPaletteBusy] = useState(false);
+  const [importPaletteStatus, setImportPaletteStatus] = useState("");
+  const importPaletteFileInputRef = useRef(null);
   const [canvasScale, setCanvasScale] = useState(1);
   const [stickies, setStickies] = useState([]);
   const [canvasConcepts, setCanvasConcepts] = useState([]);
@@ -1968,6 +2017,14 @@ function APMDashboardLive() {
       const canvasSummaryRows = await runCypher(apiUrl, authHeader,
         `MATCH (c:Canvas) RETURN c.id AS id, c.name AS name, c.workspaceId AS workspaceId, c.updatedAt AS updatedAt ORDER BY c.name`
       );
+      const shapePaletteRows = await runCypher(apiUrl, authHeader,
+        `MATCH (p:ShapePalette) RETURN p.id AS id, p.name AS name, p.icons AS icons ORDER BY p.name`
+      );
+      setCustomPalettes(shapePaletteRows.map((r) => {
+        let icons = [];
+        try { icons = JSON.parse(r.icons || "[]"); } catch (e) { icons = []; }
+        return { id: r.id, name: r.name, icons };
+      }));
       let finalWorkspaces = workspaceRows;
       let finalCanvases = canvasSummaryRows;
       if (finalWorkspaces.length === 0) {
@@ -4018,8 +4075,17 @@ function APMDashboardLive() {
   const SHAPE_W = 92, SHAPE_H = 76;
   const SHAPE_CATEGORY_COLOR = { Basic: "#4A5A78", Cloud: "#2C7A8C", Network: "#5A6B99", Security: "#F0384D", Generic: "#7A6A73", BPM: "#0EA968" };
 
+  // Built-in shapes (SHAPE_INDEX, a module-level constant) plus whatever
+  // vendor icon packs this graph has imported — one flat lookup so addShape
+  // and the on-canvas renderer don't need to know which world a shapeKey
+  // came from. Icon keys already carry a random suffix (see
+  // submitImportPalette), so collisions across packs aren't a real risk.
+  const customShapeIndex = {};
+  customPalettes.forEach((p) => (p.icons || []).forEach((ic) => { customShapeIndex[ic.key] = { ...ic, renderMode: "svg" }; }));
+  const getShapeDef = (key) => SHAPE_INDEX[key] || customShapeIndex[key];
+
   const addShape = (category, shapeKey, dropPoint) => {
-    const def = SHAPE_INDEX[shapeKey];
+    const def = getShapeDef(shapeKey);
     if (!def) return;
     const center = dropPoint || canvasCenter();
     const pos = findFreePosition(center.x - SHAPE_W / 2, center.y - SHAPE_H / 2, allCanvasItems(), SHAPE_W, SHAPE_H);
@@ -4028,6 +4094,86 @@ function APMDashboardLive() {
       category, shapeKey, label: def.label,
     }]);
     setShowShapePalette(false);
+  };
+
+  const deleteCustomPalette = async (paletteId) => {
+    const palette = customPalettes.find((p) => p.id === paletteId);
+    if (!palette) return;
+    if (!window.confirm(`Delete the "${palette.name}" palette? This removes it for everyone connected to this graph. Any shapes already placed from it on a canvas will show as a blank labelled box from then on, not disappear.`)) return;
+    try {
+      const apiUrl = deriveQueryApiUrl(uri, dbName);
+      const authHeader = "Basic " + btoa(`${username}:${password}`);
+      await runCypher(apiUrl, authHeader, `MATCH (p:ShapePalette {id: $id}) DETACH DELETE p`, { id: paletteId });
+      setCustomPalettes((prev) => prev.filter((p) => p.id !== paletteId));
+      if (shapePaletteCategory === paletteId) setShapePaletteCategory("Basic");
+    } catch (e) {
+      alert(`Couldn't delete palette: ${e.message}`);
+    }
+  };
+
+  // Reads each selected .svg file, sanitizes it (see sanitizeSvgIcon), and
+  // stages it for review before anything is saved — a rejected/unreadable
+  // file shows inline as an error row instead of silently vanishing or
+  // blocking the rest of the batch.
+  const handleImportPaletteFiles = (fileList) => {
+    const files = Array.from(fileList || []).filter((f) => /\.svg$/i.test(f.name));
+    if (!files.length) return;
+    Promise.all(files.map((f) => new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const clean = sanitizeSvgIcon(String(reader.result));
+        const label = labelFromIconFileName(f.name);
+        resolve(clean
+          ? { key: `${toSnakeCase(label)}_${newCanvasId("icon").slice(-6)}`, label, svg: clean, fileName: f.name }
+          : { fileName: f.name, error: "Not a valid SVG, or didn't survive sanitizing — skipped." });
+      };
+      reader.onerror = () => resolve({ fileName: f.name, error: "Couldn't be read — skipped." });
+      reader.readAsText(f);
+    }))).then((results) => {
+      setImportPaletteStaged((prev) => [...prev, ...results]);
+    });
+  };
+
+  const submitImportPalette = async () => {
+    const validIcons = importPaletteStaged.filter((s) => s.svg);
+    if (!validIcons.length) { setImportPaletteStatus("No valid SVG icons to import yet."); return; }
+    const iconsToSave = validIcons.map((s) => ({ key: s.key, label: s.label, svg: s.svg }));
+    setImportPaletteBusy(true);
+    setImportPaletteStatus("Saving…");
+    try {
+      const apiUrl = deriveQueryApiUrl(uri, dbName);
+      const authHeader = "Basic " + btoa(`${username}:${password}`);
+      if (importPaletteTargetId) {
+        const existing = customPalettes.find((p) => p.id === importPaletteTargetId);
+        const mergedIcons = [...(existing ? existing.icons : []), ...iconsToSave];
+        await runCypher(apiUrl, authHeader,
+          `MATCH (p:ShapePalette {id: $id}) SET p.icons = $icons`,
+          { id: importPaletteTargetId, icons: JSON.stringify(mergedIcons) }
+        );
+        setCustomPalettes((prev) => prev.map((p) => p.id === importPaletteTargetId ? { ...p, icons: mergedIcons } : p));
+        setShapePaletteCategory(importPaletteTargetId);
+      } else {
+        const name = importPaletteName.trim();
+        if (!name) { setImportPaletteStatus("Give the palette a name first."); setImportPaletteBusy(false); return; }
+        const id = newCanvasId("palette");
+        await runCypher(apiUrl, authHeader,
+          `CREATE (p:ShapePalette {id: $id, name: $name, createdAt: $now, icons: $icons})`,
+          { id, name, now: new Date().toISOString(), icons: JSON.stringify(iconsToSave) }
+        );
+        setCustomPalettes((prev) => [...prev, { id, name, icons: iconsToSave }]);
+        setShapePaletteCategory(id);
+      }
+      setShowImportPalette(false);
+      setImportPaletteStaged([]);
+      setImportPaletteName("");
+      setImportPaletteTargetId("");
+      setImportPaletteStatus("");
+      setShowShapePalette(true);
+    } catch (e) {
+      setImportPaletteStatus(`Couldn't save: ${e.message}`);
+    } finally {
+      setImportPaletteBusy(false);
+    }
   };
 
   // Drag-and-drop placement, Visio-style: a palette item (concept type or
@@ -5132,6 +5278,98 @@ function APMDashboardLive() {
           </div>
         );
       })()}
+
+      {showImportPalette && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(20,31,48,0.5)", zIndex: 200,
+          display: "flex", alignItems: "center", justifyContent: "center" }}
+          onClick={() => { if (!importPaletteBusy) { setShowImportPalette(false); setImportPaletteStaged([]); setImportPaletteStatus(""); } }}>
+          <div onClick={(e) => e.stopPropagation()}
+            style={{ background: "#fff", borderRadius: 16, padding: 26, width: 520, maxHeight: "82vh", overflowY: "auto",
+              boxShadow: "0 24px 60px rgba(10,14,26,0.38)" }}>
+            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>Import a vendor icon pack</div>
+            <div style={{ fontSize: 12, color: COLORS.inkSecondary, marginBottom: 18, lineHeight: 1.5 }}>
+              Select the .svg files from your AWS, Azure, Cisco, or other vendor icon folder. Each becomes a real,
+              draggable shape in a palette everyone connected to this graph can see — so a Cloud SA, Network SA, and
+              Security SA can each bring their own set. Files are sanitized before they're saved.
+            </div>
+
+            <label style={{ fontSize: 12, display: "block", marginBottom: 14 }}>
+              Add to
+              <select value={importPaletteTargetId} onChange={(e) => setImportPaletteTargetId(e.target.value)}
+                style={{ display: "block", width: "100%", marginTop: 4, padding: "7px 8px", border: `1px solid ${COLORS.border}`, borderRadius: 6, fontSize: 12.5 }}>
+                <option value="">+ New palette…</option>
+                {customPalettes.map((p) => <option key={p.id} value={p.id}>{p.name} ({(p.icons || []).length} icons)</option>)}
+              </select>
+            </label>
+            {!importPaletteTargetId && (
+              <label style={{ fontSize: 12, display: "block", marginBottom: 14 }}>Palette name
+                <input value={importPaletteName} onChange={(e) => setImportPaletteName(e.target.value)}
+                  placeholder="e.g. AWS — Cloud, Cisco — Network, …"
+                  style={{ display: "block", width: "100%", marginTop: 4, padding: "7px 8px", border: `1px solid ${COLORS.border}`, borderRadius: 6, fontSize: 12.5 }} />
+              </label>
+            )}
+
+            <input ref={importPaletteFileInputRef} type="file" accept=".svg,image/svg+xml" multiple style={{ display: "none" }}
+              onChange={(e) => { handleImportPaletteFiles(e.target.files); e.target.value = ""; }} />
+            <button onClick={() => importPaletteFileInputRef.current && importPaletteFileInputRef.current.click()}
+              style={{ width: "100%", padding: "18px 10px", border: `1px dashed ${COLORS.border}`, borderRadius: 10,
+                background: "#F9F8F4", color: COLORS.inkSecondary, fontSize: 12.5, cursor: "pointer", marginBottom: 14 }}>
+              ⬆ Choose .svg files…
+            </button>
+
+            {importPaletteStaged.length > 0 && (
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 11.5, fontWeight: 600, color: COLORS.inkSecondary, marginBottom: 6 }}>
+                  {importPaletteStaged.filter((s) => s.svg).length} of {importPaletteStaged.length} ready
+                </div>
+                <div style={{ maxHeight: 220, overflowY: "auto", border: `1px solid ${COLORS.border}`, borderRadius: 10 }}>
+                  {importPaletteStaged.map((s, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px",
+                      borderTop: i === 0 ? "none" : `1px solid ${COLORS.border}` }}>
+                      {s.svg ? (
+                        <span style={{ width: 20, height: 20, flexShrink: 0 }} dangerouslySetInnerHTML={{ __html: s.svg }} />
+                      ) : (
+                        <span style={{ width: 20, height: 20, flexShrink: 0, color: COLORS.risk, fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center" }}>⚠</span>
+                      )}
+                      {s.svg ? (
+                        <input value={s.label} onChange={(e) => {
+                          const label = e.target.value;
+                          setImportPaletteStaged((prev) => prev.map((row, ri) => ri === i ? { ...row, label } : row));
+                        }} style={{ flex: 1, minWidth: 0, fontSize: 12, border: "none", outline: "none", padding: "2px 0" }} />
+                      ) : (
+                        <span style={{ flex: 1, minWidth: 0, fontSize: 11.5, color: COLORS.risk }}>{s.fileName} — {s.error}</span>
+                      )}
+                      <span onClick={() => setImportPaletteStaged((prev) => prev.filter((_, ri) => ri !== i))}
+                        style={{ cursor: "pointer", color: COLORS.inkSecondary, fontSize: 12, flexShrink: 0 }}>✕</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {importPaletteStatus && (
+              <div style={{ fontSize: 12, color: importPaletteStatus.startsWith("Couldn't") || importPaletteStatus.startsWith("Give") || importPaletteStatus.startsWith("No valid") ? COLORS.risk : COLORS.inkSecondary, marginBottom: 12 }}>
+                {importPaletteStatus}
+              </div>
+            )}
+
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={submitImportPalette} disabled={importPaletteBusy || importPaletteStaged.filter((s) => s.svg).length === 0}
+                style={{ flex: 1, padding: "9px", background: COLORS.ink, color: "#fff", border: "none", borderRadius: 8,
+                  fontSize: 12.5, fontWeight: 600, cursor: "pointer",
+                  opacity: importPaletteBusy || importPaletteStaged.filter((s) => s.svg).length === 0 ? 0.5 : 1 }}>
+                {importPaletteBusy ? "Saving…" : importPaletteTargetId ? "Add to Palette" : "Create Palette"}
+              </button>
+              <button onClick={() => { setShowImportPalette(false); setImportPaletteStaged([]); setImportPaletteStatus(""); }}
+                disabled={importPaletteBusy}
+                style={{ flex: 1, padding: "9px", background: "transparent", color: COLORS.inkSecondary,
+                  border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 12.5, cursor: "pointer" }}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {status === "connected" && (
         <div style={{ width: sidebarCollapsed ? 68 : 240, flexShrink: 0,
@@ -7935,7 +8173,12 @@ function APMDashboardLive() {
 
                 <div style={{ position: "relative" }}>
                   <button onClick={() => setShowShapePalette(!showShapePalette)} title="Shape" style={iconToolBtnStyle}>{TOOLBAR_ICONS.shape}</button>
-                  {showShapePalette && (
+                  {showShapePalette && (() => {
+                    const isCustomCat = !SHAPE_LIBRARY[shapePaletteCategory];
+                    const activeItems = isCustomCat
+                      ? ((customPalettes.find((p) => p.id === shapePaletteCategory) || {}).icons || [])
+                      : SHAPE_LIBRARY[shapePaletteCategory];
+                    return (
                     <div style={{ position: "absolute", top: "110%", left: 0, background: COLORS.card, border: `1px solid ${COLORS.border}`,
                       boxShadow: "0 16px 40px rgba(10,14,26,0.18)", borderRadius: 14, padding: 12, zIndex: 50, width: 400 }}>
                       <div style={{ display: "flex", gap: 4, marginBottom: 10, flexWrap: "wrap" }}>
@@ -7948,25 +8191,59 @@ function APMDashboardLive() {
                             {cat}
                           </button>
                         ))}
-                      </div>
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6 }}>
-                        {SHAPE_LIBRARY[shapePaletteCategory].map((s) => (
-                          <button key={s.key} draggable
-                            onDragStart={(e) => handlePaletteDragStart(e, { kind: "shape", category: shapePaletteCategory, shapeKey: s.key })}
-                            onClick={() => addShape(shapePaletteCategory, s.key)} title={`${s.label} — click to place, or drag onto the canvas`}
-                            style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "8px 4px",
-                              background: "#F6F4EF", border: "none", borderRadius: 8, cursor: "grab" }}>
-                            <div style={{ color: SHAPE_CATEGORY_COLOR[shapePaletteCategory], width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                              {s.renderMode === "basic"
-                                ? <svg width="26" height="26" viewBox="0 0 26 26">{renderBasicShapeSvg(s.key, 26, 26, SHAPE_CATEGORY_COLOR[shapePaletteCategory])}</svg>
-                                : <div style={{ transform: "scale(0.72)" }}>{s.icon}</div>}
-                            </div>
-                            <span style={{ fontSize: 9.5, textAlign: "center", lineHeight: 1.2, color: COLORS.ink }}>{s.label}</span>
-                          </button>
+                        {customPalettes.map((p) => (
+                          <span key={p.id} style={{ display: "inline-flex", alignItems: "center" }}>
+                            <button onClick={() => setShapePaletteCategory(p.id)}
+                              title={`${p.name} — imported palette`}
+                              style={{ padding: "5px 8px 5px 11px", fontSize: 11.5, fontWeight: 600, borderRadius: "7px 0 0 7px", cursor: "pointer",
+                                border: `1px solid ${shapePaletteCategory === p.id ? COLORS.accent : COLORS.border}`, borderRight: "none",
+                                background: shapePaletteCategory === p.id ? COLORS.accent : "#F6F4EF",
+                                color: shapePaletteCategory === p.id ? "#fff" : COLORS.ink }}>
+                              {p.name}
+                            </button>
+                            <button onClick={() => deleteCustomPalette(p.id)} title={`Delete "${p.name}" palette`}
+                              style={{ padding: "5px 8px", fontSize: 11, borderRadius: "0 7px 7px 0", cursor: "pointer",
+                                border: `1px solid ${shapePaletteCategory === p.id ? COLORS.accent : COLORS.border}`,
+                                background: shapePaletteCategory === p.id ? COLORS.accent : "#F6F4EF",
+                                color: shapePaletteCategory === p.id ? "#fff" : COLORS.inkSecondary }}>
+                              ✕
+                            </button>
+                          </span>
                         ))}
+                        <button onClick={() => { setShowImportPalette(true); setImportPaletteTargetId(""); }}
+                          title="Import a vendor icon pack (AWS, Azure, …) as a new palette"
+                          style={{ padding: "5px 11px", fontSize: 11.5, fontWeight: 600, borderRadius: 7, cursor: "pointer",
+                            border: `1px dashed ${COLORS.border}`, background: "transparent", color: COLORS.inkSecondary }}>
+                          + Import Palette
+                        </button>
                       </div>
+                      {activeItems.length === 0 ? (
+                        <div style={{ fontSize: 12, color: COLORS.inkSecondary, padding: "10px 4px" }}>
+                          No icons in this palette yet.
+                        </div>
+                      ) : (
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6, maxHeight: 320, overflowY: "auto" }}>
+                          {activeItems.map((s) => (
+                            <button key={s.key} draggable
+                              onDragStart={(e) => handlePaletteDragStart(e, { kind: "shape", category: shapePaletteCategory, shapeKey: s.key })}
+                              onClick={() => addShape(shapePaletteCategory, s.key)} title={`${s.label} — click to place, or drag onto the canvas`}
+                              style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "8px 4px",
+                                background: "#F6F4EF", border: "none", borderRadius: 8, cursor: "grab" }}>
+                              <div style={{ color: SHAPE_CATEGORY_COLOR[shapePaletteCategory], width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                {isCustomCat
+                                  ? <div style={{ width: 26, height: 26 }} dangerouslySetInnerHTML={{ __html: s.svg }} />
+                                  : s.renderMode === "basic"
+                                  ? <svg width="26" height="26" viewBox="0 0 26 26">{renderBasicShapeSvg(s.key, 26, 26, SHAPE_CATEGORY_COLOR[shapePaletteCategory])}</svg>
+                                  : <div style={{ transform: "scale(0.72)" }}>{s.icon}</div>}
+                              </div>
+                              <span style={{ fontSize: 9.5, textAlign: "center", lineHeight: 1.2, color: COLORS.ink }}>{s.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  )}
+                    );
+                  })()}
                 </div>
 
                 <button onClick={startArrowDraw} disabled={arrowDrawMode} title="Arrow"
@@ -8331,7 +8608,7 @@ function APMDashboardLive() {
                   ))}
 
                   {shapes.map((s) => {
-                    const def = SHAPE_INDEX[s.shapeKey];
+                    const def = getShapeDef(s.shapeKey);
                     const color = SHAPE_CATEGORY_COLOR[s.category] || COLORS.inkSecondary;
                     const sw = s.width || SHAPE_W, sh = s.height || SHAPE_H;
                     const isBasic = def && def.renderMode === "basic";
@@ -8365,7 +8642,12 @@ function APMDashboardLive() {
                           </>
                         ) : (
                           <>
-                            <div style={{ color, flexShrink: 0, transform: `scale(${Math.min(sw, sh) / 76})`, transformOrigin: "center" }}>{def ? def.icon : null}</div>
+                            {def && def.renderMode === "svg" ? (
+                              <div style={{ width: Math.min(sw, sh) - 8, height: Math.min(sw, sh) - 8, flexShrink: 0 }}
+                                dangerouslySetInnerHTML={{ __html: def.svg }} />
+                            ) : (
+                              <div style={{ color, flexShrink: 0, transform: `scale(${Math.min(sw, sh) / 76})`, transformOrigin: "center" }}>{def ? def.icon : null}</div>
+                            )}
                             <input value={s.label} onMouseDown={(e) => e.stopPropagation()}
                               onChange={(e) => updateShapeLabel(s.id, e.target.value)}
                               style={{ width: "100%", textAlign: "center", fontSize: 10.5, fontWeight: 500, color: COLORS.ink,
