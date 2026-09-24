@@ -508,6 +508,14 @@ const GUIDE_SECTIONS = [
           "Sketching on a Modelling Canvas isn't logged — only the moment \"Push to Graph\" turns it into real data is.",
           "Filter by Actor, Action, or Entity Type using the chips above the table, or export the current 500 most recent entries to CSV for an offline review.",
         ] },
+      { key: "dataload", label: "Load Demo Dataset",
+        description: "Admin-only: swaps the entire instance layer — every Application, Capability, Initiative, and every other real record — for a different customer's demo data, in one upload. The schema itself doesn't change, so every view keeps working against the new data untouched.",
+        tips: [
+          "Upload a JSON file shaped like { dataset_name, nodes: [...], relationships: [...] } — download the template from this page for the exact shape and a worked example.",
+          "This is destructive: every existing instance record is permanently deleted first, then replaced. Workspaces, Canvases, and the Audit Log itself are not touched.",
+          "The file is validated and previewed — counts by concept type, and any errors — before anything is deleted, so a malformed file is caught before it costs you the current dataset.",
+          "You'll be asked to type DELETE to confirm before the swap runs — there's no undo from inside the app once it starts.",
+        ] },
     ],
   },
 ];
@@ -1557,6 +1565,66 @@ async function runCypher(apiUrl, authHeader, statement, parameters = {}) {
   return values.map((row) => Object.fromEntries(fields.map((f, i) => [f, row[i]])));
 }
 
+// Mirrors load_instances.py's sanitise_rel_type exactly, so a verb typed in
+// a demo dataset JSON produces the same Neo4j relationship type the Python
+// loader would have created — "approves investment in" -> APPROVES_INVESTMENT_IN.
+function sanitizeRelType(verb) {
+  return String(verb).trim().replace(/[^A-Za-z0-9]+/g, "_").replace(/^_+|_+$/g, "").toUpperCase();
+}
+
+// Validates an uploaded demo-dataset JSON against the same shape
+// load_instances.py expects from its YAML ({nodes: [...], relationships: [...]})
+// — checked client-side, before anything destructive happens, so a malformed
+// file fails fast with a specific reason instead of leaving the graph wiped
+// and half-loaded. Returns { errors, warnings, nodes, relationships,
+// nodesByType, datasetName } — a non-empty `errors` array means "Load" stays
+// blocked; `warnings` are shown but don't block.
+function validateDatasetJSON(parsed) {
+  const errors = [], warnings = [];
+  const datasetName = (parsed && typeof parsed.dataset_name === "string" && parsed.dataset_name.trim()) || "";
+  if (!parsed || typeof parsed !== "object") { errors.push("Root of the file must be a JSON object."); return { errors, warnings, nodes: [], relationships: [], nodesByType: {}, datasetName }; }
+  const rawNodes = Array.isArray(parsed.nodes) ? parsed.nodes : null;
+  const rawRels = Array.isArray(parsed.relationships) ? parsed.relationships : null;
+  if (!rawNodes) errors.push('Missing or invalid top-level "nodes" array.');
+  if (!rawRels) errors.push('Missing or invalid top-level "relationships" array.');
+  if (errors.length) return { errors, warnings, nodes: [], relationships: [], nodesByType: {}, datasetName };
+
+  const seenIds = new Set();
+  const nodes = [];
+  rawNodes.forEach((n, i) => {
+    if (!n || typeof n !== "object") { errors.push(`Node ${i + 1}: not an object.`); return; }
+    const id = n.id != null ? String(n.id).trim() : "";
+    const conceptType = n.concept_type;
+    if (!id) { errors.push(`Node ${i + 1}: missing "id".`); return; }
+    if (seenIds.has(id)) { errors.push(`Node ${i + 1}: duplicate id "${id}".`); return; }
+    if (!CANVAS_CONCEPT_TYPES.includes(conceptType)) { errors.push(`Node "${id}": "${conceptType}" isn't a recognised concept type.`); return; }
+    if (!n.name || !String(n.name).trim()) warnings.push(`Node "${id}" (${conceptType}) has no name.`);
+    seenIds.add(id);
+    const { id: _id, concept_type: _ct, ...props } = n;
+    nodes.push({ id, conceptType, props: { id, ...props } });
+  });
+
+  const relationships = [];
+  rawRels.forEach((r, i) => {
+    if (!r || typeof r !== "object") { errors.push(`Relationship ${i + 1}: not an object.`); return; }
+    const source = r.source != null ? String(r.source).trim() : "";
+    const target = r.target != null ? String(r.target).trim() : "";
+    const verb = r.verb != null ? String(r.verb).trim() : "";
+    if (!source || !target || !verb) { errors.push(`Relationship ${i + 1}: needs "source", "target", and "verb".`); return; }
+    if (!seenIds.has(source)) { errors.push(`Relationship ${i + 1}: source "${source}" isn't any node's id in this file.`); return; }
+    if (!seenIds.has(target)) { errors.push(`Relationship ${i + 1}: target "${target}" isn't any node's id in this file.`); return; }
+    relationships.push({
+      source, target, verb, relType: sanitizeRelType(verb),
+      props: { verb, criticality: r.criticality ?? null, status: r.status ?? null, strength: r.strength ?? null, type: r.type ?? null },
+    });
+  });
+
+  const nodesByType = {};
+  nodes.forEach((n) => { (nodesByType[n.conceptType] = nodesByType[n.conceptType] || []).push(n); });
+
+  return { errors, warnings, nodes, relationships, nodesByType, datasetName };
+}
+
 function computeDisposition(app) {
   if (app.status === "Retiring") return { code: "Retire", reason: "Already flagged for retirement" };
   if (!app.businessValue || !app.techHealth) return { code: "Refactor", reason: "Insufficient data to classify" };
@@ -2405,6 +2473,12 @@ function APMDashboardLive() {
   const [auditLog, setAuditLog] = useState([]);
   const [auditLogLoading, setAuditLogLoading] = useState(false);
   const [auditLogError, setAuditLogError] = useState("");
+  const [datasetFileName, setDatasetFileName] = useState("");
+  const [datasetPreview, setDatasetPreview] = useState(null); // parsed + validated upload, or null
+  const [datasetParseError, setDatasetParseError] = useState("");
+  const [datasetBusy, setDatasetBusy] = useState(false);
+  const [datasetStatus, setDatasetStatus] = useState("");
+  const datasetFileInputRef = useRef(null);
   const [initiatives, setInitiatives] = useState([]);
   const [initiativesLoading, setInitiativesLoading] = useState(false);
   const [initiativesError, setInitiativesError] = useState("");
@@ -3655,6 +3729,116 @@ function APMDashboardLive() {
     fetchData(deriveQueryApiUrl(uri, dbName), "Basic " + btoa(`${username}:${password}`));
   };
   const handleRefresh = () => fetchData(deriveQueryApiUrl(uri, dbName), "Basic " + btoa(`${username}:${password}`));
+
+  // Load Demo Dataset (admin-only): swaps the ENTIRE instance layer for a
+  // different customer's demo data, while leaving the schema (ConceptType /
+  // AttributeDefinition / RelationshipType nodes), Workspaces, Canvases,
+  // ShapePalettes, and the Audit Log itself untouched — none of those carry
+  // the :Instance label the wipe below matches on, so every other view
+  // (built against the fixed schema, not this customer's specific data)
+  // keeps working unchanged once the new dataset lands.
+  const readDatasetFile = (file) => {
+    if (!file) return;
+    setDatasetFileName(file.name);
+    setDatasetPreview(null);
+    setDatasetParseError("");
+    setDatasetStatus("");
+    const reader = new FileReader();
+    reader.onload = () => {
+      let parsed;
+      try {
+        parsed = JSON.parse(String(reader.result));
+      } catch (e) {
+        setDatasetParseError(`Not valid JSON: ${e.message}`);
+        return;
+      }
+      const result = validateDatasetJSON(parsed);
+      setDatasetPreview(result);
+    };
+    reader.onerror = () => setDatasetParseError("Couldn't read that file.");
+    reader.readAsText(file);
+  };
+
+  const confirmAndLoadDataset = async () => {
+    if (!datasetPreview || datasetPreview.errors.length) return;
+    const label = datasetPreview.datasetName || datasetFileName || "this dataset";
+    const typed = await askPrompt(
+      `This permanently deletes every instance record currently in the graph — every Application, Capability, Initiative, Risk, and everything else with real data — and replaces it with ${label}` +
+      ` (${datasetPreview.nodes.length} nodes, ${datasetPreview.relationships.length} relationships). The schema itself, Workspaces, Canvases, and the Audit Log are not affected. This cannot be undone from here.` +
+      ` Type DELETE to confirm.`,
+      "", { title: "Replace all instance data?", danger: true, confirmLabel: "Replace Data", cancelLabel: "Cancel" }
+    );
+    if (typed !== "DELETE") {
+      if (typed !== null) setDatasetStatus('Not confirmed — you must type "DELETE" exactly.');
+      return;
+    }
+    await runLoadDataset();
+  };
+
+  const runLoadDataset = async () => {
+    setDatasetBusy(true);
+    setDatasetStatus("Wiping existing instance data…");
+    try {
+      const apiUrl = deriveQueryApiUrl(uri, dbName);
+      const authHeader = "Basic " + btoa(`${username}:${password}`);
+      const { nodesByType, relationships, nodes, datasetName } = datasetPreview;
+
+      await runCypher(apiUrl, authHeader, `MATCH (n:Instance) DETACH DELETE n`);
+
+      setDatasetStatus("Creating instance nodes…");
+      for (const conceptType of Object.keys(nodesByType)) {
+        await runCypher(apiUrl, authHeader,
+          `UNWIND $rows AS row CREATE (n:Instance:${conceptType}) SET n = row`,
+          { rows: nodesByType[conceptType].map((n) => n.props) }
+        );
+      }
+
+      setDatasetStatus("Creating relationships…");
+      const relsByType = {};
+      relationships.forEach((r) => { (relsByType[r.relType] = relsByType[r.relType] || []).push(r); });
+      for (const relType of Object.keys(relsByType)) {
+        await runCypher(apiUrl, authHeader,
+          `UNWIND $rows AS row MATCH (a:Instance {id: row.source}) MATCH (b:Instance {id: row.target}) CREATE (a)-[r:${relType}]->(b) SET r = row.props`,
+          { rows: relsByType[relType].map((r) => ({ source: r.source, target: r.target, props: r.props })) }
+        );
+      }
+
+      await logAudit({
+        action: "loaded", entityType: "Dataset", entityName: datasetName || datasetFileName,
+        summary: `${nodes.length} instance nodes, ${relationships.length} relationships loaded — previous instance data wiped`,
+      });
+
+      setDatasetStatus(`Done. Loaded ${nodes.length} nodes and ${relationships.length} relationships.`);
+      setDatasetPreview(null);
+      setDatasetFileName("");
+      handleRefresh();
+    } catch (e) {
+      setDatasetStatus(`Load failed partway through: ${e.message}. The graph may be in a mixed state — check Ontology Manager before continuing.`);
+    } finally {
+      setDatasetBusy(false);
+    }
+  };
+
+  const downloadDatasetTemplate = () => {
+    const template = {
+      dataset_name: "Example Customer — Demo Dataset",
+      nodes: [
+        { id: "cap1", concept_type: "Capability", name: "Example Capability", status: "Operational", importance: "High" },
+        { id: "app1", concept_type: "Application", name: "Example Application", status: "Production", criticality: "High" },
+      ],
+      relationships: [
+        { source: "app1", target: "cap1", verb: "supports", criticality: "High", status: "Active" },
+      ],
+    };
+    const blob = new Blob([JSON.stringify(template, null, 2)], { type: "application/json;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "bdcore-demo-dataset-template.json";
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   const forgetSavedLogin = () => {
     localStorage.removeItem("bdcore_neo4j_uri");
     localStorage.removeItem("bdcore_neo4j_username");
@@ -4543,7 +4727,7 @@ function APMDashboardLive() {
   // Standalone top-level sidebar items (their own row, no parent group to
   // expand) — jumping to one of these via goToView (e.g. Help's "Open →")
   // must NOT force the "APM" section open, since they live outside it.
-  const STANDALONE_KEYS = new Set(["ontology", "workspaces", "canvas", "auditlog"]);
+  const STANDALONE_KEYS = new Set(["ontology", "workspaces", "canvas", "auditlog", "dataload"]);
   const goToView = (key) => {
     setView(key);
     setSelectedNode(null);
@@ -4600,6 +4784,7 @@ function APMDashboardLive() {
     ownership: <svg {...ICON_COMMON}><circle cx="9.5" cy="8" r="3.2" /><path d="M3.5 20c0-4 2.5-6.2 6-6.2s6 2.2 6 6.2" /><path d="M15.5 14.5l2 2 4-4" /></svg>,
     businessunits: <svg {...ICON_COMMON}><rect x="9" y="3" width="6" height="4.5" rx="1" /><rect x="3" y="16.5" width="6" height="4.5" rx="1" /><rect x="15" y="16.5" width="6" height="4.5" rx="1" /><path d="M12 7.5v4.5M6 12v4.5M18 12v4.5M6 12h12" /></svg>,
     auditlog: <svg {...ICON_COMMON}><rect x="3" y="3" width="14" height="18" rx="2" /><line x1="6.5" y1="7.5" x2="13.5" y2="7.5" /><line x1="6.5" y1="11" x2="13.5" y2="11" /><line x1="6.5" y1="14.5" x2="10.5" y2="14.5" /><circle cx="17.5" cy="17.5" r="4.2" /><line x1="17.5" y1="15.3" x2="17.5" y2="17.5" /><line x1="17.5" y1="17.5" x2="19" y2="18.5" /></svg>,
+    dataload: <svg {...ICON_COMMON}><path d="M12 3v12" /><polyline points="7.5,10.5 12,15 16.5,10.5" /><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" /></svg>,
     initiatives: <svg {...ICON_COMMON}><rect x="3" y="5" width="11" height="3.2" rx="1" /><rect x="8" y="11" width="13" height="3.2" rx="1" /><rect x="5" y="17" width="9" height="3.2" rx="1" /></svg>,
     dataflow: <svg {...ICON_COMMON}><rect x="2" y="9" width="6" height="6" rx="1.2" /><rect x="16" y="2" width="6" height="6" rx="1.2" /><rect x="16" y="16" width="6" height="6" rx="1.2" /><path d="M8 11l7.5 -6M8 13l7.5 6" /></svg>,
     valuedelivered: <svg {...ICON_COMMON}><path d="M3 19h18" /><path d="M4 15.5 L9 10 L13 13.5 L20 6" /><path d="M15 6h5v5" /></svg>,
@@ -6182,7 +6367,7 @@ function APMDashboardLive() {
     capboard: "Capability Board", dependencies: "Dependencies & Impact", health: "Portfolio Health",
     redundancy: "Redundancy", ai: "Portfolio AI Transformation",
     obsolescence: "Tech Obsolescence", cloudmigration: "Cloud Migration", techradar: "Tech Radar",
-    fieldreview: "Field Review", ontology: "Ontology Manager", ownership: "Ownership Coverage", renewals: "Renewals & Reviews", auditlog: "Audit Log",
+    fieldreview: "Field Review", ontology: "Ontology Manager", ownership: "Ownership Coverage", renewals: "Renewals & Reviews", auditlog: "Audit Log", dataload: "Load Demo Dataset",
     initiatives: "Initiatives Roadmap", dataflow: "Data Flow", businessunits: "Business Units",
     valuedelivered: "Value Delivered",
     journeytrace: "Journey Trace", maturity: "Capability Maturity", decisionlog: "Decision Log",
@@ -6838,6 +7023,18 @@ function APMDashboardLive() {
             onClick={() => setView("auditlog")} style={navButtonStyle("auditlog", sidebarCollapsed)}>
             {ICONS.auditlog}
             {!sidebarCollapsed && <span>Audit Log</span>}
+          </button>
+          )}
+
+          {/* Also its own standalone row, and also admin-only — swaps the
+              whole instance layer for a different customer's demo data, so
+              it needs the same visibility and the same restriction as
+              anything else that can rewrite the entire graph. */}
+          {currentUser.role === "admin" && (
+          <button className={view === "dataload" ? "ds-nav-pill ds-nav-pill-active" : "ds-nav-pill"} title="Load Demo Dataset"
+            onClick={() => setView("dataload")} style={navButtonStyle("dataload", sidebarCollapsed)}>
+            {ICONS.dataload}
+            {!sidebarCollapsed && <span>Load Demo Dataset</span>}
           </button>
           )}
 
@@ -8743,7 +8940,7 @@ function APMDashboardLive() {
           })()}
           {view === "auditlog" && (() => {
             const ACTION_STYLE = {
-              created: COLORS.accent, updated: COLORS.info, deleted: COLORS.risk, verified: COLORS.accent2, imported: COLORS.warning,
+              created: COLORS.accent, updated: COLORS.info, deleted: COLORS.risk, verified: COLORS.accent2, imported: COLORS.warning, loaded: COLORS.risk,
             };
             return (
               <div>
@@ -8800,6 +8997,96 @@ function APMDashboardLive() {
                     ]}
                     rows={auditLog}
                   />
+                </div>
+              </div>
+            );
+          })()}
+          {view === "dataload" && (() => {
+            const preview = datasetPreview;
+            const typeCounts = preview ? Object.entries(preview.nodesByType).map(([t, ns]) => [t, ns.length]).sort((a, b) => b[1] - a[1]) : [];
+            const canLoad = preview && preview.errors.length === 0 && !datasetBusy;
+            return (
+              <div>
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)",
+                  borderRadius: 16, padding: 22, marginBottom: 22, maxWidth: 820 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 6 }}>What is this page?</div>
+                  <div style={{ fontSize: 13, color: COLORS.inkSecondary, lineHeight: 1.6 }}>
+                    Swaps the entire instance layer — every Application, Capability, Initiative, Risk, and every other
+                    real record — for a different customer's demo data, in one upload. Useful when the same graph is
+                    reused across different customer-facing demos. The schema (concept types, attributes, allowed
+                    relationships) doesn't change, so every existing view keeps working unchanged against the new data.
+                  </div>
+                  <div style={{ fontSize: 12, color: COLORS.risk, marginTop: 10, lineHeight: 1.6, fontWeight: 600 }}>
+                    This is destructive: every existing instance record and its relationships are permanently deleted
+                    first, then replaced. Workspaces, Canvases, and the Audit Log itself are not touched.
+                  </div>
+                </div>
+
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)",
+                  borderRadius: 16, padding: 22, marginBottom: 22, maxWidth: 820 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 12 }}>Upload dataset</div>
+                  <input ref={datasetFileInputRef} type="file" accept=".json,application/json" style={{ display: "none" }}
+                    onChange={(e) => { const f = e.target.files && e.target.files[0]; if (f) readDatasetFile(f); e.target.value = ""; }} />
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <button onClick={() => datasetFileInputRef.current && datasetFileInputRef.current.click()} disabled={datasetBusy}
+                      style={{ padding: "8px 16px", background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.border}`,
+                        borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: datasetBusy ? "default" : "pointer", opacity: datasetBusy ? 0.6 : 1 }}>
+                      Choose JSON File…
+                    </button>
+                    <button onClick={downloadDatasetTemplate}
+                      style={{ padding: "8px 16px", background: "transparent", color: COLORS.inkSecondary, border: `1px solid ${COLORS.border}`,
+                        borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>
+                      ⭳ Download JSON Template
+                    </button>
+                  </div>
+                  {datasetFileName && <div style={{ fontSize: 12.5, color: COLORS.inkSecondary, marginTop: 10 }}>Selected: <b>{datasetFileName}</b></div>}
+                  {datasetParseError && <div style={{ fontSize: 12.5, color: COLORS.risk, marginTop: 10 }}>{datasetParseError}</div>}
+
+                  {preview && (
+                    <div style={{ marginTop: 18, paddingTop: 16, borderTop: `1px solid ${COLORS.border}` }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>
+                        {preview.datasetName || "Preview"} — {preview.nodes.length} nodes, {preview.relationships.length} relationships
+                      </div>
+                      {typeCounts.length > 0 && (
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+                          {typeCounts.map(([t, n]) => (
+                            <span key={t} style={{ background: "#EFEDE5", color: COLORS.ink, padding: "3px 10px", borderRadius: 8, fontSize: 11.5, fontWeight: 600 }}>
+                              {t}: {n}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {preview.errors.length > 0 && (
+                        <div style={{ background: `${COLORS.risk}0F`, border: `1px solid ${COLORS.risk}40`, borderRadius: 10, padding: "10px 14px", marginBottom: 10 }}>
+                          <div style={{ fontSize: 12.5, fontWeight: 700, color: COLORS.risk, marginBottom: 4 }}>
+                            {preview.errors.length} error{preview.errors.length === 1 ? "" : "s"} — fix these before this can be loaded:
+                          </div>
+                          <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: COLORS.risk, lineHeight: 1.7 }}>
+                            {preview.errors.slice(0, 25).map((e, i) => <li key={i}>{e}</li>)}
+                            {preview.errors.length > 25 && <li>…and {preview.errors.length - 25} more.</li>}
+                          </ul>
+                        </div>
+                      )}
+                      {preview.warnings.length > 0 && (
+                        <div style={{ background: `${COLORS.warning}14`, border: `1px solid ${COLORS.warning}40`, borderRadius: 10, padding: "10px 14px", marginBottom: 10 }}>
+                          <div style={{ fontSize: 12.5, fontWeight: 700, color: "#8A6200", marginBottom: 4 }}>
+                            {preview.warnings.length} warning{preview.warnings.length === 1 ? "" : "s"} (won't block loading):
+                          </div>
+                          <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: "#8A6200", lineHeight: 1.7 }}>
+                            {preview.warnings.slice(0, 25).map((w, i) => <li key={i}>{w}</li>)}
+                            {preview.warnings.length > 25 && <li>…and {preview.warnings.length - 25} more.</li>}
+                          </ul>
+                        </div>
+                      )}
+                      <button onClick={confirmAndLoadDataset} disabled={!canLoad}
+                        style={{ padding: "9px 18px", background: canLoad ? COLORS.risk : COLORS.border, color: "#fff", border: "none",
+                          borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: canLoad ? "pointer" : "default", marginTop: 4 }}>
+                        Replace All Instance Data…
+                      </button>
+                    </div>
+                  )}
+
+                  {datasetStatus && <div style={{ fontSize: 12.5, color: COLORS.inkSecondary, marginTop: 14 }}>{datasetStatus}</div>}
                 </div>
               </div>
             );
