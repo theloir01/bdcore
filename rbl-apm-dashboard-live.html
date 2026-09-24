@@ -303,6 +303,7 @@ const GUIDE_SECTIONS = [
           "Type a question into the Ask box — e.g. \"which applications have no owner?\" — instead of building filters by hand.",
           "The Refine bar sets filters from a plain-language instruction, e.g. \"show only cloud-hosted critical apps.\"",
           "The Inventory itself leads the page, right under the filters — toggle it between a card grid and a sortable table with the two icons above it.",
+          "Click \"⚡ Blast Radius\" on any card or row to pop out that application's blast radius — score, capabilities going dark or degraded, technologies and peer apps impacted, recovery considerations — without leaving Portfolio Overview.",
           "Bubble size on the quadrant chart is TCO; click a 6R Disposition bar to filter the Inventory to just that disposition.",
           "Every section below the filters — Inventory, the quadrant chart, 6R Disposition, Capability Coverage — collapses via the chevron in its header; all start open.",
           "Switch to the Capability Board sub-tab for the same portfolio grouped by capability instead of by application.",
@@ -1605,6 +1606,19 @@ function computeBlastRadius(app, allApps, depLinks, depNodes, processes, orgsByP
     .map((id) => depNodes.find((n) => n.id === id))
     .filter((n) => n && n.type === "Application")
     .map((n) => allApps.find((a) => a.id === n.id) || n);
+  // Technology directly linked to this app — one hop only, not the full
+  // transitive downstream set, since what matters for a cutover isn't "what's
+  // reachable" but "what's this app actually plugged into" (credentials,
+  // connection strings, queues) that need draining either way.
+  const directNeighborIds = new Set();
+  depLinks.forEach((l) => {
+    if (!DEPENDENCY_TYPES.has(l.relType)) return;
+    if (l.sourceId === app.id) directNeighborIds.add(l.targetId);
+    if (l.targetId === app.id) directNeighborIds.add(l.sourceId);
+  });
+  const impactedTechnologies = [...directNeighborIds]
+    .map((id) => depNodes.find((n) => n.id === id))
+    .filter((n) => n && (n.type === "SoftwareTechnology" || n.type === "HardwareTechnology"));
   const usersAffected = (app.userCount || 0) + downstreamApps.reduce((s, a) => s + (a.userCount || 0), 0);
   const orgUnits = [...new Set(
     processes.filter((p) => app.capabilities.includes(p.capabilityName))
@@ -1615,7 +1629,7 @@ function computeBlastRadius(app, allApps, depLinks, depNodes, processes, orgsByP
   const score = Math.min(100, Math.round(
     darkCapabilities.length * 25 + degradedCapabilities.length * 8 +
     downstreamApps.length * 10 + (CRIT_WEIGHT_BR[app.criticality] || 1) * 5 +
-    affectedFlows.length * 6 + criticalFlowCount * 8 +
+    affectedFlows.length * 6 + criticalFlowCount * 8 + impactedTechnologies.length * 4 +
     (drReadiness.covered ? 0 : 10)
   ));
   const severity = score >= 70 ? "Severe" : score >= 35 ? "Moderate" : "Limited";
@@ -1628,12 +1642,188 @@ function computeBlastRadius(app, allApps, depLinks, depNodes, processes, orgsByP
   }
   if (app.userCount) recovery.push(`Direct user reach is ${app.userCount} — consider a staged maintenance window.`);
   if (downstreamApps.length > 0) recovery.push(`${downstreamApps.length} other application${downstreamApps.length === 1 ? "" : "s"} technically depend on this — sequence any change carefully.`);
+  if (impactedTechnologies.length > 0) {
+    recovery.push(`${impactedTechnologies.length} technolog${impactedTechnologies.length === 1 ? "y is" : "ies are"} linked to this app — confirm credentials, connection strings, and queue draining for each.`);
+  }
   if (affectedFlows.length > 0) {
     recovery.push(`${affectedFlows.length} end-to-end flow${affectedFlows.length === 1 ? "" : "s"} run${affectedFlows.length === 1 ? "s" : ""} a step through this application — reinstate ${affectedFlows.length === 1 ? "it" : "each"} on the replacement before cutover, not after.`);
   }
   if (!drReadiness.covered) recovery.push("No disaster recovery or backup control found covering this system or its infrastructure — a real readiness gap, not just a technical one.");
   if (recovery.length === 0) recovery.push("No significant dependencies found — this looks like a self-contained change.");
-  return { darkCapabilities, degradedCapabilities, downstreamApps, usersAffected, score, severity, recovery, orgUnits, drReadiness, affectedFlows };
+  return { darkCapabilities, degradedCapabilities, downstreamApps, impactedTechnologies, usersAffected, score, severity, recovery, orgUnits, drReadiness, affectedFlows };
+}
+
+// Evenly spaces `count` points around a circle of the given radius, starting
+// at 12 o'clock — used to lay dependency items out on the Blast Radius
+// modal's radial diagram without any of them landing exactly on top of another.
+function ringPositions(count, radius, cx, cy) {
+  if (count === 0) return [];
+  return Array.from({ length: count }, (_, i) => {
+    const angle = (-90 + (360 / count) * i) * (Math.PI / 180);
+    return { x: cx + radius * Math.cos(angle), y: cy + radius * Math.sin(angle) };
+  });
+}
+
+// A pop-out, single-application view of computeBlastRadius — reachable from
+// a card/row anywhere applications are listed (Portfolio Overview today)
+// without navigating away, mirroring the same data already shown inline on
+// the application's own Profile page.
+function BlastRadiusModal({ app, br, onClose, onOpenProfile }) {
+  const CX = 130, CY = 130, INNER_R = 78, OUTER_R = 118;
+  const innerItems = [
+    ...br.darkCapabilities.map((c) => ({ label: c, color: COLORS.risk })),
+    ...br.degradedCapabilities.map((d) => ({ label: d.cap, color: COLORS.warning })),
+    ...br.impactedTechnologies.map((t) => ({ label: t.name, color: COLORS.info })),
+  ];
+  const outerItems = br.downstreamApps.map((a) => ({ label: a.name, color: COLORS.accent2 }));
+  const innerPos = ringPositions(innerItems.length, INNER_R, CX, CY);
+  const outerPos = ringPositions(outerItems.length, OUTER_R, CX, CY);
+  const initials = app.name.split(/\s+/).filter(Boolean).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+  const gaugeColor = br.severity === "Severe" ? COLORS.risk : br.severity === "Moderate" ? COLORS.warning : COLORS.accent;
+  const dotStyle = (color) => ({ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: color, marginRight: 5, verticalAlign: "middle" });
+  const panelStyle = { border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: 14 };
+  const panelHead = (label, count) => (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+      <div style={{ fontSize: 12.5, fontWeight: 700 }}>{label}</div>
+      <span style={{ fontSize: 11, fontWeight: 700, color: COLORS.inkSecondary, background: "#EFEDE5", borderRadius: 8, padding: "1px 7px" }}>{count}</span>
+    </div>
+  );
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(20,31,48,0.55)", zIndex: 300,
+      display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 18, width: "min(980px, 100%)",
+        maxHeight: "90vh", overflowY: "auto", boxShadow: "0 24px 60px rgba(10,14,26,0.38)" }}>
+        <div style={{ padding: "18px 26px", borderBottom: `1px solid ${COLORS.border}`,
+          display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill={gaugeColor} style={{ flexShrink: 0, marginTop: 2 }}>
+              <polygon points="13,2 4,14 12,14 11,22 20,10 12,10 13,2" />
+            </svg>
+            <div>
+              <div style={{ fontSize: 17, fontWeight: 700 }}>Blast Radius</div>
+              <div style={{ fontSize: 12.5, color: COLORS.inkSecondary, marginTop: 2 }}>
+                If {app.name} goes offline: what breaks, who's affected.
+              </div>
+            </div>
+          </div>
+          <span onClick={onClose} style={{ cursor: "pointer", color: COLORS.inkSecondary, fontSize: 20, padding: 4, lineHeight: 1 }}>✕</span>
+        </div>
+
+        <div style={{ padding: "20px 26px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: `${gaugeColor}14`,
+            border: `1px solid ${gaugeColor}44`, borderRadius: 14, padding: "14px 20px", marginBottom: 18 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <span style={{ width: 40, height: 40, borderRadius: 10, background: COLORS.ink, color: "#fff",
+                display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, flexShrink: 0 }}>
+                {initials}
+              </span>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: gaugeColor, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  {app.criticality} criticality
+                </div>
+                <div style={{ fontSize: 16, fontWeight: 700 }}>{app.name}</div>
+              </div>
+            </div>
+            <div style={{ textAlign: "center", flexShrink: 0 }}>
+              <div style={{ width: 58, height: 58, borderRadius: "50%", border: `4px solid ${gaugeColor}`,
+                display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 700, color: gaugeColor, margin: "0 auto" }}>
+                {br.score}
+              </div>
+              <div style={{ fontSize: 11, color: COLORS.inkSecondary, marginTop: 4, fontWeight: 600 }}>{br.severity} blast radius</div>
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10, marginBottom: 20 }}>
+            {[
+              { label: "Users Affected", value: br.usersAffected || "—" },
+              { label: "Capabilities Go Dark", value: br.darkCapabilities.length },
+              { label: "Capabilities Degraded", value: br.degradedCapabilities.length },
+              { label: "Technologies Impacted", value: br.impactedTechnologies.length },
+              { label: "Apps In Ripple", value: br.downstreamApps.length },
+            ].map((t, i) => (
+              <div key={i} style={{ border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: "10px 12px" }}>
+                <div style={{ fontSize: 20, fontWeight: 700 }}>{t.value}</div>
+                <div style={{ fontSize: 10, color: COLORS.inkSecondary, textTransform: "uppercase", letterSpacing: "0.03em", marginTop: 2 }}>{t.label}</div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 18, marginBottom: 20 }}>
+            <div style={panelStyle}>
+              <svg viewBox="0 0 260 260" width="100%">
+                <circle cx={CX} cy={CY} r={INNER_R} fill="none" stroke={COLORS.border} strokeDasharray="3,4" />
+                <circle cx={CX} cy={CY} r={OUTER_R} fill="none" stroke={COLORS.border} strokeDasharray="3,4" />
+                {innerItems.map((it, i) => (
+                  <g key={`i${i}`}>
+                    <line x1={CX} y1={CY} x2={innerPos[i].x} y2={innerPos[i].y} stroke={it.color} strokeOpacity="0.35" />
+                    <circle cx={innerPos[i].x} cy={innerPos[i].y} r={6.5} fill={it.color} />
+                  </g>
+                ))}
+                {outerItems.map((it, i) => (
+                  <g key={`o${i}`}>
+                    <line x1={CX} y1={CY} x2={outerPos[i].x} y2={outerPos[i].y} stroke={it.color} strokeOpacity="0.25" />
+                    <circle cx={outerPos[i].x} cy={outerPos[i].y} r={5.5} fill={it.color} />
+                  </g>
+                ))}
+                <circle cx={CX} cy={CY} r={22} fill={gaugeColor} />
+                <text x={CX} y={CY + 4.5} textAnchor="middle" fontSize="12" fontWeight="700" fill="#fff">{initials}</text>
+              </svg>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 10px", marginTop: 6, fontSize: 10, color: COLORS.inkSecondary }}>
+                <span><span style={dotStyle(COLORS.risk)} />Capability: dark</span>
+                <span><span style={dotStyle(COLORS.warning)} />Capability: degraded</span>
+                <span><span style={dotStyle(COLORS.info)} />Technology</span>
+                <span><span style={dotStyle(COLORS.accent2)} />Peer app</span>
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, alignContent: "start" }}>
+              <div style={panelStyle}>
+                {panelHead("Capabilities going dark", br.darkCapabilities.length)}
+                {br.darkCapabilities.length === 0
+                  ? <div style={{ fontSize: 11.5, color: COLORS.inkSecondary, fontStyle: "italic" }}>None — every capability here is also covered elsewhere.</div>
+                  : br.darkCapabilities.map((c, i) => <div key={i} style={{ fontSize: 12, padding: "3px 0" }}><span style={dotStyle(COLORS.risk)} />{c}</div>)}
+              </div>
+              <div style={panelStyle}>
+                {panelHead("Capabilities degraded", br.degradedCapabilities.length)}
+                {br.degradedCapabilities.length === 0
+                  ? <div style={{ fontSize: 11.5, color: COLORS.inkSecondary, fontStyle: "italic" }}>None.</div>
+                  : br.degradedCapabilities.map((d, i) => (
+                      <div key={i} style={{ fontSize: 12, padding: "3px 0" }}>
+                        <span style={dotStyle(COLORS.warning)} />{d.cap}
+                        <span style={{ color: COLORS.inkSecondary }}> — also covered by {d.coveredBy.join(", ")}</span>
+                      </div>
+                    ))}
+              </div>
+              <div style={panelStyle}>
+                {panelHead("Technologies impacted", br.impactedTechnologies.length)}
+                {br.impactedTechnologies.length === 0
+                  ? <div style={{ fontSize: 11.5, color: COLORS.inkSecondary, fontStyle: "italic" }}>None directly linked.</div>
+                  : br.impactedTechnologies.map((t, i) => <div key={i} style={{ fontSize: 12, padding: "3px 0" }}><span style={dotStyle(COLORS.info)} />{t.name}</div>)}
+              </div>
+              <div style={panelStyle}>
+                {panelHead("Peer apps in ripple", br.downstreamApps.length)}
+                {br.downstreamApps.length === 0
+                  ? <div style={{ fontSize: 11.5, color: COLORS.inkSecondary, fontStyle: "italic" }}>No other applications are linked to the same capabilities.</div>
+                  : br.downstreamApps.map((a, i) => <div key={i} style={{ fontSize: 12, padding: "3px 0" }}><span style={dotStyle(COLORS.accent2)} />{a.name}</div>)}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ border: `1px solid ${gaugeColor}55`, background: `${gaugeColor}0C`, borderRadius: 14, padding: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Recovery considerations</div>
+            {br.recovery.map((r, i) => <div key={i} style={{ fontSize: 12.5, color: COLORS.ink, marginBottom: 4, lineHeight: 1.5 }}>• {r}</div>)}
+          </div>
+
+          {onOpenProfile && (
+            <div onClick={onOpenProfile} style={{ marginTop: 16, fontSize: 12.5, fontWeight: 600, color: COLORS.accent, cursor: "pointer" }}>
+              Open full application profile →
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 const RADAR_RING_ORDER = ["Preferred", "Accepted", "Contained", "Retire"];
@@ -1888,6 +2078,7 @@ function APMDashboardLive() {
   // so a Cloud SA's palette is visible to a Network SA on the same graph too.
   const [customPalettes, setCustomPalettes] = useState([]); // [{id, name, icons: [{key,label,svg}]}]
   const [showImportPalette, setShowImportPalette] = useState(false);
+  const [blastRadiusAppId, setBlastRadiusAppId] = useState(null); // popped-out Blast Radius modal, opened from a Portfolio card/row
   const [importPaletteName, setImportPaletteName] = useState("");
   const [importPaletteTargetId, setImportPaletteTargetId] = useState(""); // "" = create a new palette
   const [importPaletteStaged, setImportPaletteStaged] = useState([]); // [{key,label,svg,fileName} | {fileName,error}]
@@ -1909,6 +2100,7 @@ function APMDashboardLive() {
   const [canvasStatus, setCanvasStatus] = useState(""); // saving/pushing feedback
   const [profileAppId, setProfileAppId] = useState(null);
   const [profileTab, setProfileTab] = useState("overview"); // "overview" | "impact"
+  const pendingProfileTabRef = useRef(null); // set just before setProfileAppId to open on a specific tab instead of the default "overview"
   const [hoveredTech, setHoveredTech] = useState(null);
   const [capBoardColorBy, setCapBoardColorBy] = useState("disposition");
   const [fieldReviewKey, setFieldReviewKey] = useState("serviceLevel");
@@ -2427,9 +2619,13 @@ function APMDashboardLive() {
   }, [view]);
   // A stale "Impact & Risk" tab left open from the last profile visited
   // would otherwise silently carry over to whichever application this
-  // click just opened — reset to the tab every profile starts on.
+  // click just opened — reset to the tab every profile starts on, unless
+  // whoever navigated here asked for a specific tab (see pendingProfileTabRef,
+  // set just before setProfileAppId by callers like the Blast Radius modal's
+  // "Open full application profile" link).
   useEffect(() => {
-    setProfileTab("overview");
+    setProfileTab(pendingProfileTabRef.current || "overview");
+    pendingProfileTabRef.current = null;
   }, [profileAppId]);
   useEffect(() => {
     if ((view === "ontology" || view === "canvas") && organisationOptions.length === 0 && uri && password) {
@@ -5600,6 +5796,16 @@ function APMDashboardLive() {
         </div>
       )}
 
+      {blastRadiusAppId && (() => {
+        const app = apps.find((a) => a.id === blastRadiusAppId);
+        if (!app) return null;
+        const br = computeBlastRadius(app, apps, depLinks, depNodes, processes, orgsByProcess, controls, flowRows);
+        return (
+          <BlastRadiusModal app={app} br={br} onClose={() => setBlastRadiusAppId(null)}
+            onOpenProfile={() => { pendingProfileTabRef.current = "impact"; setProfileAppId(app.id); setView("profile"); setBlastRadiusAppId(null); }} />
+        );
+      })()}
+
       {status === "connected" && (
         <div style={{ width: sidebarCollapsed ? 68 : 240, flexShrink: 0,
           background: "#FFFFFF", borderRight: `1px solid ${COLORS.border}`,
@@ -6139,6 +6345,11 @@ function APMDashboardLive() {
                               <div>{fmtGBP(a.tco)} est. annual TCO</div>
                             </div>
                             <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+                              <button onClick={() => setBlastRadiusAppId(a.id)} title="Blast radius — what breaks if this goes offline"
+                                style={{ flex: 1, padding: "5px 0", background: "#F6F4EF", color: COLORS.ink,
+                                  border: `1px solid ${COLORS.border}`, borderRadius: 7, fontSize: 11.5, cursor: "pointer" }}>
+                                ⚡ Blast Radius
+                              </button>
                               <button onClick={() => (editingAppId === a.id ? setEditingAppId(null) : startEdit(a))}
                                 style={{ flex: 1, padding: "5px 0", background: editingAppId === a.id ? "#2C3B4E" : "#F6F4EF",
                                   color: editingAppId === a.id ? "#fff" : COLORS.ink, border: `1px solid ${COLORS.border}`,
@@ -6207,6 +6418,11 @@ function APMDashboardLive() {
                           </td>
                           <td>
                             <div style={{ display: "flex", gap: 6 }}>
+                              <button onClick={() => setBlastRadiusAppId(a.id)} title="Blast radius — what breaks if this goes offline"
+                                style={{ padding: "4px 10px", background: COLORS.card, color: COLORS.ink,
+                                  border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 11.5, cursor: "pointer" }}>
+                                ⚡ Blast Radius
+                              </button>
                               <button onClick={() => (editingAppId === a.id ? setEditingAppId(null) : startEdit(a))}
                                 style={{ padding: "4px 10px", background: editingAppId === a.id ? "#2C3B4E" : COLORS.card,
                                   color: editingAppId === a.id ? "#fff" : COLORS.ink, border: `1px solid ${COLORS.border}`,
@@ -9652,6 +9868,13 @@ function APMDashboardLive() {
                   <div style={{ background: "#FBF3EC", border: `1px solid #E0C9A6`, borderRadius: 18, padding: 20, marginBottom: 20 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
                       <div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 2 }}>
+                          <div style={{ fontSize: 16, fontWeight: 700 }}>Blast Radius</div>
+                          <span onClick={() => setBlastRadiusAppId(app.id)}
+                            style={{ fontSize: 11.5, fontWeight: 600, color: COLORS.accent, cursor: "pointer" }}>
+                            Pop out ↗
+                          </span>
+                        </div>
                         <div style={{ fontSize: 11.5, fontWeight: 600, color: "#D97706", textTransform: "uppercase", letterSpacing: "0.04em" }}>
                           {app.criticality} Criticality
                         </div>
