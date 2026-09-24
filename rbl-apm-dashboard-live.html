@@ -1676,6 +1676,51 @@ function ringPositions(count, radius, cx, cy) {
 // a card/row anywhere applications are listed (Portfolio Overview today)
 // without navigating away, mirroring the same data already shown inline on
 // the application's own Profile page.
+// Replaces window.confirm for anything destructive/irreversible — dialog is
+// driven by askConfirm's { message, ... } state, resolved true/false by
+// whichever button (or the overlay/Escape, both treated as Cancel) fires.
+function ConfirmDialog({ dialog, onResolve }) {
+  useEffect(() => {
+    if (!dialog) return;
+    const onKey = (e) => { if (e.key === "Escape") onResolve(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [dialog]);
+
+  if (!dialog) return null;
+  const tone = dialog.danger ? COLORS.risk : COLORS.info;
+  return (
+    <div onClick={() => onResolve(false)} style={{ position: "fixed", inset: 0, background: "rgba(20,31,48,0.55)", zIndex: 400,
+      display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, width: "min(420px, 100%)",
+        padding: 24, boxShadow: "0 24px 60px rgba(10,14,26,0.38)" }}>
+        <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+          <div style={{ width: 34, height: 34, borderRadius: 10, flexShrink: 0, background: `${tone}18`, color: tone,
+            display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 700 }}>
+            {dialog.danger ? "▲" : "i"}
+          </div>
+          <div>
+            {dialog.title && <div style={{ fontSize: 15, fontWeight: 700, color: COLORS.ink, marginBottom: 6 }}>{dialog.title}</div>}
+            <div style={{ fontSize: 13, color: COLORS.inkSecondary, lineHeight: 1.55 }}>{dialog.message}</div>
+          </div>
+        </div>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 22 }}>
+          <button onClick={() => onResolve(false)}
+            style={{ padding: "8px 16px", background: "transparent", color: COLORS.ink, border: `1px solid ${COLORS.border}`,
+              borderRadius: 8, fontSize: 12.5, cursor: "pointer" }}>
+            {dialog.cancelLabel || "Cancel"}
+          </button>
+          <button onClick={() => onResolve(true)} autoFocus
+            style={{ padding: "8px 16px", background: dialog.danger ? COLORS.risk : COLORS.ink, color: "#fff", border: "none",
+              borderRadius: 8, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>
+            {dialog.confirmLabel || (dialog.danger ? "Delete" : "Continue")}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function BlastRadiusModal({ app, br, onClose, onOpenProfile }) {
   const CX = 130, CY = 130, INNER_R = 78, OUTER_R = 118;
   const innerItems = [
@@ -2087,6 +2132,24 @@ function APMDashboardLive() {
   const [customPalettes, setCustomPalettes] = useState([]); // [{id, name, icons: [{key,label,svg}]}]
   const [showImportPalette, setShowImportPalette] = useState(false);
   const [blastRadiusAppId, setBlastRadiusAppId] = useState(null); // popped-out Blast Radius modal, opened from a Portfolio card/row
+
+  // In-app replacement for window.confirm — `await askConfirm(message, opts)`
+  // resolves true/false exactly like `window.confirm(message)` did, so every
+  // existing `if (!window.confirm(...)) return;` call site only needed
+  // `window.confirm` swapped for `await askConfirm` (and its function marked
+  // async where it wasn't already).
+  const [confirmDialog, setConfirmDialog] = useState(null);
+  const confirmResolverRef = useRef(null);
+  const askConfirm = (message, opts) => new Promise((resolve) => {
+    confirmResolverRef.current = resolve;
+    setConfirmDialog({ message, ...opts });
+  });
+  const resolveConfirmDialog = (result) => {
+    const resolve = confirmResolverRef.current;
+    confirmResolverRef.current = null;
+    setConfirmDialog(null);
+    if (resolve) resolve(result);
+  };
   const [importPaletteName, setImportPaletteName] = useState("");
   const [importPaletteTargetId, setImportPaletteTargetId] = useState(""); // "" = create a new palette
   const [importPaletteStaged, setImportPaletteStaged] = useState([]); // [{key,label,svg,fileName} | {fileName,error}]
@@ -2948,7 +3011,7 @@ function APMDashboardLive() {
   };
 
   const omDeleteInstance = async (instance) => {
-    if (!window.confirm(`Permanently delete "${instance.name}" (${omSelectedType}) from the graph? This removes the node and all its relationships — it can't be undone.`)) return;
+    if (!(await askConfirm(`Permanently delete "${instance.name}" (${omSelectedType}) from the graph? This removes the node and all its relationships — it can't be undone.`, { danger: true, confirmLabel: "Delete" }))) return;
     try {
       const apiUrl = deriveQueryApiUrl(uri, dbName);
       const authHeader = "Basic " + btoa(`${username}:${password}`);
@@ -3138,19 +3201,6 @@ function APMDashboardLive() {
       }
     };
     reader.readAsText(file);
-  };
-
-  const deleteApplication = async (app) => {
-    if (!window.confirm(`Permanently delete "${app.name}" from the graph? This removes the real node and all its relationships in Neo4j — it can't be undone, and it's separate from anything on the Modelling Canvas.`)) return;
-    try {
-      const apiUrl = deriveQueryApiUrl(uri, dbName);
-      const authHeader = "Basic " + btoa(`${username}:${password}`);
-      await runCypher(apiUrl, authHeader, `MATCH (n:Instance:Application {id: $id}) DETACH DELETE n`, { id: app.id });
-      setApps((prev) => prev.filter((a) => a.id !== app.id));
-      handleRefresh();
-    } catch (e) {
-      setErrorMsg(`Couldn't delete ${app.name}: ${e.message}`);
-    }
   };
 
   const saveBrand = (next) => {
@@ -4022,7 +4072,7 @@ function APMDashboardLive() {
   };
 
   const deleteCanvas = async (c) => {
-    if (!window.confirm(`Delete canvas "${c.name}"? This can't be undone. Anything already pushed to Neo4j from it is untouched.`)) return;
+    if (!(await askConfirm(`Delete canvas "${c.name}"? This can't be undone. Anything already pushed to Neo4j from it is untouched.`, { danger: true, confirmLabel: "Delete" }))) return;
     try {
       const apiUrl = deriveQueryApiUrl(uri, dbName);
       const authHeader = "Basic " + btoa(`${username}:${password}`);
@@ -4044,7 +4094,7 @@ function APMDashboardLive() {
     const warning = childCanvases.length > 0
       ? `Delete workspace "${ws.name}" and all ${childCanvases.length} canvas${childCanvases.length === 1 ? "" : "es"} inside it? This can't be undone.`
       : `Delete workspace "${ws.name}"?`;
-    if (!window.confirm(warning)) return;
+    if (!(await askConfirm(warning, { danger: true, confirmLabel: "Delete" }))) return;
     try {
       const apiUrl = deriveQueryApiUrl(uri, dbName);
       const authHeader = "Basic " + btoa(`${username}:${password}`);
@@ -4466,7 +4516,7 @@ function APMDashboardLive() {
   const deleteCustomPalette = async (paletteId) => {
     const palette = customPalettes.find((p) => p.id === paletteId);
     if (!palette) return;
-    if (!window.confirm(`Delete the "${palette.name}" palette? This removes it for everyone connected to this graph. Any shapes already placed from it on a canvas will show as a blank labelled box from then on, not disappear.`)) return;
+    if (!(await askConfirm(`Delete the "${palette.name}" palette? This removes it for everyone connected to this graph. Any shapes already placed from it on a canvas will show as a blank labelled box from then on, not disappear.`, { danger: true, confirmLabel: "Delete" }))) return;
     try {
       const apiUrl = deriveQueryApiUrl(uri, dbName);
       const authHeader = "Basic " + btoa(`${username}:${password}`);
@@ -4474,7 +4524,7 @@ function APMDashboardLive() {
       setCustomPalettes((prev) => prev.filter((p) => p.id !== paletteId));
       if (shapePaletteCategory === paletteId) setShapePaletteCategory("Basic");
     } catch (e) {
-      alert(`Couldn't delete palette: ${e.message}`);
+      setCanvasStatus(`Couldn't delete palette: ${e.message}`);
     }
   };
 
@@ -5029,8 +5079,8 @@ function APMDashboardLive() {
 
   const deleteSticky = (id) => setStickies((prev) => prev.filter((s) => s.id !== id));
   const deleteText = (id) => { setCanvasTexts((prev) => prev.filter((t) => t.id !== id)); if (editingTextId === id) setEditingTextId(null); };
-  const deleteConcept = (id, pushed) => {
-    if (pushed && !window.confirm("This concept was already pushed to Neo4j. Removing it here only removes it from the canvas — the real node stays in the graph. Continue?")) return;
+  const deleteConcept = async (id, pushed) => {
+    if (pushed && !(await askConfirm("This concept was already pushed to Neo4j. Removing it here only removes it from the canvas — the real node stays in the graph. Continue?"))) return;
     setCanvasConcepts((prev) => prev.filter((c) => c.id !== id));
     setCanvasEdges((prev) => prev.filter((e) => e.sourceId !== id && e.targetId !== id));
     if (editingConceptId === id) setEditingConceptId(null);
@@ -5048,7 +5098,7 @@ function APMDashboardLive() {
   // one filter per array (like autoOrganizeCanvas's one-setState-per-array
   // pattern) instead of calling the single-item delete once per selected id,
   // so a multi-select delete can't leave stale-closure gaps.
-  const deleteSelected = () => {
+  const deleteSelected = async () => {
     if (selectedIds.size === 0) return;
     const idsByKind = { sticky: new Set(), concept: new Set(), text: new Set(), shape: new Set() };
     selectedIds.forEach((key) => {
@@ -5056,9 +5106,9 @@ function APMDashboardLive() {
       if (idsByKind[kind]) idsByKind[kind].add(id);
     });
     const pushedCount = canvasConcepts.filter((c) => idsByKind.concept.has(c.id) && c.pushed).length;
-    if (pushedCount > 0 && !window.confirm(
+    if (pushedCount > 0 && !(await askConfirm(
       `${pushedCount} of the selected concepts were already pushed to Neo4j. Removing them here only removes them from the canvas — the real nodes stay in the graph. Continue?`
-    )) return;
+    ))) return;
     if (idsByKind.sticky.size) setStickies((prev) => prev.filter((s) => !idsByKind.sticky.has(s.id)));
     if (idsByKind.text.size) setCanvasTexts((prev) => prev.filter((t) => !idsByKind.text.has(t.id)));
     if (idsByKind.concept.size) {
@@ -5811,6 +5861,8 @@ function APMDashboardLive() {
             onOpenProfile={() => { pendingProfileTabRef.current = "impact"; setProfileAppId(app.id); setView("profile"); setBlastRadiusAppId(null); }} />
         );
       })()}
+
+      <ConfirmDialog dialog={confirmDialog} onResolve={resolveConfirmDialog} />
 
       {status === "connected" && (
         <div style={{ width: sidebarCollapsed ? 68 : 240, flexShrink: 0,
@@ -8948,8 +9000,8 @@ function APMDashboardLive() {
                 <button onClick={() => saveCanvas()} title="Save Canvas" style={iconToolBtnStyle}>{TOOLBAR_ICONS.save}</button>
                 <button onClick={() => { setCanvasScale(1); setCanvasOffset({ x: 400, y: 300 }); }} title="Reset View" style={iconToolBtnStyle}>{TOOLBAR_ICONS.resetView}</button>
                 <button onClick={() => autoOrganizeCanvas()} title="Organize — auto-arrange concepts into a tree" style={iconToolBtnStyle}>{TOOLBAR_ICONS.organize}</button>
-                <button onClick={() => {
-                    if (!window.confirm("Clear everything on the canvas? This only affects the canvas — nothing already pushed to Neo4j is touched.")) return;
+                <button onClick={async () => {
+                    if (!(await askConfirm("Clear everything on the canvas? This only affects the canvas — nothing already pushed to Neo4j is touched.", { danger: true, confirmLabel: "Clear Canvas" }))) return;
                     setStickies([]); setCanvasConcepts([]); setCanvasEdges([]); setCanvasTexts([]); setShapes([]); setShapeEdges([]); setFreeArrows([]);
                     saveCanvas([], [], [], [], undefined, [], [], []);
                   }}
