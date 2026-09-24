@@ -1676,21 +1676,35 @@ function ringPositions(count, radius, cx, cy) {
 // a card/row anywhere applications are listed (Portfolio Overview today)
 // without navigating away, mirroring the same data already shown inline on
 // the application's own Profile page.
-// Replaces window.confirm for anything destructive/irreversible — dialog is
-// driven by askConfirm's { message, ... } state, resolved true/false by
-// whichever button (or the overlay/Escape, both treated as Cancel) fires.
+// Replaces window.confirm/window.prompt for anything that needs a person's
+// yes/no or a short piece of text — dialog is driven by askConfirm's or
+// askPrompt's { message, ... } state. A plain confirm resolves true/false;
+// dialog.input turns on a text field and resolves the typed string (or null
+// if cancelled) — same true/false vs. string-or-null contract window.confirm
+// and window.prompt themselves had, so call sites barely changed.
 function ConfirmDialog({ dialog, onResolve }) {
+  const [inputValue, setInputValue] = useState("");
+  useEffect(() => {
+    if (dialog && dialog.input) setInputValue(dialog.defaultValue || "");
+  }, [dialog]);
+
+  const cancelValue = dialog && dialog.input ? null : false;
+  const confirmValue = dialog && dialog.input ? inputValue : true;
+
   useEffect(() => {
     if (!dialog) return;
-    const onKey = (e) => { if (e.key === "Escape") onResolve(false); };
+    const onKey = (e) => {
+      if (e.key === "Escape") onResolve(cancelValue);
+      else if (e.key === "Enter" && dialog.input) onResolve(inputValue);
+    };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [dialog]);
+  }, [dialog, inputValue]);
 
   if (!dialog) return null;
   const tone = dialog.danger ? COLORS.risk : COLORS.info;
   return (
-    <div onClick={() => onResolve(false)} style={{ position: "fixed", inset: 0, background: "rgba(20,31,48,0.55)", zIndex: 400,
+    <div onClick={() => onResolve(cancelValue)} style={{ position: "fixed", inset: 0, background: "rgba(20,31,48,0.55)", zIndex: 400,
       display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, width: "min(420px, 100%)",
         padding: 24, boxShadow: "0 24px 60px rgba(10,14,26,0.38)" }}>
@@ -1699,21 +1713,28 @@ function ConfirmDialog({ dialog, onResolve }) {
             display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 700 }}>
             {dialog.danger ? "▲" : "i"}
           </div>
-          <div>
+          <div style={{ flex: 1, minWidth: 0 }}>
             {dialog.title && <div style={{ fontSize: 15, fontWeight: 700, color: COLORS.ink, marginBottom: 6 }}>{dialog.title}</div>}
             <div style={{ fontSize: 13, color: COLORS.inkSecondary, lineHeight: 1.55 }}>{dialog.message}</div>
+            {dialog.input && (
+              <input autoFocus value={inputValue} onChange={(e) => setInputValue(e.target.value)}
+                onFocus={(e) => e.target.select()}
+                onKeyDown={(e) => { if (e.key === "Enter") onResolve(inputValue); }}
+                style={{ width: "100%", boxSizing: "border-box", marginTop: 12, padding: "8px 10px",
+                  border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 13, outline: "none" }} />
+            )}
           </div>
         </div>
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 22 }}>
-          <button onClick={() => onResolve(false)}
+          <button onClick={() => onResolve(cancelValue)}
             style={{ padding: "8px 16px", background: "transparent", color: COLORS.ink, border: `1px solid ${COLORS.border}`,
               borderRadius: 8, fontSize: 12.5, cursor: "pointer" }}>
             {dialog.cancelLabel || "Cancel"}
           </button>
-          <button onClick={() => onResolve(true)} autoFocus
+          <button onClick={() => onResolve(confirmValue)} autoFocus={!dialog.input}
             style={{ padding: "8px 16px", background: dialog.danger ? COLORS.risk : COLORS.ink, color: "#fff", border: "none",
               borderRadius: 8, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>
-            {dialog.confirmLabel || (dialog.danger ? "Delete" : "Continue")}
+            {dialog.confirmLabel || (dialog.input ? "Save" : (dialog.danger ? "Delete" : "Continue"))}
           </button>
         </div>
       </div>
@@ -2133,16 +2154,22 @@ function APMDashboardLive() {
   const [showImportPalette, setShowImportPalette] = useState(false);
   const [blastRadiusAppId, setBlastRadiusAppId] = useState(null); // popped-out Blast Radius modal, opened from a Portfolio card/row
 
-  // In-app replacement for window.confirm — `await askConfirm(message, opts)`
-  // resolves true/false exactly like `window.confirm(message)` did, so every
-  // existing `if (!window.confirm(...)) return;` call site only needed
-  // `window.confirm` swapped for `await askConfirm` (and its function marked
-  // async where it wasn't already).
+  // In-app replacement for window.confirm/window.prompt — `await askConfirm(message, opts)`
+  // resolves true/false exactly like `window.confirm(message)` did, and
+  // `await askPrompt(message, defaultValue, opts)` resolves the typed string
+  // (or null if cancelled) exactly like `window.prompt(message, defaultValue)`
+  // did, so every existing call site only needed the `window.*` call swapped
+  // for the matching `await ask*` (and its function marked async where it
+  // wasn't already).
   const [confirmDialog, setConfirmDialog] = useState(null);
   const confirmResolverRef = useRef(null);
   const askConfirm = (message, opts) => new Promise((resolve) => {
     confirmResolverRef.current = resolve;
     setConfirmDialog({ message, ...opts });
+  });
+  const askPrompt = (message, defaultValue, opts) => new Promise((resolve) => {
+    confirmResolverRef.current = resolve;
+    setConfirmDialog({ message, input: true, defaultValue, ...opts });
   });
   const resolveConfirmDialog = (result) => {
     const resolve = confirmResolverRef.current;
@@ -3999,7 +4026,7 @@ function APMDashboardLive() {
   };
 
   const createWorkspace = async (presetName) => {
-    const name = presetName || window.prompt("Name this workspace:", "New Workspace");
+    const name = presetName || (await askPrompt("Name this workspace:", "New Workspace"));
     if (!name) return null;
     try {
       const apiUrl = deriveQueryApiUrl(uri, dbName);
@@ -4016,7 +4043,7 @@ function APMDashboardLive() {
   };
 
   const createCanvasInWorkspace = async (workspaceId, presetName) => {
-    const name = presetName || window.prompt("Name this canvas:", "New Canvas");
+    const name = presetName || (await askPrompt("Name this canvas:", "New Canvas"));
     if (!name) return null;
     try {
       const apiUrl = deriveQueryApiUrl(uri, dbName);
@@ -4046,7 +4073,7 @@ function APMDashboardLive() {
   };
 
   const renameWorkspace = async (ws) => {
-    const name = window.prompt("Rename workspace:", ws.name);
+    const name = await askPrompt("Rename workspace:", ws.name);
     if (!name || name === ws.name) return;
     try {
       const apiUrl = deriveQueryApiUrl(uri, dbName);
@@ -4059,7 +4086,7 @@ function APMDashboardLive() {
   };
 
   const renameCanvas = async (c) => {
-    const name = window.prompt("Rename canvas:", c.name);
+    const name = await askPrompt("Rename canvas:", c.name);
     if (!name || name === c.name) return;
     try {
       const apiUrl = deriveQueryApiUrl(uri, dbName);
@@ -4944,9 +4971,9 @@ function APMDashboardLive() {
   // Shape connections skip the ontology verb picker entirely — they're not
   // relationships in the graph, just a labeled line on a diagram — so this
   // just prompts for optional free text instead of opening a picker panel.
-  const completeShapeConnect = (targetId, targetAnchor) => {
+  const completeShapeConnect = async (targetId, targetAnchor) => {
     if (!shapeConnectDrag || shapeConnectDrag.sourceId === targetId) { setShapeConnectDrag(null); return; }
-    const label = window.prompt("Label this connection (optional):", "") || "";
+    const label = (await askPrompt("Label this connection (optional):", "")) || "";
     setShapeEdges((prev) => [...prev, { id: newCanvasId("sedge"), sourceId: shapeConnectDrag.sourceId, targetId, label,
       sourceAnchor: shapeConnectDrag.sourceAnchor, targetAnchor, waypoints: [] }]);
     setShapeConnectDrag(null);
@@ -6078,7 +6105,7 @@ function APMDashboardLive() {
                   )}
                 </div>
               ))}
-              <button onClick={createWorkspace}
+              <button onClick={() => createWorkspace()}
                 style={{ display: "block", width: "100%", margin: "10px 0 0", textAlign: "left",
                   padding: "8px 10px", fontSize: 12.5, fontWeight: 600, borderRadius: 8,
                   border: `1px dashed ${COLORS.border}`, background: "transparent", color: COLORS.inkSecondary, cursor: "pointer" }}>
@@ -8743,7 +8770,7 @@ function APMDashboardLive() {
                   Pick a canvas to open it, or start something new. Nothing here is pushed to the real graph until
                   you explicitly push a canvas to it.
                 </div>
-                <button onClick={createWorkspace} className="ds-btn-primary" style={{ padding: "9px 18px", borderRadius: 8,
+                <button onClick={() => createWorkspace()} className="ds-btn-primary" style={{ padding: "9px 18px", borderRadius: 8,
                   fontSize: 13, fontWeight: 700, flexShrink: 0 }}>
                   + New Workspace
                 </button>
