@@ -430,14 +430,13 @@ const GUIDE_SECTIONS = [
   {
     title: "AI",
     items: [
-      { key: "ai", label: "AI Pathfinder",
-        description: "A practical decision framework for where to focus AI change: AI Readiness (feasibility) against AI Relevance (payoff), placing every scored application into Accelerate, Selective, Prepare, or Deprioritize.",
+      { key: "ai", label: "Portfolio AI Transformation",
+        description: "What happens if we transform a capability with AI — scored across People, Process, Data, and Technology, with existing initiatives, AI tools already in the graph, and the gaps to close, one click away per capability.",
         tips: [
-          "The two scores aren't computed — they're a judgement call entered directly on each application, the same way Criticality or Business Value is. Set or update them from Ontology Manager.",
-          "Readiness asks whether THIS application could take on AI change right now: data quality, integration points, and the team's skills/appetite. Relevance asks whether it's worth it: how repetitive or costly the work is today, and the strategic upside of fixing it.",
-          "The \"Top Pick\" callout is always your single highest readiness+relevance application — the one clear place to start.",
-          "Only a \"High\" score counts as the high side of either axis — Medium doesn't cross the line, so the quadrant is intentionally strict: Accelerate means genuinely high on both, not just better than most.",
-          "Hover a bubble for AI Availability, Target Pattern, Owner, and status.",
+          "\"By Capability\" is the default and primary tab — Applications moved one level down, into the Technology dimension, feeding the rollup rather than being the whole picture.",
+          "None of the four dimension scores are computed from scratch — each rolls up attributes already elsewhere in this tool (capability maturity, process AI readiness, data quality, application AI readiness), normalised onto one 0-100 scale. A dash means no signal exists yet, not a zero.",
+          "Click a capability card to open \"What happens if we transform this with AI?\" — initiatives already targeting it (check for overlap before starting a new one), AI models already usable via its applications or data, what's missing, and the applications/processes/data it would touch.",
+          "\"By Application\" is the original per-application Readiness vs. Relevance decision framework (Accelerate/Selective/Prepare/Deprioritize) — still there, still the place to set or review an individual application's own AI Readiness and Relevance from Ontology Manager.",
         ] },
     ],
   },
@@ -1940,6 +1939,149 @@ function BlastRadiusModal({ app, br, onClose, onOpenProfile }) {
   );
 }
 
+// "What happens if we transform {capability} with AI?" — the drill-in for
+// Portfolio AI Transformation's capability list. Same modal language as
+// BlastRadiusModal: white card, overlay, click-outside/✕ to close.
+function AITransformModal({ cap, onClose, onOpenOntology }) {
+  const dotStyle = (color) => ({ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: color, marginRight: 6, verticalAlign: "middle" });
+  const panelStyle = { border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: 16 };
+  const panelHead = (label, count) => (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+      <div style={{ fontSize: 13, fontWeight: 700 }}>{label}</div>
+      {count != null && <span style={{ fontSize: 11, fontWeight: 700, color: COLORS.inkSecondary, background: "#EFEDE5", borderRadius: 8, padding: "1px 7px" }}>{count}</span>}
+    </div>
+  );
+  const DIM_LABELS = { people: "People", process: "Process", data: "Data", technology: "Technology" };
+  const scoreColor = (s) => s == null ? COLORS.border : s >= 66 ? COLORS.accent : s >= 33 ? COLORS.warning : COLORS.risk;
+  const VERB_LABEL = { TRANSFORMS: "Transforms", DEVELOPS: "Develops", UNLOCKS: "Unlocks", ADDRESSES_GAP_IN: "Addresses gap in" };
+  const namesPreview = (items, n = 4) => items.length ? `: ${items.slice(0, n).map((x) => x.name).join(", ")}${items.length > n ? "…" : ""}` : "";
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(20,31,48,0.55)", zIndex: 300,
+      display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 18, width: "min(880px, 100%)",
+        maxHeight: "90vh", overflowY: "auto", boxShadow: "0 24px 60px rgba(10,14,26,0.38)" }}>
+        <div style={{ padding: "18px 26px", borderBottom: `1px solid ${COLORS.border}`,
+          display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill={COLORS.accent2} style={{ flexShrink: 0, marginTop: 2 }}>
+              <path d="M12 3 L13.8 9.2 L20 11 L13.8 12.8 L12 19 L10.2 12.8 L4 11 L10.2 9.2 Z" />
+            </svg>
+            <div>
+              <div style={{ fontSize: 17, fontWeight: 700 }}>What happens if we transform {cap.name} with AI?</div>
+              <div style={{ fontSize: 12.5, color: COLORS.inkSecondary, marginTop: 2 }}>
+                {cap.importance || "Unrated"} importance · {cap.ownerOrgName || "no owning organisation set"}
+              </div>
+            </div>
+          </div>
+          <span onClick={onClose} style={{ cursor: "pointer", color: COLORS.inkSecondary, fontSize: 20, padding: 4, lineHeight: 1 }}>✕</span>
+        </div>
+
+        <div style={{ padding: 26 }}>
+          <div style={{ marginBottom: 22 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Readiness, by dimension</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+              {Object.entries(DIM_LABELS).map(([key, label]) => {
+                const score = cap.dims[key];
+                return (
+                  <div key={key} style={panelStyle}>
+                    <div style={{ fontSize: 11.5, fontWeight: 700, color: COLORS.inkSecondary, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>
+                      {label}
+                    </div>
+                    <div style={{ fontSize: 22, fontWeight: 700, color: scoreColor(score), marginBottom: 6 }}>
+                      {score != null ? `${Math.round(score)}%` : "—"}
+                    </div>
+                    <div style={{ height: 6, borderRadius: 3, background: "#EFEDE5", overflow: "hidden" }}>
+                      <div style={{ width: `${score || 0}%`, height: "100%", background: scoreColor(score) }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ fontSize: 11.5, color: COLORS.inkSecondary, marginTop: 8, lineHeight: 1.5 }}>
+              Technology rolls up this capability's supporting applications (their own AI Readiness, from the
+              Applications sub-tab) — Applications sit one level below the capability, not the other way round.
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 22 }}>
+            <div style={panelStyle}>
+              {panelHead("Initiatives already in motion", cap.initiatives.length)}
+              {cap.initiatives.length === 0 ? (
+                <div style={{ fontSize: 12.5, color: COLORS.inkSecondary, lineHeight: 1.5 }}>
+                  No initiative currently targets this capability — a clear runway to start one, not an oversight to chase down.
+                </div>
+              ) : cap.initiatives.map((i) => (
+                <div key={i.id} style={{ padding: "8px 0", borderTop: `1px solid ${COLORS.border}` }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 600 }}>{i.name}</div>
+                  <div style={{ fontSize: 11.5, color: COLORS.inkSecondary, marginTop: 2 }}>
+                    {VERB_LABEL[i.verb] || i.verb} · {i.status || "—"}{i.sponsor ? ` · ${i.sponsor}` : ""}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={panelStyle}>
+              {panelHead("Tools already in your repository", cap.tools.length)}
+              {cap.tools.length === 0 ? (
+                <div style={{ fontSize: 12.5, color: COLORS.inkSecondary, lineHeight: 1.5 }}>
+                  No AI model in the graph is connected yet to this capability's applications or data.
+                </div>
+              ) : cap.tools.map((m) => (
+                <div key={m.id} style={{ padding: "8px 0", borderTop: `1px solid ${COLORS.border}` }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 600 }}>{m.name}</div>
+                  <div style={{ fontSize: 11.5, color: COLORS.inkSecondary, marginTop: 2 }}>
+                    {m.stereotype || "—"} · {m.status || "—"}{m.provider ? ` · ${m.provider}` : ""}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 22 }}>
+            <div style={panelStyle}>
+              {panelHead("What's missing", cap.gaps.length)}
+              {cap.gaps.length === 0 ? (
+                <div style={{ fontSize: 12.5, color: COLORS.inkSecondary, lineHeight: 1.5 }}>
+                  No obvious gaps — every dimension has at least some signal behind it.
+                </div>
+              ) : (
+                <ul style={{ margin: 0, paddingLeft: 18 }}>
+                  {cap.gaps.map((g, i) => (
+                    <li key={i} style={{ fontSize: 12.5, color: COLORS.ink, marginBottom: 6, lineHeight: 1.5 }}>{g}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div style={panelStyle}>
+              {panelHead("Impact if transformed", null)}
+              <div style={{ fontSize: 12.5, lineHeight: 2 }}>
+                <div>
+                  <span style={dotStyle(COLORS.accent2)} />
+                  <b>{cap.apps.length}</b> supporting application{cap.apps.length === 1 ? "" : "s"}{namesPreview(cap.apps)}
+                </div>
+                <div>
+                  <span style={dotStyle(COLORS.info)} />
+                  <b>{cap.processes.length}</b> realising process{cap.processes.length === 1 ? "" : "es"}{namesPreview(cap.processes)}
+                </div>
+                <div>
+                  <span style={dotStyle(COLORS.warning)} />
+                  <b>{cap.dataAssets.length}</b> data asset{cap.dataAssets.length === 1 ? "" : "s"}{namesPreview(cap.dataAssets)}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <span onClick={onOpenOntology} style={{ fontSize: 12.5, color: COLORS.accent, fontWeight: 600, cursor: "pointer" }}>
+              Open "{cap.name}" in Ontology Manager →
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const RADAR_RING_ORDER = ["Preferred", "Accepted", "Contained", "Retire"];
 const RADAR_RING_LABELS = { Preferred: "Adopt", Accepted: "Trial", Contained: "Hold", Retire: "Sunset" };
 const RADAR_RING_COLORS = { Preferred: "#0EA968", Accepted: "#4A7A8C", Contained: "#D97706", Retire: "#F0384D" };
@@ -2387,6 +2529,7 @@ function APMDashboardLive() {
   const [profileAppId, setProfileAppId] = useState(null);
   const [profileTab, setProfileTab] = useState("overview"); // "overview" | "impact"
   const pendingProfileTabRef = useRef(null); // set just before setProfileAppId to open on a specific tab instead of the default "overview"
+  const pendingAiSubTabRef = useRef(null); // set just before navigating to view "ai" to land on "application" instead of the default "capability" sub-tab
   const [hoveredTech, setHoveredTech] = useState(null);
   const [capBoardColorBy, setCapBoardColorBy] = useState("disposition");
   const [fieldReviewKey, setFieldReviewKey] = useState("serviceLevel");
@@ -2775,7 +2918,7 @@ function APMDashboardLive() {
       });
 
       const capCoverageNormalised = capRows.map((r) => ({
-        capability: r.cap.name, count: r.count,
+        id: r.cap.id, capability: r.cap.name, count: r.count,
         importance: r.cap.importance || null, marketDifferentiation: r.cap.market_differentiation || null,
         maturity: {
           governance: r.cap.governance_maturity || null, policies: r.cap.policies_maturity || null,
@@ -2896,6 +3039,9 @@ function APMDashboardLive() {
   useEffect(() => {
     if (view === "auditlog") loadAuditLog();
   }, [view]);
+  useEffect(() => {
+    if (view === "ai") loadAITransformData();
+  }, [view]);
   // Defends against landing on a view outside the current role's access by
   // any path other than the sidebar (a stale deep link, a cross-page link
   // into a section this role can't see) — the nav itself simply never
@@ -2919,6 +3065,16 @@ function APMDashboardLive() {
     setProfileTab(pendingProfileTabRef.current || "overview");
     pendingProfileTabRef.current = null;
   }, [profileAppId]);
+  // Same reasoning as pendingProfileTabRef — a stale "By Application" sub-tab
+  // from a previous visit shouldn't carry over, unless the landing page's
+  // "not yet scored" action item (which is specifically about applications)
+  // set the ref just before navigating here.
+  useEffect(() => {
+    if (view === "ai") {
+      setAiSubTab(pendingAiSubTabRef.current || "capability");
+      pendingAiSubTabRef.current = null;
+    }
+  }, [view]);
   useEffect(() => {
     if ((view === "ontology" || view === "canvas") && organisationOptions.length === 0 && uri && password) {
       loadOrganisationOptions();
@@ -3617,6 +3773,156 @@ function APMDashboardLive() {
     [pathfinderApps]
   );
 
+  // Portfolio AI Transformation — capability-level. Which of the two sub-tabs
+  // is showing: the primary capability view, or the application-level detail
+  // (the original AI Pathfinder chart) that now sits one level down, feeding
+  // the Technology dimension of the capability rollup above it.
+  const [aiSubTab, setAiSubTab] = useState("capability");
+  const [aiTransformLoading, setAiTransformLoading] = useState(false);
+  const [aiTransformError, setAiTransformError] = useState("");
+  // capId -> { processes, appIds, dataAssets, ownerOrgName }
+  const [aiCapDetail, setAiCapDetail] = useState({});
+  // capId -> [{...initiative props, verb}]
+  const [aiCapInitiatives, setAiCapInitiatives] = useState({});
+  // appId -> [{...AIModel props}] / dataId -> [{...AIModel props}] — models
+  // already in the graph, reachable from a capability via its supporting
+  // applications or its data assets. Two separate maps because an AIModel
+  // can be "in the repository" for a capability either way.
+  const [aiModelsByAppId, setAiModelsByAppId] = useState({});
+  const [aiModelsByDataId, setAiModelsByDataId] = useState({});
+  const [aiTransformModalCapId, setAiTransformModalCapId] = useState(null);
+
+  const loadAITransformData = async () => {
+    setAiTransformLoading(true);
+    try {
+      const apiUrl = deriveQueryApiUrl(uri, dbName);
+      const authHeader = "Basic " + btoa(`${username}:${password}`);
+      const detailRows = await runCypher(apiUrl, authHeader,
+        `MATCH (c:Instance:Capability)
+         OPTIONAL MATCH (p:Instance:Process)-[:REALISES]->(c)
+         WITH c, collect(DISTINCT properties(p)) AS processes
+         OPTIONAL MATCH (a:Instance:Application)-[:SUPPORTS]->(c)
+         WITH c, processes, collect(DISTINCT a.id) AS appIds
+         OPTIONAL MATCH (d:Instance:Data)-[:BELONGS_TO]->(c)
+         WITH c, processes, appIds, collect(DISTINCT properties(d)) AS dataAssets
+         OPTIONAL MATCH (o:Instance:Organisation)-[:OWNS]->(c)
+         RETURN c.id AS capId, processes, appIds, dataAssets, o.name AS ownerOrgName`
+      );
+      const detail = {};
+      detailRows.forEach((r) => {
+        detail[r.capId] = { processes: r.processes || [], appIds: r.appIds || [], dataAssets: r.dataAssets || [], ownerOrgName: r.ownerOrgName || null };
+      });
+      setAiCapDetail(detail);
+
+      const initiativeRows = await runCypher(apiUrl, authHeader,
+        `MATCH (c:Instance:Capability)
+         OPTIONAL MATCH (i:Instance:Initiative)-[r]->(c) WHERE type(r) IN ['TRANSFORMS', 'DEVELOPS', 'UNLOCKS', 'ADDRESSES_GAP_IN']
+         RETURN c.id AS capId, collect(DISTINCT i{.*, verb: type(r)}) AS initiatives`
+      );
+      const initiatives = {};
+      initiativeRows.forEach((r) => { initiatives[r.capId] = r.initiatives || []; });
+      setAiCapInitiatives(initiatives);
+
+      const modelsViaAppRows = await runCypher(apiUrl, authHeader,
+        `MATCH (a:Instance:Application)-[:USES]->(m:Instance:AIModel) RETURN a.id AS appId, properties(m) AS aiModel`
+      );
+      const byApp = {};
+      modelsViaAppRows.forEach((r) => { (byApp[r.appId] = byApp[r.appId] || []).push(r.aiModel); });
+      setAiModelsByAppId(byApp);
+
+      const modelsViaDataRows = await runCypher(apiUrl, authHeader,
+        `MATCH (m:Instance:AIModel)-[r]->(d:Instance:Data) WHERE type(r) IN ['TRAINED_ON', 'CONSUMES']
+         RETURN d.id AS dataId, properties(m) AS aiModel`
+      );
+      const byData = {};
+      modelsViaDataRows.forEach((r) => { (byData[r.dataId] = byData[r.dataId] || []).push(r.aiModel); });
+      setAiModelsByDataId(byData);
+
+      setAiTransformError("");
+    } catch (e) {
+      setAiTransformError(`Couldn't load capability AI transformation data: ${e.message}`);
+    } finally {
+      setAiTransformLoading(false);
+    }
+  };
+
+  // Normalises assorted enum scales (1-5 CMMI maturity strings, 3-level
+  // Low/Medium/High, 5-level process readiness, 3-level data quality) onto one
+  // comparable 0-100 scale per dimension, so People/Process/Data/Technology
+  // can sit side by side even though none of these attributes were designed
+  // to share a scale. A dimension with no underlying signal stays null —
+  // "not yet assessed" is a different claim from "assessed as poor," and
+  // collapsing them to the same score would misrepresent real gaps as scores.
+  const AI_MATURITY_SCALE = {
+    "1 - Initial": 20, "2 - Managed": 40, "3 - Defined": 60, "4 - Quantitative": 80, "5 - Optimizing": 100,
+  };
+  const AI_PROCESS_READINESS_SCALE = { Blocked: 0, Emerging: 25, Ready: 50, Pilot: 75, Operational: 100 };
+  const AI_LEVEL3_SCALE = { Low: 33, Medium: 66, High: 100 };
+  const AI_DATA_QUALITY_SCALE = { Poor: 33, Adequate: 66, High: 100 };
+  const AI_IMPORTANCE_SCALE = { Critical: 100, High: 75, Medium: 50, Low: 25 };
+  const avgOrNull = (nums) => { const v = nums.filter((n) => n != null); return v.length ? v.reduce((s, n) => s + n, 0) / v.length : null; };
+
+  const capabilityAIProfiles = useMemo(() => {
+    return capCoverage.filter((c) => c.id).map((cap) => {
+      const detail = aiCapDetail[cap.id] || { processes: [], appIds: [], dataAssets: [], ownerOrgName: null };
+      const capApps = detail.appIds.map((id) => apps.find((a) => a.id === id)).filter(Boolean);
+      const initiatives = (aiCapInitiatives[cap.id] || []).filter((i) => i && i.id);
+
+      const peopleScore = AI_MATURITY_SCALE[cap.maturity.people] ?? null;
+
+      const processMaturityScore = AI_MATURITY_SCALE[cap.maturity.process] ?? null;
+      const processReadinessScores = detail.processes.filter(Boolean).map((p) => AI_PROCESS_READINESS_SCALE[p.ai_readiness]).filter((v) => v != null);
+      const processAutomationScores = detail.processes.filter(Boolean)
+        .map((p) => (p.ai_automation_potential && p.ai_automation_potential !== "Not Assessed" ? AI_LEVEL3_SCALE[p.ai_automation_potential] : null))
+        .filter((v) => v != null);
+      const processScore = avgOrNull([processMaturityScore, ...processReadinessScores, ...processAutomationScores]);
+
+      const dataAssets = detail.dataAssets.filter(Boolean);
+      const dataScores = dataAssets.map((d) => AI_DATA_QUALITY_SCALE[d.quality]).filter((v) => v != null);
+      const dataScore = avgOrNull(dataScores);
+
+      const appsMaturityScore = AI_MATURITY_SCALE[cap.maturity.applications] ?? null;
+      const appReadinessScores = capApps.map((a) => AI_LEVEL3_SCALE[a.aiReadiness]).filter((v) => v != null);
+      const techScore = avgOrNull([appsMaturityScore, ...appReadinessScores]);
+
+      const dims = { people: peopleScore, process: processScore, data: dataScore, technology: techScore };
+      const readinessScore = avgOrNull(Object.values(dims));
+      const relevanceScore = AI_IMPORTANCE_SCALE[cap.importance] ?? null;
+
+      const gaps = [];
+      if (!capApps.length) gaps.push("No application supports this capability yet.");
+      else if (!capApps.some((a) => a.architectureStyle === "AI Agent" || a.architectureStyle === "Hybrid"))
+        gaps.push("None of the supporting applications are AI-shaped today (Architecture Style is still Traditional).");
+      if (!dataAssets.length) gaps.push("No data asset is modelled as belonging to this capability — AI readiness on data can't be confirmed.");
+      else if (!dataScores.some((s) => s >= 66)) gaps.push("No data asset for this capability is rated better than Adequate quality.");
+      if (!detail.processes.filter(Boolean).length) gaps.push("No process is modelled as realising this capability.");
+      else if (!processReadinessScores.length && !processAutomationScores.length) gaps.push("The processes realising this capability haven't been assessed for AI readiness or automation potential.");
+      if (!cap.maturity.people) gaps.push("People maturity for this capability hasn't been assessed.");
+      if (!detail.ownerOrgName) gaps.push("No owning organisation is set — accountability for a transformation here is unclear.");
+
+      const toolsRaw = [
+        ...capApps.flatMap((a) => aiModelsByAppId[a.id] || []),
+        ...dataAssets.flatMap((d) => aiModelsByDataId[d.id] || []),
+      ];
+      const tools = [...new Map(toolsRaw.map((m) => [m.id, m])).values()];
+
+      return {
+        id: cap.id, name: cap.capability, importance: cap.importance, count: cap.count,
+        maturity: cap.maturity, ownerOrgName: detail.ownerOrgName,
+        dims, readinessScore, relevanceScore,
+        apps: capApps, processes: detail.processes.filter(Boolean), dataAssets, initiatives, tools, gaps,
+      };
+    });
+  }, [capCoverage, aiCapDetail, aiCapInitiatives, apps, aiModelsByAppId, aiModelsByDataId]);
+
+  const IMPORTANCE_RANK = { Critical: 0, High: 1, Medium: 2, Low: 3, null: 4 };
+  const sortedCapabilityAIProfiles = useMemo(
+    () => [...capabilityAIProfiles].sort((a, b) =>
+      (IMPORTANCE_RANK[a.importance] ?? 4) - (IMPORTANCE_RANK[b.importance] ?? 4) || a.name.localeCompare(b.name)
+    ),
+    [capabilityAIProfiles]
+  );
+
   // Redundancy: group apps by (capability, functional category) — more than
   // one app in the same group is a genuine overlap candidate, not just two
   // apps that happen to touch the same capability for different reasons.
@@ -3880,7 +4186,7 @@ function APMDashboardLive() {
 
   // Action Center: the landing page's "what needs fixing now" feed. Every
   // item here reuses a signal already computed for its own dedicated view
-  // (Blocked Decisions, Tech Obsolescence, Redundancy, AI Pathfinder, Field
+  // (Blocked Decisions, Tech Obsolescence, Redundancy, Portfolio AI Transformation, Field
   // Review, Portfolio Health, Capability Board, Decision Log, Executive
   // Brief) — this is a rollup, not a new analysis engine, so it can never
   // drift out of sync with what those views themselves show.
@@ -3944,7 +4250,7 @@ function APMDashboardLive() {
       items.push({
         severity: "medium",
         title: `${unscoredApps.length} application${unscoredApps.length === 1 ? "" : "s"} not yet scored for AI readiness`,
-        description: "Missing an AI Readiness or AI Relevance rating — excluded from the AI Pathfinder view until set.",
+        description: "Missing an AI Readiness or AI Relevance rating — excluded from the By Application view until set, and from their capabilities' Technology score.",
         view: "ai",
         entities: unscoredApps.map((a) => a.name),
       });
@@ -4127,7 +4433,7 @@ function APMDashboardLive() {
     ["businessunits", "Business Units", "businessunits"],
   ];
   const AI_NAV_ITEMS = [
-    ["ai", "AI Pathfinder", "ai"],
+    ["ai", "Portfolio AI Transformation", "ai"],
   ];
   const MODERNISATION_NAV_ITEMS = [
     ["obsolescence", "Tech Obsolescence", "obsolescence"],
@@ -5796,7 +6102,7 @@ function APMDashboardLive() {
     brief: "Executive Brief", portfolio: "Portfolio Overview", blocked: "Blocked Decisions",
     canvas: "Modelling Canvas", workspaces: "Workspaces",
     capboard: "Capability Board", dependencies: "Dependencies & Impact", health: "Portfolio Health",
-    redundancy: "Redundancy", ai: "AI Pathfinder",
+    redundancy: "Redundancy", ai: "Portfolio AI Transformation",
     obsolescence: "Tech Obsolescence", cloudmigration: "Cloud Migration", techradar: "Tech Radar",
     fieldreview: "Field Review", ontology: "Ontology Manager", ownership: "Ownership Coverage", renewals: "Renewals & Reviews", auditlog: "Audit Log",
     initiatives: "Initiatives Roadmap", dataflow: "Data Flow", businessunits: "Business Units",
@@ -6178,6 +6484,15 @@ function APMDashboardLive() {
         return (
           <BlastRadiusModal app={app} br={br} onClose={() => setBlastRadiusAppId(null)}
             onOpenProfile={() => { pendingProfileTabRef.current = "impact"; setProfileAppId(app.id); setView("profile"); setBlastRadiusAppId(null); }} />
+        );
+      })()}
+
+      {aiTransformModalCapId && (() => {
+        const cap = capabilityAIProfiles.find((c) => c.id === aiTransformModalCapId);
+        if (!cap) return null;
+        return (
+          <AITransformModal cap={cap} onClose={() => setAiTransformModalCapId(null)}
+            onOpenOntology={() => { setOmSelectedType("Capability"); loadOmInstances("Capability"); setView("ontology"); setAiTransformModalCapId(null); }} />
         );
       })()}
 
@@ -7387,6 +7702,94 @@ function APMDashboardLive() {
             );
           })()}
           {view === "ai" && (() => {
+            const DIM_LABEL = { people: "People", process: "Process", data: "Data", technology: "Technology" };
+            const dimColor = (s) => s == null ? COLORS.border : s >= 66 ? COLORS.accent : s >= 33 ? COLORS.warning : COLORS.risk;
+            const miniBar = (key, score) => (
+              <div key={key} style={{ marginBottom: 6 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: COLORS.inkSecondary, marginBottom: 2 }}>
+                  <span>{DIM_LABEL[key]}</span>
+                  <span style={{ fontWeight: 600, color: dimColor(score) }}>{score != null ? `${Math.round(score)}%` : "—"}</span>
+                </div>
+                <div style={{ height: 5, borderRadius: 3, background: "#EFEDE5", overflow: "hidden" }}>
+                  <div style={{ width: `${score || 0}%`, height: "100%", background: dimColor(score) }} />
+                </div>
+              </div>
+            );
+            const IMPORTANCE_BADGE = { Critical: COLORS.risk, High: COLORS.warning, Medium: COLORS.info, Low: COLORS.inkSecondary };
+            const capabilityTab = (
+              <div>
+                <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginBottom: 20, maxWidth: 780, lineHeight: 1.6 }}>
+                  What happens if we transform a capability with AI — not just one application. Every capability is
+                  scored across the four things a real transformation actually needs: People, Process, Data, and
+                  Technology, where the applications you already track sit one level down. Click a capability for
+                  existing initiatives to check for overlap, AI tools already in your repository, what's missing,
+                  and the impact of changing it.
+                </div>
+
+                {aiTransformError && <div style={{ fontSize: 12.5, color: COLORS.risk, marginBottom: 16 }}>{aiTransformError}</div>}
+
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`,
+                  boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18,
+                  padding: "18px 22px", marginBottom: 24 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 6 }}>How is this scored?</div>
+                  <div style={{ fontSize: 13, color: COLORS.inkSecondary, lineHeight: 1.6, marginBottom: 14 }}>
+                    Not a real assessment — each dimension is rolled up from attributes already elsewhere in this
+                    tool, normalised onto one 0-100 scale so they sit side by side. A dash means no signal exists
+                    yet, not that the dimension scored zero — that distinction is the point: it tells you what to
+                    go and assess, not what to distrust.
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.inkSecondary, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 4 }}>People</div>
+                      <div style={{ fontSize: 12, color: COLORS.ink, lineHeight: 1.5 }}>The capability's own People Maturity rating.</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.inkSecondary, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 4 }}>Process</div>
+                      <div style={{ fontSize: 12, color: COLORS.ink, lineHeight: 1.5 }}>Process Maturity, blended with the realising processes' own AI Readiness and AI Automation Potential.</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.inkSecondary, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 4 }}>Data</div>
+                      <div style={{ fontSize: 12, color: COLORS.ink, lineHeight: 1.5 }}>Quality of the data assets belonging to this capability.</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.inkSecondary, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 4 }}>Technology</div>
+                      <div style={{ fontSize: 12, color: COLORS.ink, lineHeight: 1.5 }}>Applications Maturity, blended with supporting applications' own AI Readiness — the Applications sub-tab, rolled up.</div>
+                    </div>
+                  </div>
+                </div>
+
+                {aiTransformLoading ? (
+                  <div style={{ fontSize: 13, color: COLORS.inkSecondary }}>Loading…</div>
+                ) : sortedCapabilityAIProfiles.length === 0 ? (
+                  <div style={{ fontSize: 13, color: COLORS.inkSecondary }}>No capabilities found in the graph yet.</div>
+                ) : (
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(270px, 1fr))", gap: 16 }}>
+                    {sortedCapabilityAIProfiles.map((cap) => (
+                      <div key={cap.id} onClick={() => setAiTransformModalCapId(cap.id)} className="ds-card"
+                        style={{ cursor: "pointer", background: COLORS.card, border: `1px solid ${COLORS.border}`,
+                          boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 16, padding: 18 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 12 }}>
+                          <div style={{ fontSize: 14, fontWeight: 600 }}>{cap.name}</div>
+                          {cap.importance && (
+                            <span style={{ flexShrink: 0, fontSize: 10.5, fontWeight: 700, color: "#fff",
+                              background: IMPORTANCE_BADGE[cap.importance] || COLORS.inkSecondary, padding: "2px 8px", borderRadius: 8 }}>
+                              {cap.importance}
+                            </span>
+                          )}
+                        </div>
+                        {Object.keys(DIM_LABEL).map((key) => miniBar(key, cap.dims[key]))}
+                        <div style={{ display: "flex", gap: 10, marginTop: 10, fontSize: 11, color: COLORS.inkSecondary, flexWrap: "wrap" }}>
+                          {cap.gaps.length > 0 && <span>{cap.gaps.length} gap{cap.gaps.length === 1 ? "" : "s"} to close</span>}
+                          {cap.initiatives.length > 0 && <span>{cap.initiatives.length} initiative{cap.initiatives.length === 1 ? "" : "s"} in motion</span>}
+                          {cap.tools.length > 0 && <span>{cap.tools.length} tool{cap.tools.length === 1 ? "" : "s"} available</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+
             const LEVEL_SCORE = { Low: 1, Medium: 2, High: 3 };
             // Only "High" counts as the high side of either axis (see aiPathfinderQuadrant),
             // so the quadrant divider sits at the Medium/High boundary, not the midpoint —
@@ -7409,12 +7812,12 @@ function APMDashboardLive() {
               return { ...a, cx: baseX + jx, cy: baseY + jy };
             });
             const hoveredApp = hovered ? plotted.find((a) => a.id === hovered) : null;
-            return (
+            const applicationTab = (
               <div>
                 <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginBottom: 20, maxWidth: 720, lineHeight: 1.6 }}>
-                  A practical decision framework to focus AI change on the applications that matter most —
-                  AI Readiness (feasibility) against AI Relevance (payoff), placing every scored application into
-                  one of four decisions: Accelerate, Selective, Prepare, or Deprioritize.
+                  The application-level detail feeding the Technology dimension above: AI Readiness (feasibility)
+                  against AI Relevance (payoff), placing every scored application into one of four decisions —
+                  Accelerate, Selective, Prepare, or Deprioritize.
                 </div>
 
                 <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`,
@@ -7553,6 +7956,22 @@ function APMDashboardLive() {
                     yet scored (missing AI Readiness or AI Relevance) — set them via Ontology Manager to include them here.
                   </div>
                 )}
+              </div>
+            );
+            return (
+              <div>
+                <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
+                  {[["capability", "By Capability"], ["application", "By Application"]].map(([key, label]) => (
+                    <button key={key} onClick={() => setAiSubTab(key)}
+                      style={{ padding: "7px 14px", fontSize: 12.5, fontWeight: 600, borderRadius: 8, cursor: "pointer",
+                        border: `1px solid ${aiSubTab === key ? COLORS.ink : COLORS.border}`,
+                        background: aiSubTab === key ? COLORS.ink : COLORS.card,
+                        color: aiSubTab === key ? "#fff" : COLORS.ink }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {aiSubTab === "capability" ? capabilityTab : applicationTab}
               </div>
             );
           })()}
@@ -8541,7 +8960,7 @@ function APMDashboardLive() {
                 ) : (
                   <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                     {actionItems.map((item, i) => (
-                      <div key={i} className="landing-card" onClick={() => goToView(item.view)}
+                      <div key={i} className="landing-card" onClick={() => { if (item.view === "ai") pendingAiSubTabRef.current = "application"; goToView(item.view); }}
                         style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`,
                           borderLeft: `4px solid ${ACTION_SEVERITY_INFO[item.severity].color}`, borderRadius: 14,
                           padding: "16px 20px", cursor: "pointer", display: "flex", alignItems: "center",
