@@ -189,6 +189,15 @@ const COLORS = {
   quadInvest: "#C9F2DE", quadTolerate: "#FCE7B8", quadMigrate: "#FFD9CB", quadEliminate: "#FBC9D4",
 };
 
+// Removable "active filter" chip styling, shared by any filter bar that lists
+// applied filters as individually-clearable pills (currently Portfolio Overview).
+const filterChipStyle = {
+  display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11.5, fontWeight: 600,
+  color: COLORS.ink, background: `${COLORS.ink}0D`, border: `1px solid ${COLORS.border}`,
+  padding: "3px 8px", borderRadius: 20,
+};
+const filterChipCloseStyle = { cursor: "pointer", color: COLORS.inkSecondary, fontSize: 10 };
+
 // White-label config — persisted in localStorage like the Neo4j credentials.
 // Only `primary`/`accent` actually re-theme the app (they map onto
 // COLORS.ink/COLORS.accent, used pervasively throughout). Chart-specific and
@@ -298,10 +307,9 @@ const GUIDE_SECTIONS = [
     title: "APM",
     items: [
       { key: "portfolio", label: "Portfolio Overview",
-        description: "The full application inventory — filterable, plottable on a Business Value vs. Technical Health quadrant, and askable in plain English.",
+        description: "The full application inventory — filterable and plottable on a Business Value vs. Technical Health quadrant.",
         tips: [
-          "Type a question into the Ask box — e.g. \"which applications have no owner?\" — instead of building filters by hand.",
-          "The Refine bar sets filters from a plain-language instruction, e.g. \"show only cloud-hosted critical apps.\"",
+          "Filter the Inventory by status, criticality, disposition or hosting model, or search by name/vendor — active filters show as removable chips.",
           "The Inventory itself leads the page, right under the filters — toggle it between a card grid and a sortable table with the two icons above it.",
           "Click the small score circle on any card or row to pop out that application's blast radius — capabilities going dark or degraded, technologies and peer apps impacted, recovery considerations — without leaving Portfolio Overview.",
           "Bubble size on the quadrant chart is TCO; click a 6R Disposition bar to filter the Inventory to just that disposition.",
@@ -2119,14 +2127,6 @@ function APMDashboardLive() {
       });
       const data = await res.json();
       updateAsk(key, { loading: false, answer: data.answer });
-      // On Portfolio Overview specifically: if the answer identified a set of
-      // real applications, actually filter the real table to show them
-      // properly — sortable columns, exportable — instead of leaving the
-      // person to read a comma-separated wall of names out of a chat bubble.
-      if (key === "portfolio") {
-        const appEntities = (data.entities || []).filter((e) => e.type === "Application");
-        setAiResultFilter(appEntities.length > 0 ? new Set(appEntities.map((e) => e.id)) : null);
-      }
     } catch (e) {
       updateAsk(key, { loading: false, answer: `Couldn't reach chat_server.py: ${e.message}` });
     }
@@ -2270,10 +2270,6 @@ function APMDashboardLive() {
   const [criticalityFilter, setCriticalityFilter] = useState(new Set());
   const [dispositionFilter, setDispositionFilter] = useState(new Set());
   const [hostingFilter, setHostingFilter] = useState(new Set());
-  const [aiResultFilter, setAiResultFilter] = useState(null); // Set of ids, or null = no AI filter active
-  const [refineInput, setRefineInput] = useState("");
-  const [refineLoading, setRefineLoading] = useState(false);
-  const [refineFeedback, setRefineFeedback] = useState(null); // { summary, tokens, error }
   const [search, setSearch] = useState("");
 
   const fetchData = useCallback(async (apiUrl, authHeader) => {
@@ -3196,10 +3192,9 @@ function APMDashboardLive() {
     if (criticalityFilter.size && !criticalityFilter.has(a.criticality)) return false;
     if (dispositionFilter.size && !dispositionFilter.has(a.disposition.code)) return false;
     if (hostingFilter.size && !hostingFilter.has(a.hosting)) return false;
-    if (aiResultFilter && !aiResultFilter.has(a.id)) return false;
     if (search && !`${a.name} ${a.vendor}`.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
-  }), [appsWithDisposition, statusFilter, criticalityFilter, dispositionFilter, hostingFilter, aiResultFilter, search]);
+  }), [appsWithDisposition, statusFilter, criticalityFilter, dispositionFilter, hostingFilter, search]);
 
   // Sorting is layered on top of the existing filter pipeline rather than baked
   // into filteredApps itself — KPIs/CSV export/chip counts don't care about row
@@ -3699,33 +3694,6 @@ function APMDashboardLive() {
     link.download = `portfolio-overview-${new Date().toISOString().slice(0, 10)}.csv`;
     link.click();
     URL.revokeObjectURL(url);
-  };
-
-  const sendRefineFilters = async () => {
-    const req = refineInput.trim();
-    if (!req || refineLoading) return;
-    setRefineLoading(true);
-    setRefineFeedback(null);
-    try {
-      const res = await fetch("http://localhost:5050/refine-filters", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ request: req, options: { status: allStatuses, criticality: allCriticalities, disposition: allDispositions, hosting: allHostings } }),
-      });
-      if (!res.ok) throw new Error(`Chat backend returned ${res.status}`);
-      const data = await res.json();
-      if (data.error) { setRefineFeedback({ error: data.error }); return; }
-      setStatusFilter(new Set(data.status));
-      setCriticalityFilter(new Set(data.criticality));
-      setDispositionFilter(new Set(data.disposition));
-      setHostingFilter(new Set(data.hosting));
-      setSearch(data.search || "");
-      setRefineFeedback({ summary: data.summary, tokens: data.tokens });
-      setRefineInput("");
-    } catch (e) {
-      setRefineFeedback({ error: `Couldn't reach the chat backend: ${e.message}. Is chat_server.py running on port 5050?` });
-    } finally {
-      setRefineLoading(false);
-    }
   };
 
   // --- Dependency graph derived data ---
@@ -6257,70 +6225,73 @@ function APMDashboardLive() {
               </div>
 
               {subTabs([["portfolio", "Applications"], ["capboard", "Capability Board"]])}
-              {askBox("portfolio", "Ask in plain language, e.g. which applications have no owner…")}
 
-              <div style={{ background: COLORS.card, border: `1px solid ${COLORS.accent}33`, borderRadius: 12, padding: 10, marginBottom: 14 }}>
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <span style={{ color: COLORS.accent, flexShrink: 0, fontSize: 15 }}>✦</span>
-                  <input value={refineInput} onChange={(e) => setRefineInput(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter" && refineInput.trim() && !refineLoading) sendRefineFilters(); }}
-                    placeholder='Refine the filters below in plain language — e.g. "show only cloud-hosted critical apps"'
-                    disabled={refineLoading}
-                    style={{ flex: 1, border: "none", outline: "none", fontSize: 13, background: "transparent" }} />
-                  <button onClick={sendRefineFilters} disabled={refineLoading || !refineInput.trim()}
-                    style={{ padding: "6px 14px", background: refineLoading ? "#DCDFE6" : COLORS.accent, color: "#fff", border: "none",
-                      borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: refineLoading ? "default" : "pointer", flexShrink: 0 }}>
-                    {refineLoading ? "…" : "Refine"}
-                  </button>
+              <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 16, padding: "14px 16px", marginBottom: 20 }}>
+                <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10 }}>
+                  <div style={{ position: "relative", flex: "1 1 220px", maxWidth: 300 }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={COLORS.inkSecondary} strokeWidth="2" strokeLinecap="round"
+                      style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}>
+                      <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+                    </svg>
+                    <input placeholder="Search name or vendor…" value={search} onChange={(e) => setSearch(e.target.value)}
+                      style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px 8px 32px", border: `1px solid ${COLORS.border}`,
+                        borderRadius: 9, fontSize: 12.5, outline: "none", background: COLORS.paper }} />
+                  </div>
+                  {[
+                    { label: "Status", value: statusFilter, setter: setStatusFilter, options: allStatuses },
+                    { label: "Criticality", value: criticalityFilter, setter: setCriticalityFilter, options: allCriticalities },
+                    { label: "Disposition", value: dispositionFilter, setter: setDispositionFilter, options: allDispositions },
+                    { label: "Hosting", value: hostingFilter, setter: setHostingFilter, options: allHostings },
+                  ].map((f) => (
+                    <div key={f.label} style={{ position: "relative" }}>
+                      <select value={[...f.value][0] || ""} onChange={(e) => selectSingleFilter(f.setter, f.value, e.target.value)}
+                        style={{ appearance: "none", WebkitAppearance: "none", padding: "8px 26px 8px 12px",
+                          border: `1px solid ${f.value.size ? COLORS.ink : COLORS.border}`, borderRadius: 9, fontSize: 12.5,
+                          fontWeight: f.value.size ? 600 : 400, background: f.value.size ? `${COLORS.ink}0D` : COLORS.card,
+                          color: COLORS.ink, cursor: "pointer", outline: "none" }}>
+                        <option value="">Any {f.label}</option>
+                        {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
+                      </select>
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={COLORS.inkSecondary} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                        style={{ position: "absolute", right: 9, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}>
+                        <polyline points="6 9 12 15 18 9" />
+                      </svg>
+                    </div>
+                  ))}
+                  <button onClick={handleRefresh}
+                    style={{ padding: "8px 14px", background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.border}`,
+                      borderRadius: 9, fontSize: 12.5, cursor: "pointer", marginLeft: "auto", whiteSpace: "nowrap" }}>Refresh From Neo4j</button>
                 </div>
-                {refineFeedback && (
-                  <div style={{ fontSize: 11.5, color: refineFeedback.error ? COLORS.risk : COLORS.inkSecondary, marginTop: 6 }}>
-                    {refineFeedback.error || refineFeedback.summary}
-                    {refineFeedback.tokens && ` · ${refineFeedback.tokens.total.toLocaleString()} tokens`}
+
+                {(statusFilter.size > 0 || criticalityFilter.size > 0 || dispositionFilter.size > 0 || hostingFilter.size > 0 || search) && (
+                  <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, marginTop: 12, paddingTop: 12, borderTop: `1px solid ${COLORS.border}` }}>
+                    <span style={{ fontSize: 11.5, color: COLORS.inkSecondary, marginRight: 2 }}>Active filters:</span>
+                    {[...statusFilter].map((v) => (
+                      <span key={`s-${v}`} style={filterChipStyle}>{v}
+                        <span onClick={() => setStatusFilter(new Set())} style={filterChipCloseStyle}>✕</span></span>
+                    ))}
+                    {[...criticalityFilter].map((v) => (
+                      <span key={`c-${v}`} style={filterChipStyle}>{v}
+                        <span onClick={() => setCriticalityFilter(new Set())} style={filterChipCloseStyle}>✕</span></span>
+                    ))}
+                    {[...dispositionFilter].map((v) => (
+                      <span key={`d-${v}`} style={filterChipStyle}>{v}
+                        <span onClick={() => setDispositionFilter(new Set())} style={filterChipCloseStyle}>✕</span></span>
+                    ))}
+                    {[...hostingFilter].map((v) => (
+                      <span key={`h-${v}`} style={filterChipStyle}>{v}
+                        <span onClick={() => setHostingFilter(new Set())} style={filterChipCloseStyle}>✕</span></span>
+                    ))}
+                    {search && (
+                      <span style={filterChipStyle}>"{search}"
+                        <span onClick={() => setSearch("")} style={filterChipCloseStyle}>✕</span></span>
+                    )}
+                    <span onClick={() => { setStatusFilter(new Set()); setCriticalityFilter(new Set()); setDispositionFilter(new Set()); setHostingFilter(new Set()); setSearch(""); }}
+                      style={{ fontSize: 11.5, color: COLORS.inkSecondary, cursor: "pointer", textDecoration: "underline", marginLeft: 4 }}>
+                      Clear all
+                    </span>
                   </div>
                 )}
-              </div>
-
-              <div style={{ marginBottom: 20 }}>
-                <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 12.5, fontWeight: 600, color: COLORS.inkSecondary, marginRight: 2 }}>Filter by</span>
-                  <select value={[...statusFilter][0] || ""} onChange={(e) => selectSingleFilter(setStatusFilter, statusFilter, e.target.value)}
-                    style={{ padding: "6px 10px", border: `1px solid ${statusFilter.size ? COLORS.ink : COLORS.border}`,
-                      borderRadius: 6, fontSize: 12.5, background: COLORS.card, color: COLORS.ink, cursor: "pointer", outline: "none" }}>
-                    <option value="">Any Status</option>
-                    {allStatuses.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                  <select value={[...criticalityFilter][0] || ""} onChange={(e) => selectSingleFilter(setCriticalityFilter, criticalityFilter, e.target.value)}
-                    style={{ padding: "6px 10px", border: `1px solid ${criticalityFilter.size ? COLORS.ink : COLORS.border}`,
-                      borderRadius: 6, fontSize: 12.5, background: COLORS.card, color: COLORS.ink, cursor: "pointer", outline: "none" }}>
-                    <option value="">Any Criticality</option>
-                    {allCriticalities.map((c) => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                  <select value={[...dispositionFilter][0] || ""} onChange={(e) => selectSingleFilter(setDispositionFilter, dispositionFilter, e.target.value)}
-                    style={{ padding: "6px 10px", border: `1px solid ${dispositionFilter.size ? COLORS.ink : COLORS.border}`,
-                      borderRadius: 6, fontSize: 12.5, background: COLORS.card, color: COLORS.ink, cursor: "pointer", outline: "none" }}>
-                    <option value="">Any Disposition</option>
-                    {allDispositions.map((d) => <option key={d} value={d}>{d}</option>)}
-                  </select>
-                  <select value={[...hostingFilter][0] || ""} onChange={(e) => selectSingleFilter(setHostingFilter, hostingFilter, e.target.value)}
-                    style={{ padding: "6px 10px", border: `1px solid ${hostingFilter.size ? COLORS.ink : COLORS.border}`,
-                      borderRadius: 6, fontSize: 12.5, background: COLORS.card, color: COLORS.ink, cursor: "pointer", outline: "none" }}>
-                    <option value="">Any Hosting</option>
-                    {allHostings.map((h) => <option key={h} value={h}>{h}</option>)}
-                  </select>
-                  <input placeholder="Search name or vendor…" value={search} onChange={(e) => setSearch(e.target.value)}
-                    style={{ padding: "6px 10px", border: `1px solid ${COLORS.border}`, borderRadius: 6, fontSize: 12.5,
-                      outline: "none", flex: "1 1 180px", maxWidth: 220 }} />
-                  {(statusFilter.size > 0 || criticalityFilter.size > 0 || dispositionFilter.size > 0 || hostingFilter.size > 0 || aiResultFilter || search) && (
-                    <span onClick={() => { setStatusFilter(new Set()); setCriticalityFilter(new Set()); setDispositionFilter(new Set()); setHostingFilter(new Set()); setAiResultFilter(null); setSearch(""); }}
-                      style={{ fontSize: 12, color: COLORS.inkSecondary, cursor: "pointer", textDecoration: "underline", whiteSpace: "nowrap" }}>
-                      Clear filters
-                    </span>
-                  )}
-                  <button onClick={handleRefresh}
-                    style={{ padding: "7px 14px", background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)",
-                      borderRadius: 8, fontSize: 13, cursor: "pointer", marginLeft: "auto" }}>Refresh From Neo4j</button>
-                </div>
               </div>
 
               <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18, overflow: "hidden", marginBottom: 28 }}>
@@ -6328,13 +6299,6 @@ function APMDashboardLive() {
                   <div onClick={() => togglePortfolioSection("inventory")} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 15, fontWeight: 600 }}>
                     <SectionChevron sectionKey="inventory" />
                     Inventory ({filteredApps.length} of {apps.length})
-                    {aiResultFilter && (
-                      <span onClick={(e) => e.stopPropagation()} style={{ marginLeft: 4, fontSize: 11.5, fontWeight: 600, color: COLORS.accent, background: `${COLORS.accent}18`,
-                        padding: "3px 9px", borderRadius: 8 }}>
-                        ✦ AI-matched
-                        <span onClick={() => setAiResultFilter(null)} style={{ marginLeft: 6, cursor: "pointer", textDecoration: "underline" }}>Clear</span>
-                      </span>
-                    )}
                   </div>
                   {portfolioOpenSections.inventory && (
                   <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
