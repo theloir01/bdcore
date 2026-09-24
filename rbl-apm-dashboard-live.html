@@ -434,6 +434,7 @@ const GUIDE_SECTIONS = [
         description: "What happens if we transform a capability with AI — scored across People, Process, Data, and Technology, with existing initiatives, AI tools already in the graph, and the gaps to close, one click away per capability.",
         tips: [
           "\"By Capability\" is the default and primary tab — Applications moved one level down, into the Technology dimension, feeding the rollup rather than being the whole picture.",
+          "The \"Recommended for AI innovation\" panel is a ranked top 3, not an opinion — genuinely high on both business Importance and the readiness rollup, the same bar as the Applications sub-tab's Accelerate quadrant, one level up. Each entry's Why and How are read straight off that capability's own dimensions, tools, initiatives, and gaps.",
           "None of the four dimension scores are computed from scratch — each rolls up attributes already elsewhere in this tool (capability maturity, process AI readiness, data quality, application AI readiness), normalised onto one 0-100 scale. A dash means no signal exists yet, not a zero.",
           "Click a capability card to open \"What happens if we transform this with AI?\" — initiatives already targeting it (check for overlap before starting a new one), AI models already usable via its applications or data, what's missing, and the applications/processes/data it would touch.",
           "\"By Application\" is the original per-application Readiness vs. Relevance decision framework (Accelerate/Selective/Prepare/Deprioritize) — still there, still the place to set or review an individual application's own AI Readiness and Relevance from Ontology Manager.",
@@ -3922,6 +3923,52 @@ function APMDashboardLive() {
     ),
     [capabilityAIProfiles]
   );
+
+  // Everything below is read off the same `dims`/`tools`/`initiatives`/`gaps`
+  // capabilityAIProfiles already computed from real graph data — no new
+  // judgement is invented here, just prioritised and explained in one line
+  // each. "Ripe" mirrors the app-level Pathfinder's own Accelerate rule:
+  // genuinely high on BOTH relevance (business importance) and readiness
+  // (the four-dimension rollup), not just better than most.
+  const AI_REC_DIM_LABEL = { people: "People", process: "Process", data: "Data", technology: "Technology" };
+  const buildAICapabilityRecommendation = (cap) => {
+    const strongDims = Object.entries(cap.dims)
+      .filter(([, s]) => s != null && s >= 66)
+      .map(([k, s]) => `${AI_REC_DIM_LABEL[k]} (${Math.round(s)}%)`);
+    const whyParts = [];
+    if (cap.importance) whyParts.push(`${cap.importance} importance to the business`);
+    whyParts.push(strongDims.length ? `${strongDims.join(" and ")} already strong` : "readiness is broadly on track across dimensions");
+    if (cap.tools.length > 0) whyParts.push(`${cap.tools.length} AI tool${cap.tools.length === 1 ? "" : "s"} already available`);
+    whyParts.push(cap.gaps.length === 0 ? "no material gaps left to close" : `only ${cap.gaps.length} gap${cap.gaps.length === 1 ? "" : "s"} left to close`);
+    const why = whyParts.join("; ") + ".";
+
+    let how;
+    if (cap.initiatives.length > 0) {
+      const i = cap.initiatives[0];
+      how = `Already in motion via "${i.name}" (${i.status || "status unknown"}) — align new AI work with that program rather than starting separately.`;
+    } else if (cap.tools.length > 0) {
+      const t = cap.tools[0];
+      how = `Extend "${t.name}" (${t.stereotype || "AI model"}, ${t.status || "status unknown"}) — already connected to this capability.`;
+    } else {
+      const readyProcess = cap.processes.find((p) => p.ai_automation_potential === "High" || ["Pilot", "Operational"].includes(p.ai_readiness));
+      const readyApp = cap.apps.find((a) => a.aiReadiness === "High" || a.architectureStyle === "AI Agent" || a.architectureStyle === "Hybrid");
+      if (readyProcess) {
+        how = `Start by automating "${readyProcess.name}" — already flagged ${readyProcess.ai_automation_potential === "High" ? "High automation potential" : `AI Readiness: ${readyProcess.ai_readiness}`}.`;
+      } else if (readyApp) {
+        how = `Build on "${readyApp.name}" — already ${readyApp.architectureStyle !== "Traditional" ? `${readyApp.architectureStyle}, ` : ""}rated ${readyApp.aiReadiness} AI Readiness.`;
+      } else {
+        how = "No existing AI foundation yet — scope this as a from-scratch pilot, starting with a focused data and process readiness assessment.";
+      }
+    }
+    return { why, how };
+  };
+  const recommendedCapabilities = useMemo(() => {
+    return capabilityAIProfiles
+      .filter((c) => c.relevanceScore != null && c.readinessScore != null && c.relevanceScore >= 50 && c.readinessScore >= 50)
+      .map((c) => ({ ...c, opportunityScore: (c.relevanceScore + c.readinessScore) / 2, ...buildAICapabilityRecommendation(c) }))
+      .sort((a, b) => b.opportunityScore - a.opportunityScore)
+      .slice(0, 3);
+  }, [capabilityAIProfiles]);
 
   // Redundancy: group apps by (capability, functional category) — more than
   // one app in the same group is a genuine overlap candidate, not just two
@@ -7764,6 +7811,54 @@ function APMDashboardLive() {
                     readiness is automatically higher — that's entirely what the four bars below it are for.
                   </div>
                 </div>
+
+                {!aiTransformLoading && (
+                  <div className="ds-card" style={{ background: "#F3EEFC", border: `1px solid ${COLORS.accent2}`,
+                    borderRadius: 18, padding: "18px 22px", marginBottom: 24 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill={COLORS.accent2}>
+                        <path d="M12 3 L13.8 9.2 L20 11 L13.8 12.8 L12 19 L10.2 12.8 L4 11 L10.2 9.2 Z" />
+                      </svg>
+                      <div style={{ fontSize: 13.5, fontWeight: 700, color: COLORS.accent2 }}>Recommended for AI innovation</div>
+                    </div>
+                    <div style={{ fontSize: 12, color: COLORS.inkSecondary, marginBottom: 14, lineHeight: 1.5 }}>
+                      Ranked from real signal, not opinion — genuinely high on both business Importance and the
+                      readiness rollup above, the same "Accelerate" bar the Applications sub-tab uses, one level up.
+                    </div>
+                    {recommendedCapabilities.length === 0 ? (
+                      <div style={{ fontSize: 12.5, color: COLORS.ink, lineHeight: 1.5 }}>
+                        Nothing currently clears the bar on both importance and readiness — that's not a dead end,
+                        it means the honest next step is closing gaps (see each card's "gaps to close") rather than
+                        picking a capability to accelerate yet.
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                        {recommendedCapabilities.map((cap, i) => (
+                          <div key={cap.id} onClick={() => setAiTransformModalCapId(cap.id)}
+                            style={{ cursor: "pointer", background: COLORS.card, border: `1px solid ${COLORS.border}`,
+                              borderRadius: 12, padding: 14 }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <span style={{ width: 20, height: 20, borderRadius: "50%", background: COLORS.accent2, color: "#fff",
+                                  fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                                  {i + 1}
+                                </span>
+                                <span style={{ fontSize: 13.5, fontWeight: 600 }}>{cap.name}</span>
+                              </div>
+                              <span style={{ fontSize: 11.5, color: COLORS.accent2, fontWeight: 600 }}>View full analysis →</span>
+                            </div>
+                            <div style={{ fontSize: 12, color: COLORS.ink, lineHeight: 1.5, marginBottom: 4 }}>
+                              <b>Why:</b> {cap.why}
+                            </div>
+                            <div style={{ fontSize: 12, color: COLORS.ink, lineHeight: 1.5 }}>
+                              <b>How:</b> {cap.how}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {aiTransformLoading ? (
                   <div style={{ fontSize: 13, color: COLORS.inkSecondary }}>Loading…</div>
