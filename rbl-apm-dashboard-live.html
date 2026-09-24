@@ -392,13 +392,6 @@ const GUIDE_SECTIONS = [
           "Set the Organisation field on a record from Ontology Manager or the Modelling Canvas to have it appear under the right business unit here.",
           "An \"Unassigned\" group collects anything with no Organisation set — a natural checklist for what still needs one.",
         ] },
-      { key: "auditlog", label: "Audit Log",
-        description: "The governance trail: every create, edit, delete, verification, CSV import, and schema/enum change made to real ontology data, with who made it and when.",
-        tips: [
-          "\"Actor\" is the Neo4j username this session connected with, not a signed-in person — a shared connection credential means a shared name in the log.",
-          "Sketching on a Modelling Canvas isn't logged — only the moment \"Push to Graph\" turns it into real data is.",
-          "Filter by Actor, Action, or Entity Type using the chips above the table, or export the current 500 most recent entries to CSV for an offline review.",
-        ] },
     ],
   },
   {
@@ -474,6 +467,13 @@ const GUIDE_SECTIONS = [
           "Click \"Change type\" to switch what you're managing — the picker stays out of the way otherwise, so it's always obvious which type is currently active.",
           "Download a CSV Template for the selected type before bulk-editing offline — it's pre-filled with the right column headers and a guide row showing valid values.",
           "\"Manage Attributes\" is where you edit picklist (enum) options for a type, not just individual records.",
+        ] },
+      { key: "auditlog", label: "Audit Log",
+        description: "The governance trail: every create, edit, delete, verification, CSV import, and schema/enum change made to real ontology data, with who made it and when.",
+        tips: [
+          "\"Actor\" is the Neo4j username this session connected with, not a signed-in person — a shared connection credential means a shared name in the log.",
+          "Sketching on a Modelling Canvas isn't logged — only the moment \"Push to Graph\" turns it into real data is.",
+          "Filter by Actor, Action, or Entity Type using the chips above the table, or export the current 500 most recent entries to CSV for an offline review.",
         ] },
     ],
   },
@@ -3980,7 +3980,6 @@ function APMDashboardLive() {
     ["fieldreview", "Field Review", "fieldreview"],
     ["ownership", "Ownership Coverage", "ownership"],
     ["businessunits", "Business Units", "businessunits"],
-    ["auditlog", "Audit Log", "auditlog"],
   ];
   const AI_NAV_ITEMS = [
     ["ai", "AI Pathfinder", "ai"],
@@ -4002,20 +4001,25 @@ function APMDashboardLive() {
     { key: "journeys", label: "Journeys & Maturity", icon: "journeytrace", items: JOURNEY_NAV_ITEMS },
   ];
   // Which collapsible sidebar group each view lives under — views not listed
-  // here (brief, portfolio, capboard, canvas, ontology) sit at the top level
-  // or are reached as a sub-tab, so no group needs opening for them.
+  // here (brief, portfolio, capboard, canvas, ontology, auditlog) sit at the
+  // top level or are reached as a sub-tab, so no group needs opening for them.
   const VIEW_GROUP = {
     blocked: "costrisk", decisionlog: "costrisk", dependencies: "costrisk", dataflow: "costrisk", redundancy: "costrisk",
-    health: "datatrust", renewals: "datatrust", fieldreview: "datatrust", ownership: "datatrust", businessunits: "datatrust", auditlog: "datatrust",
+    health: "datatrust", renewals: "datatrust", fieldreview: "datatrust", ownership: "datatrust", businessunits: "datatrust",
     ai: "ai",
     obsolescence: "modernisation", cloudmigration: "modernisation", initiatives: "modernisation",
     journeytrace: "journeys", maturity: "journeys",
   };
   const EXECUTIVE_KEYS = new Set(["brief", "valuedelivered"]);
+  // Standalone top-level sidebar items (their own row, no parent group to
+  // expand) — jumping to one of these via goToView (e.g. Help's "Open →")
+  // must NOT force the "APM" section open, since they live outside it.
+  const STANDALONE_KEYS = new Set(["ontology", "workspaces", "canvas", "auditlog"]);
   const goToView = (key) => {
     setView(key);
     setSelectedNode(null);
-    setOpenTopSection(EXECUTIVE_KEYS.has(key) ? "executive" : "apm");
+    if (EXECUTIVE_KEYS.has(key)) setOpenTopSection("executive");
+    else if (!STANDALONE_KEYS.has(key)) setOpenTopSection("apm");
     const group = VIEW_GROUP[key];
     if (group) setOpenGroups((prev) => ({ ...prev, [group]: true }));
   };
@@ -6110,14 +6114,14 @@ function APMDashboardLive() {
 
           <div className="ds-nav-pill" title="APM"
             onClick={() => {
-              if (sidebarCollapsed) { toggleSidebarCollapsed(); if (view === "canvas" || view === "workspaces" || view === "ontology") setView("portfolio"); setOpenTopSection("apm"); return; }
-              if (view === "canvas" || view === "workspaces" || view === "ontology") setView("portfolio");
+              if (sidebarCollapsed) { toggleSidebarCollapsed(); if (STANDALONE_KEYS.has(view)) setView("portfolio"); setOpenTopSection("apm"); return; }
+              if (STANDALONE_KEYS.has(view)) setView("portfolio");
               setOpenTopSection((prev) => prev === "apm" ? null : "apm");
             }}
             style={{ display: "flex", justifyContent: sidebarCollapsed ? "center" : "space-between", alignItems: "center", cursor: "pointer",
               padding: sidebarCollapsed ? "9px 0" : "9px 12px", fontSize: 13, fontWeight: 700, borderRadius: 9, marginBottom: 3,
-              background: (view !== "canvas" && view !== "workspaces" && view !== "ontology" && view !== "brief" && view !== "valuedelivered") ? `${COLORS.accent}14` : "transparent",
-              color: (view !== "canvas" && view !== "workspaces" && view !== "ontology" && view !== "brief" && view !== "valuedelivered") ? COLORS.accent : COLORS.inkSecondary }}>
+              background: (!STANDALONE_KEYS.has(view) && view !== "brief" && view !== "valuedelivered") ? `${COLORS.accent}14` : "transparent",
+              color: (!STANDALONE_KEYS.has(view) && view !== "brief" && view !== "valuedelivered") ? COLORS.accent : COLORS.inkSecondary }}>
             <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
                 strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d="M4 19V5M4 19h16M9 19V11M14 19V7M19 19v-5" /></svg>
@@ -6262,6 +6266,15 @@ function APMDashboardLive() {
               Pick a concept type and manage its instances directly — the type selector and table are in the main panel.
             </div>
           )}
+
+          {/* Its own standalone row, deliberately outside APM — it's a
+              governance record of changes across the whole graph, not one
+              more APM sub-view. */}
+          <button className={view === "auditlog" ? "ds-nav-pill ds-nav-pill-active" : "ds-nav-pill"} title="Audit Log"
+            onClick={() => setView("auditlog")} style={navButtonStyle("auditlog", sidebarCollapsed)}>
+            {ICONS.auditlog}
+            {!sidebarCollapsed && <span>Audit Log</span>}
+          </button>
 
           <button className={view === "help" ? "ds-nav-pill ds-nav-pill-active" : "ds-nav-pill"} title="Help"
             onClick={() => setView("help")} style={navButtonStyle("help", sidebarCollapsed)}>
