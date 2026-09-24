@@ -392,6 +392,13 @@ const GUIDE_SECTIONS = [
           "Set the Organisation field on a record from Ontology Manager or the Modelling Canvas to have it appear under the right business unit here.",
           "An \"Unassigned\" group collects anything with no Organisation set — a natural checklist for what still needs one.",
         ] },
+      { key: "auditlog", label: "Audit Log",
+        description: "The governance trail: every create, edit, delete, verification, CSV import, and schema/enum change made to real ontology data, with who made it and when.",
+        tips: [
+          "\"Actor\" is the Neo4j username this session connected with, not a signed-in person — a shared connection credential means a shared name in the log.",
+          "Sketching on a Modelling Canvas isn't logged — only the moment \"Push to Graph\" turns it into real data is.",
+          "Filter by Actor, Action, or Entity Type using the chips above the table, or export the current 500 most recent entries to CSV for an offline review.",
+        ] },
     ],
   },
   {
@@ -2114,6 +2121,9 @@ function APMDashboardLive() {
   const [ownershipLoading, setOwnershipLoading] = useState(false);
   const [ownershipExpanded, setOwnershipExpanded] = useState(null);
   const [ownershipError, setOwnershipError] = useState("");
+  const [auditLog, setAuditLog] = useState([]);
+  const [auditLogLoading, setAuditLogLoading] = useState(false);
+  const [auditLogError, setAuditLogError] = useState("");
   const [initiatives, setInitiatives] = useState([]);
   const [initiativesLoading, setInitiativesLoading] = useState(false);
   const [initiativesError, setInitiativesError] = useState("");
@@ -2177,6 +2187,46 @@ function APMDashboardLive() {
     setConfirmDialog(null);
     if (resolve) resolve(result);
   };
+
+  // Governance audit trail — every create/update/delete/verify/import against
+  // real ontology data (plus schema-level enum/attribute changes) writes one
+  // AuditLogEntry node to Neo4j, viewable on the Audit Log page. Called AFTER
+  // the real mutation already succeeded, with its own try/catch, so a failure
+  // here (e.g. a dropped connection) never gets mistaken for the actual save
+  // having failed — it's logged to the console and nothing else.
+  // "Actor" is the Neo4j username this session connected with, not a signed-in
+  // person — the same limitation as everywhere else in the app that has no
+  // per-user login, so it identifies a credential, not necessarily an
+  // individual, whenever a username is shared across a team.
+  const logAudit = async ({ action, entityType, entityId, entityName, summary }) => {
+    try {
+      const apiUrl = deriveQueryApiUrl(uri, dbName);
+      const authHeader = "Basic " + btoa(`${username}:${password}`);
+      await runCypher(apiUrl, authHeader,
+        `CREATE (a:AuditLogEntry {id: $id, timestamp: $timestamp, actor: $actor, action: $action,
+          entityType: $entityType, entityId: $entityId, entityName: $entityName, summary: $summary})`,
+        { id: newCanvasId("audit"), timestamp: new Date().toISOString(), actor: username || "Unknown",
+          action, entityType: entityType || null, entityId: entityId || null, entityName: entityName || null, summary: summary || null }
+      );
+    } catch (e) {
+      console.warn("Couldn't record audit log entry:", e.message);
+    }
+  };
+  // Renders a "Field: before → after" summary for only the fields that
+  // actually changed — used by every audit entry that has a real before/after
+  // to compare, so the log reads as a diff instead of a full field dump.
+  const summarizeFieldChanges = (before, after, labels) => {
+    const parts = [];
+    Object.keys(labels).forEach((key) => {
+      const a = before ? before[key] : null;
+      const b = after ? after[key] : null;
+      const av = (a === undefined || a === null || a === "") ? "—" : String(a);
+      const bv = (b === undefined || b === null || b === "") ? "—" : String(b);
+      if (av !== bv) parts.push(`${labels[key]}: ${av} → ${bv}`);
+    });
+    return parts.length ? parts.join("; ") : null;
+  };
+
   const [importPaletteName, setImportPaletteName] = useState("");
   const [importPaletteTargetId, setImportPaletteTargetId] = useState(""); // "" = create a new palette
   const [importPaletteStaged, setImportPaletteStaged] = useState([]); // [{key,label,svg,fileName} | {fileName,error}]
@@ -2313,6 +2363,7 @@ function APMDashboardLive() {
     try {
       const apiUrl = deriveQueryApiUrl(uri, dbName);
       const authHeader = "Basic " + btoa(`${username}:${password}`);
+      const before = apps.find((a) => a.id === editingAppId);
       await runCypher(apiUrl, authHeader,
         `MATCH (n {id: $id}) SET n.owner = $owner, n.vendor = $vendor, n.criticality = $criticality,
          n.hosting_model = $hosting, n.business_value = $businessValue, n.technical_health = $techHealth, n.tco = $tco,
@@ -2324,6 +2375,13 @@ function APMDashboardLive() {
           architectureStyle: editForm.architectureStyle,
         }
       );
+      await logAudit({
+        action: "updated", entityType: "Application", entityId: editingAppId, entityName: before ? before.name : editingAppId,
+        summary: summarizeFieldChanges(before, editForm, {
+          owner: "Owner", vendor: "Vendor", criticality: "Criticality", hosting: "Hosting",
+          businessValue: "Business Value", techHealth: "Technical Health", tco: "TCO", architectureStyle: "Architecture Style",
+        }),
+      });
       setEditingAppId(null);
       handleRefresh();
     } catch (e) {
@@ -2331,7 +2389,7 @@ function APMDashboardLive() {
     } finally {
       setEditSaving(false);
     }
-  }, [editingAppId, editForm, uri, username, password]);
+  }, [editingAppId, editForm, uri, username, password, apps]);
 
   const sendChatMessage = useCallback(async () => {
     const question = chatInput.trim();
@@ -2698,6 +2756,9 @@ function APMDashboardLive() {
     if (view === "ownership") loadOwnershipCoverage();
   }, [view]);
   useEffect(() => {
+    if (view === "auditlog") loadAuditLog();
+  }, [view]);
+  useEffect(() => {
     if (view === "initiatives") loadInitiatives();
   }, [view]);
   useEffect(() => {
@@ -2783,6 +2844,27 @@ function APMDashboardLive() {
       setOwnershipStats({});
     } finally {
       setOwnershipLoading(false);
+    }
+  };
+
+  // Newest-first, capped at 500 — a governance log people skim/filter rather
+  // than paginate through; a graph running long enough to blow past that cap
+  // has bigger housekeeping questions than what this page can answer anyway.
+  const loadAuditLog = async () => {
+    setAuditLogLoading(true);
+    try {
+      const apiUrl = deriveQueryApiUrl(uri, dbName);
+      const authHeader = "Basic " + btoa(`${username}:${password}`);
+      const rows = await runCypher(apiUrl, authHeader,
+        `MATCH (a:AuditLogEntry) RETURN properties(a) AS props ORDER BY a.timestamp DESC LIMIT 500`
+      );
+      setAuditLog(rows.map((r) => r.props));
+      setAuditLogError("");
+    } catch (e) {
+      setAuditLogError(`Couldn't load the audit log: ${e.message}`);
+      setAuditLog([]);
+    } finally {
+      setAuditLogLoading(false);
     }
   };
 
@@ -2928,10 +3010,15 @@ function APMDashboardLive() {
     try {
       const apiUrl = deriveQueryApiUrl(uri, dbName);
       const authHeader = "Basic " + btoa(`${username}:${password}`);
+      const before = (schemaAttributes[omSelectedType] || []).find((a) => a.name === enumManagerAttrName);
       await runCypher(apiUrl, authHeader,
         `MATCH (a:AttributeDefinition {concept_type: $type, name: $name}) SET a.options = $options`,
         { type: omSelectedType, name: enumManagerAttrName, options: enumManagerDraft }
       );
+      await logAudit({
+        action: "updated", entityType: "Attribute", entityName: `${omSelectedType} · ${humanizeLabel(enumManagerAttrName)}`,
+        summary: `Options: ${(before && before.options || []).join(", ") || "—"} → ${enumManagerDraft.join(", ") || "—"}`,
+      });
       // Patch the local schema cache too, so the Add/Edit form reflects this
       // immediately without needing a full reconnect.
       setSchemaAttributes((prev) => ({
@@ -2990,6 +3077,10 @@ function APMDashboardLive() {
          MERGE (c)-[:HAS_ATTRIBUTE]->(a)`,
         { type: omSelectedType, name, attrType: newAttrType, options: isEnumLike ? newAttrOptions : null, required: newAttrRequired }
       );
+      await logAudit({
+        action: "created", entityType: "Attribute", entityName: `${omSelectedType} · ${name}`,
+        summary: `Type: ${newAttrType}${isEnumLike ? `, Options: ${newAttrOptions.join(", ")}` : ""}${newAttrRequired ? ", Required" : ""}`,
+      });
       // Same local-cache patch as saveEnumOptions — the new field shows up in
       // the Add/Edit form immediately, no reconnect needed.
       setSchemaAttributes((prev) => ({
@@ -3021,11 +3112,19 @@ function APMDashboardLive() {
       if (omEditingId === "new") {
         const newId = newCanvasId("om");
         await runCypher(apiUrl, authHeader, `CREATE (n:Instance:${omSelectedType} $props)`, { props: { id: newId, ...rest } });
+        await logAudit({ action: "created", entityType: omSelectedType, entityId: newId, entityName: rest.name });
       } else {
+        const before = omInstances.find((x) => x.id === omEditingId);
         await runCypher(apiUrl, authHeader,
           `MATCH (n:Instance:${omSelectedType} {id: $id}) SET n += $props, n.verified_at = null`,
           { id: omEditingId, props: rest }
         );
+        const labels = {};
+        Object.keys(rest).forEach((k) => { labels[k] = humanizeLabel(k); });
+        await logAudit({
+          action: "updated", entityType: omSelectedType, entityId: omEditingId, entityName: rest.name,
+          summary: summarizeFieldChanges(before, rest, labels),
+        });
       }
       setOmStatus("Saved.");
       setOmEditingId(null);
@@ -3043,6 +3142,7 @@ function APMDashboardLive() {
       const apiUrl = deriveQueryApiUrl(uri, dbName);
       const authHeader = "Basic " + btoa(`${username}:${password}`);
       await runCypher(apiUrl, authHeader, `MATCH (n:Instance:${omSelectedType} {id: $id}) DETACH DELETE n`, { id: instance.id });
+      await logAudit({ action: "deleted", entityType: omSelectedType, entityId: instance.id, entityName: instance.name });
       setOmInstances((prev) => prev.filter((x) => x.id !== instance.id));
       handleRefresh();
     } catch (e) {
@@ -3065,6 +3165,7 @@ function APMDashboardLive() {
         `MATCH (n:Instance:${omSelectedType} {id: $id}) SET n.verified_at = $now`,
         { id: instance.id, now }
       );
+      await logAudit({ action: "verified", entityType: omSelectedType, entityId: instance.id, entityName: instance.name });
       setOmInstances((prev) => prev.map((x) => (x.id === instance.id ? { ...x, verified_at: now } : x)));
     } catch (e) {
       setOmStatus(`Verify failed: ${e.message}`);
@@ -3214,6 +3315,12 @@ function APMDashboardLive() {
           );
         }
 
+        if (toCreate.length || toUpdate.length) {
+          await logAudit({
+            action: "imported", entityType: omSelectedType, entityName: `CSV import — ${omSelectedType}`,
+            summary: `${toCreate.length} created, ${toUpdate.length} updated` + (skippedCount > 0 ? `, ${skippedCount} skipped` : ""),
+          });
+        }
         if (warnings.length) console.warn(`[CSV import — ${omSelectedType}]`, warnings.join("\n"));
         setOmStatus(
           `Imported: ${toCreate.length} created, ${toUpdate.length} updated` +
@@ -3773,6 +3880,22 @@ function APMDashboardLive() {
     URL.revokeObjectURL(url);
   };
 
+  const exportAuditLogToCSV = () => {
+    const cols = ["Timestamp", "Actor", "Action", "Entity Type", "Entity", "Details"];
+    const escapeCsv = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const rows = auditLog.map((e) => [
+      new Date(e.timestamp).toLocaleString(), e.actor, e.action, e.entityType, e.entityName, e.summary,
+    ].map(escapeCsv).join(","));
+    const csv = [cols.map(escapeCsv).join(","), ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `audit-log-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   // --- Dependency graph derived data ---
   const spofIds = useMemo(() => {
     const inDegree = {};
@@ -3857,6 +3980,7 @@ function APMDashboardLive() {
     ["fieldreview", "Field Review", "fieldreview"],
     ["ownership", "Ownership Coverage", "ownership"],
     ["businessunits", "Business Units", "businessunits"],
+    ["auditlog", "Audit Log", "auditlog"],
   ];
   const AI_NAV_ITEMS = [
     ["ai", "AI Pathfinder", "ai"],
@@ -3882,7 +4006,7 @@ function APMDashboardLive() {
   // or are reached as a sub-tab, so no group needs opening for them.
   const VIEW_GROUP = {
     blocked: "costrisk", decisionlog: "costrisk", dependencies: "costrisk", dataflow: "costrisk", redundancy: "costrisk",
-    health: "datatrust", renewals: "datatrust", fieldreview: "datatrust", ownership: "datatrust", businessunits: "datatrust",
+    health: "datatrust", renewals: "datatrust", fieldreview: "datatrust", ownership: "datatrust", businessunits: "datatrust", auditlog: "datatrust",
     ai: "ai",
     obsolescence: "modernisation", cloudmigration: "modernisation", initiatives: "modernisation",
     journeytrace: "journeys", maturity: "journeys",
@@ -3942,6 +4066,7 @@ function APMDashboardLive() {
     maturity: <svg {...ICON_COMMON}><line x1="3" y1="21" x2="21" y2="21" /><rect x="4.5" y="14" width="3.5" height="7" /><rect x="10.25" y="9" width="3.5" height="12" /><rect x="16" y="4" width="3.5" height="17" /></svg>,
     ownership: <svg {...ICON_COMMON}><circle cx="9.5" cy="8" r="3.2" /><path d="M3.5 20c0-4 2.5-6.2 6-6.2s6 2.2 6 6.2" /><path d="M15.5 14.5l2 2 4-4" /></svg>,
     businessunits: <svg {...ICON_COMMON}><rect x="9" y="3" width="6" height="4.5" rx="1" /><rect x="3" y="16.5" width="6" height="4.5" rx="1" /><rect x="15" y="16.5" width="6" height="4.5" rx="1" /><path d="M12 7.5v4.5M6 12v4.5M18 12v4.5M6 12h12" /></svg>,
+    auditlog: <svg {...ICON_COMMON}><rect x="3" y="3" width="14" height="18" rx="2" /><line x1="6.5" y1="7.5" x2="13.5" y2="7.5" /><line x1="6.5" y1="11" x2="13.5" y2="11" /><line x1="6.5" y1="14.5" x2="10.5" y2="14.5" /><circle cx="17.5" cy="17.5" r="4.2" /><line x1="17.5" y1="15.3" x2="17.5" y2="17.5" /><line x1="17.5" y1="17.5" x2="19" y2="18.5" /></svg>,
     initiatives: <svg {...ICON_COMMON}><rect x="3" y="5" width="11" height="3.2" rx="1" /><rect x="8" y="11" width="13" height="3.2" rx="1" /><rect x="5" y="17" width="9" height="3.2" rx="1" /></svg>,
     dataflow: <svg {...ICON_COMMON}><rect x="2" y="9" width="6" height="6" rx="1.2" /><rect x="16" y="2" width="6" height="6" rx="1.2" /><rect x="16" y="16" width="6" height="6" rx="1.2" /><path d="M8 11l7.5 -6M8 13l7.5 6" /></svg>,
     valuedelivered: <svg {...ICON_COMMON}><path d="M3 19h18" /><path d="M4 15.5 L9 10 L13 13.5 L20 6" /><path d="M15 6h5v5" /></svg>,
@@ -4154,12 +4279,14 @@ function APMDashboardLive() {
           `CREATE (n:Instance:${c.conceptType} $props)`,
           { props }
         );
+        await logAudit({ action: "created", entityType: c.conceptType, entityId: realId, entityName: c.name, summary: "Created via Modelling Canvas push" });
         idMap[c.id] = realId;
       }
       const updatedConcepts = canvasConcepts.map((c) =>
         idMap[c.id] ? { ...c, pushed: true, realId: idMap[c.id] } : c
       );
       const updatedEdges = [...canvasEdges];
+      let relPushedCount = 0;
       for (let i = 0; i < updatedEdges.length; i++) {
         const e = updatedEdges[i];
         if (e.pushed) continue;
@@ -4174,6 +4301,14 @@ function APMDashboardLive() {
           { srcId: srcRealId, tgtId: tgtRealId, verb: e.verb }
         );
         updatedEdges[i] = { ...e, pushed: true };
+        relPushedCount++;
+      }
+      if (relPushedCount > 0) {
+        await logAudit({
+          action: "updated", entityType: "Relationship",
+          entityName: `${relPushedCount} relationship${relPushedCount === 1 ? "" : "s"} linked`,
+          summary: "Linked via Modelling Canvas push",
+        });
       }
       setCanvasConcepts(updatedConcepts);
       setCanvasEdges(updatedEdges);
@@ -5514,7 +5649,7 @@ function APMDashboardLive() {
     capboard: "Capability Board", dependencies: "Dependencies & Impact", health: "Portfolio Health",
     redundancy: "Redundancy", ai: "AI Pathfinder",
     obsolescence: "Tech Obsolescence", cloudmigration: "Cloud Migration", techradar: "Tech Radar",
-    fieldreview: "Field Review", ontology: "Ontology Manager", ownership: "Ownership Coverage", renewals: "Renewals & Reviews",
+    fieldreview: "Field Review", ontology: "Ontology Manager", ownership: "Ownership Coverage", renewals: "Renewals & Reviews", auditlog: "Audit Log",
     initiatives: "Initiatives Roadmap", dataflow: "Data Flow", businessunits: "Business Units",
     valuedelivered: "Value Delivered",
     journeytrace: "Journey Trace", maturity: "Capability Maturity", decisionlog: "Decision Log",
@@ -7816,6 +7951,69 @@ function APMDashboardLive() {
                     </div>
                   </>
                 )}
+              </div>
+            );
+          })()}
+          {view === "auditlog" && (() => {
+            const ACTION_STYLE = {
+              created: COLORS.accent, updated: COLORS.info, deleted: COLORS.risk, verified: COLORS.accent2, imported: COLORS.warning,
+            };
+            return (
+              <div>
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)",
+                  borderRadius: 16, padding: 22, marginBottom: 22, maxWidth: 820 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 6 }}>What is this page?</div>
+                  <div style={{ fontSize: 13, color: COLORS.inkSecondary, lineHeight: 1.6 }}>
+                    Every create, edit, delete, verification, CSV import, and schema/enum change made to real ontology
+                    data — from Ontology Manager, an application's Profile, or a Modelling Canvas push — writes one
+                    entry here. It's the record a governance review asks for: who changed what, and when.
+                  </div>
+                  <div style={{ fontSize: 12, color: COLORS.inkSecondary, marginTop: 10, lineHeight: 1.6 }}>
+                    <b>One honest limitation:</b> "Actor" is the Neo4j username this session connected with, not a
+                    signed-in person — if a team shares one connection credential, entries will show that shared
+                    username rather than who was actually at the keyboard. Sketching on a Modelling Canvas isn't
+                    logged — only the moment "Push to Graph" turns it into real data is.
+                  </div>
+                </div>
+
+                {auditLogError && <div style={{ fontSize: 12.5, color: COLORS.risk, marginBottom: 14 }}>{auditLogError}</div>}
+
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18, overflow: "hidden" }}>
+                  <div style={{ padding: "16px 18px 4px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                    <div style={{ fontSize: 15, fontWeight: 600 }}>
+                      {auditLogLoading ? "Loading…" : `${auditLog.length} entr${auditLog.length === 1 ? "y" : "ies"}${auditLog.length === 500 ? " (most recent 500)" : ""}`}
+                    </div>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button onClick={loadAuditLog}
+                        style={{ padding: "6px 14px", background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.border}`,
+                          borderRadius: 8, fontSize: 12.5, cursor: "pointer" }}>
+                        ↻ Refresh
+                      </button>
+                      <button onClick={exportAuditLogToCSV} disabled={auditLog.length === 0}
+                        style={{ padding: "6px 14px", background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.border}`,
+                          borderRadius: 8, fontSize: 12.5, cursor: auditLog.length === 0 ? "default" : "pointer", opacity: auditLog.length === 0 ? 0.5 : 1 }}>
+                        ⭳ Export CSV
+                      </button>
+                    </div>
+                  </div>
+                  <SortableTable
+                    rowKey={(e) => e.id}
+                    defaultSort={{ key: "timestamp", dir: "desc" }}
+                    emptyMessage={auditLogLoading ? "Loading…" : "No changes recorded yet — this fills in as people edit ontology data."}
+                    columns={[
+                      { key: "timestamp", label: "When", render: (e) => new Date(e.timestamp).toLocaleString() },
+                      { key: "actor", label: "Actor", chip: true },
+                      { key: "action", label: "Action", chip: true, render: (e) => (
+                          <span style={{ background: `${ACTION_STYLE[e.action] || COLORS.inkSecondary}18`, color: ACTION_STYLE[e.action] || COLORS.inkSecondary,
+                            padding: "2px 9px", borderRadius: 8, fontSize: 11, fontWeight: 700, textTransform: "capitalize" }}>{e.action}</span>
+                        ) },
+                      { key: "entityType", label: "Entity Type", chip: true },
+                      { key: "entityName", label: "Entity" },
+                      { key: "summary", label: "Details", render: (e) => <span style={{ color: COLORS.inkSecondary }}>{e.summary || "—"}</span> },
+                    ]}
+                    rows={auditLog}
+                  />
+                </div>
               </div>
             );
           })()}
