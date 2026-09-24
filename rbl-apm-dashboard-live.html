@@ -206,6 +206,39 @@ const filterChipCloseStyle = { cursor: "pointer", color: COLORS.inkSecondary, fo
 // into one brand color.
 const DEFAULT_BRAND = { name: "The Royal British Legion", subtitle: "Digital, Data & Technology", logo: null, primary: "#0A0E1A", accent: "#0EA968" };
 
+// Simple client-side role gate — NOT real access control. There is no
+// backend server: the browser already holds full Neo4j credentials
+// regardless of which role someone picks here, so anyone who opens dev
+// tools or reads this file's source can bypass it entirely. What this DOES
+// do: give each person a menu tailored to their job (an exec isn't lost in
+// APM sub-menus) and a lightweight, visible speed bump in front of
+// governance-sensitive areas like Ontology Manager and the Audit Log.
+// Change these passcodes — plain text, visible to anyone who views this
+// page's source — before sharing this build with colleagues. When this app
+// eventually moves off a laptop onto a real host, replace this whole gate
+// with server-enforced auth; nothing here should be trusted as real security
+// before then.
+const ROLE_PASSCODES = { admin: "admin123", exec: "exec123", apm: "apm123", workspace: "workspace123" };
+const ROLE_LABELS = { admin: "Admin", exec: "Executive", apm: "APM", workspace: "Workspace" };
+// Which view each role lands on immediately after signing in.
+const ROLE_HOME = { admin: "landing", exec: "brief", apm: "portfolio", workspace: "workspaces" };
+// Every view key a non-admin role may open — admin is unrestricted and
+// doesn't need an entry here. "blocked", "redundancy", "health", and
+// "profile" are in the exec set only because the Executive Brief itself
+// links straight into them as supporting detail for a number already on the
+// dashboard — not a grant of general APM access.
+const ROLE_VIEWS = {
+  exec: new Set(["brief", "valuedelivered", "blocked", "redundancy", "health", "profile", "help"]),
+  apm: new Set([
+    "portfolio", "capboard", "profile", "techradar",
+    "blocked", "decisionlog", "dependencies", "dataflow", "redundancy",
+    "health", "renewals", "fieldreview", "ownership", "businessunits",
+    "ai", "obsolescence", "cloudmigration", "initiatives",
+    "journeytrace", "maturity", "ontology", "help",
+  ]),
+  workspace: new Set(["workspaces", "canvas", "help"]),
+};
+
 // Modelling Canvas: the real BDCore concept types (whitelist — anything
 // pushed to Neo4j must be one of these, no arbitrary labels) and the
 // controlled verb vocabulary, mirrored from chat_server.py's SCHEMA_CONTEXT.
@@ -2015,7 +2048,112 @@ function computeReachable(nodeId, links, direction) {
   return found;
 }
 
+// The pre-login gate — same hero-flashy visual language as the Neo4j connect
+// screen below it, shown before that screen rather than after, since who's
+// using the app doesn't depend on Neo4j connectivity. A passcode per role,
+// not per person: see the ROLE_PASSCODES comment for exactly what this does
+// and doesn't guarantee.
+function LoginScreen({ brand, onLogin }) {
+  const [name, setName] = useState("");
+  const [role, setRole] = useState("apm");
+  const [passcode, setPasscode] = useState("");
+  const [error, setError] = useState("");
+
+  const submit = () => {
+    if (!name.trim()) { setError("Enter your name."); return; }
+    if (passcode !== ROLE_PASSCODES[role]) { setError("That passcode doesn't match the selected role."); return; }
+    setError("");
+    onLogin(name.trim(), role);
+  };
+
+  return (
+    <div className="hero-flashy" style={{ position: "fixed", inset: 0, display: "flex", flexDirection: "column",
+      alignItems: "center", justifyContent: "center", padding: 24, overflow: "auto" }}>
+      <div className="hero-orb" style={{ width: 360, height: 360, top: "10%", left: "8%",
+        background: "radial-gradient(circle, rgba(14,169,104,0.5), transparent 70%)", animation: "floatSlow 12s ease-in-out infinite" }} />
+      <div className="hero-orb" style={{ width: 300, height: 300, bottom: "8%", right: "10%",
+        background: "radial-gradient(circle, rgba(124,92,255,0.4), transparent 70%)", animation: "floatSlowReverse 15s ease-in-out infinite" }} />
+
+      <div style={{ textAlign: "center", marginBottom: 32, position: "relative", maxWidth: 640 }}>
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 14px", borderRadius: 20,
+          background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", marginBottom: 20 }}>
+          <div style={{ width: 8, height: 8, borderRadius: "50%", background: COLORS.accentMuted, animation: "pulseGlow 2s ease infinite" }} />
+          <span style={{ fontSize: 11.5, fontWeight: 600, color: "#C9E8D6", letterSpacing: "0.05em", textTransform: "uppercase" }}>
+            {brand.name}
+          </span>
+        </div>
+        <h1 className="hero-title" style={{ fontSize: 44, fontWeight: 800, margin: "0 0 14px", lineHeight: 1.1 }}>
+          Who's this?
+        </h1>
+        <p style={{ fontSize: 16, color: "rgba(255,255,255,0.75)", lineHeight: 1.6, margin: 0 }}>
+          Pick a role to get a menu tailored to it — Admin sees everything, everyone else sees just their area.
+        </p>
+      </div>
+
+      <div style={{ width: "100%", maxWidth: 440, background: "rgba(15,20,32,0.55)", backdropFilter: "blur(20px)",
+        WebkitBackdropFilter: "blur(20px)", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 20,
+        padding: 26, boxShadow: "0 24px 60px rgba(0,0,0,0.4)", position: "relative", animation: "fadeInUp 0.6s cubic-bezier(0.16,1,0.3,1)" }}>
+        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4, color: "#fff" }}>Sign In</div>
+        <div style={{ fontSize: 12.5, color: "rgba(255,255,255,0.6)", marginBottom: 16, lineHeight: 1.5 }}>
+          Not a real login — a lightweight role gate to tailor the menu to the job. Remembered on this device until
+          you switch users.
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <input placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") submit(); }}
+            style={{ padding: "10px 12px", border: "1px solid rgba(255,255,255,0.16)", background: "rgba(255,255,255,0.06)",
+              color: "#fff", borderRadius: 10, fontSize: 13.5, outline: "none" }} />
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {Object.keys(ROLE_LABELS).map((r) => (
+              <button key={r} onClick={() => setRole(r)}
+                style={{ flex: "1 1 auto", padding: "9px 10px", fontSize: 12.5, fontWeight: 600, borderRadius: 9, cursor: "pointer",
+                  border: `1px solid ${role === r ? "rgba(255,255,255,0.55)" : "rgba(255,255,255,0.16)"}`,
+                  background: role === r ? "rgba(255,255,255,0.16)" : "rgba(255,255,255,0.04)", color: "#fff" }}>
+                {ROLE_LABELS[r]}
+              </button>
+            ))}
+          </div>
+          <input placeholder="Passcode for this role" type="password" value={passcode} onChange={(e) => setPasscode(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") submit(); }}
+            style={{ padding: "10px 12px", border: "1px solid rgba(255,255,255,0.16)", background: "rgba(255,255,255,0.06)",
+              color: "#fff", borderRadius: 10, fontSize: 13.5, outline: "none" }} />
+          <div style={{ marginTop: 4 }}>
+            <button className="ds-btn-primary" onClick={submit}
+              style={{ padding: "10px 20px", borderRadius: 10, fontSize: 13.5, fontWeight: 700, width: "fit-content" }}>
+              Continue →
+            </button>
+          </div>
+          {error && (
+            <div style={{ fontSize: 12.5, color: "#FFB4BD", marginTop: 4, lineHeight: 1.5 }}>{error}</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function APMDashboardLive() {
+  // Who's using this device right now — persisted in localStorage exactly
+  // like the Neo4j credentials, so returning to the page later skips
+  // straight past this too. See the ROLE_* constants' comment for what this
+  // is (and, importantly, isn't).
+  const [currentUser, setCurrentUser] = useState(() => {
+    try { const raw = localStorage.getItem("bdcore_user"); return raw ? JSON.parse(raw) : null; }
+    catch { return null; }
+  });
+  const canAccessView = (key) =>
+    !!currentUser && (currentUser.role === "admin" || (ROLE_VIEWS[currentUser.role] || new Set()).has(key));
+  const loginAs = (name, role) => {
+    const user = { name, role };
+    setCurrentUser(user);
+    localStorage.setItem("bdcore_user", JSON.stringify(user));
+    setView(ROLE_HOME[role]);
+  };
+  const switchUser = () => {
+    localStorage.removeItem("bdcore_user");
+    setCurrentUser(null);
+  };
+
   const [brand, setBrand] = useState(() => {
     try { const saved = localStorage.getItem("bdcore_brand"); return saved ? { ...DEFAULT_BRAND, ...JSON.parse(saved) } : DEFAULT_BRAND; }
     catch { return DEFAULT_BRAND; }
@@ -2758,6 +2896,13 @@ function APMDashboardLive() {
   useEffect(() => {
     if (view === "auditlog") loadAuditLog();
   }, [view]);
+  // Defends against landing on a view outside the current role's access by
+  // any path other than the sidebar (a stale deep link, a cross-page link
+  // into a section this role can't see) — the nav itself simply never
+  // offers those views, this is the fallback for everything else.
+  useEffect(() => {
+    if (currentUser && !canAccessView(view)) setView(ROLE_HOME[currentUser.role]);
+  }, [view, currentUser]);
   useEffect(() => {
     if (view === "initiatives") loadInitiatives();
   }, [view]);
@@ -5666,6 +5811,14 @@ function APMDashboardLive() {
     : view === "ontology" ? `Ontology Manager — ${omSelectedType}`
     : (VIEW_TITLES[view] || "APM");
 
+  // Placed after every hook above (Rules of Hooks — an early return can
+  // never sit between them), so this is the only thing that changes when
+  // currentUser flips from null to set: every hook still runs on every
+  // render either way.
+  if (!currentUser) {
+    return <LoginScreen brand={brand} onLogin={loginAs} />;
+  }
+
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: COLORS.paper,
       fontFamily: "'IBM Plex Sans', ui-sans-serif, system-ui, -apple-system, sans-serif" }}>
@@ -6036,7 +6189,7 @@ function APMDashboardLive() {
           padding: sidebarCollapsed ? "22px 10px" : "22px 14px", minHeight: "100vh", position: "relative",
           transition: "width 0.18s ease, padding 0.18s ease" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: sidebarCollapsed ? "center" : "space-between", marginBottom: 20 }}>
-            <div onClick={() => setView("landing")}
+            <div onClick={() => setView(currentUser.role === "admin" ? "landing" : ROLE_HOME[currentUser.role])}
               style={{ display: "flex", alignItems: "center", gap: 9, cursor: "pointer", overflow: "hidden", minWidth: 0 }}>
               <div style={{ width: 28, height: 28, borderRadius: 8, background: COLORS.gradientAccent,
                 display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
@@ -6078,40 +6231,46 @@ function APMDashboardLive() {
               is kept separate from — and above — APM on purpose: Executive
               Brief and Value Delivered are exec-facing entry points, not one
               more item buried three clicks into the portfolio-analyst tool. */}
-          <div className="ds-nav-pill" title="Executive Overview"
-            onClick={() => {
-              const openIt = () => { if (view !== "brief" && view !== "valuedelivered") setView("brief"); };
-              if (sidebarCollapsed) { toggleSidebarCollapsed(); openIt(); setOpenTopSection("executive"); return; }
-              openIt();
-              setOpenTopSection((prev) => prev === "executive" ? null : "executive");
-            }}
-            style={{ display: "flex", justifyContent: sidebarCollapsed ? "center" : "space-between", alignItems: "center", cursor: "pointer",
-              padding: sidebarCollapsed ? "9px 0" : "9px 12px", fontSize: 13, fontWeight: 700, borderRadius: 9, marginBottom: 3,
-              background: (view === "brief" || view === "valuedelivered") ? `${COLORS.accent}14` : "transparent",
-              color: (view === "brief" || view === "valuedelivered") ? COLORS.accent : COLORS.inkSecondary }}>
-            <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              {ICONS.executive}
-              {!sidebarCollapsed && "Executive Overview"}
-            </span>
-            {!sidebarCollapsed && (
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
-                strokeLinecap="round" strokeLinejoin="round"
-                style={{ flexShrink: 0, transition: "transform 0.2s ease", transform: openTopSection === "executive" ? "rotate(0deg)" : "rotate(-90deg)" }}>
-                <polyline points="6,9 12,15 18,9" />
-              </svg>
-            )}
-          </div>
-          {!sidebarCollapsed && openTopSection === "executive" && (
-            <div style={{ paddingLeft: 10, borderLeft: `1px solid ${COLORS.border}`, marginLeft: 12, marginBottom: 6 }}>
-              {EXECUTIVE_NAV_ITEMS.map(([key, label, icon]) => (
-                <button key={key} className={view === key ? "ds-nav-pill ds-nav-pill-active" : "ds-nav-pill"} title={label}
-                  onClick={() => { setView(key); setSelectedNode(null); }} style={navButtonStyle(key, false)}>
-                  {ICONS[icon]}<span>{label}</span>
-                </button>
-              ))}
-            </div>
+          {(currentUser.role === "admin" || currentUser.role === "exec") && (
+            <>
+              <div className="ds-nav-pill" title="Executive Overview"
+                onClick={() => {
+                  const openIt = () => { if (view !== "brief" && view !== "valuedelivered") setView("brief"); };
+                  if (sidebarCollapsed) { toggleSidebarCollapsed(); openIt(); setOpenTopSection("executive"); return; }
+                  openIt();
+                  setOpenTopSection((prev) => prev === "executive" ? null : "executive");
+                }}
+                style={{ display: "flex", justifyContent: sidebarCollapsed ? "center" : "space-between", alignItems: "center", cursor: "pointer",
+                  padding: sidebarCollapsed ? "9px 0" : "9px 12px", fontSize: 13, fontWeight: 700, borderRadius: 9, marginBottom: 3,
+                  background: (view === "brief" || view === "valuedelivered") ? `${COLORS.accent}14` : "transparent",
+                  color: (view === "brief" || view === "valuedelivered") ? COLORS.accent : COLORS.inkSecondary }}>
+                <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  {ICONS.executive}
+                  {!sidebarCollapsed && "Executive Overview"}
+                </span>
+                {!sidebarCollapsed && (
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+                    strokeLinecap="round" strokeLinejoin="round"
+                    style={{ flexShrink: 0, transition: "transform 0.2s ease", transform: openTopSection === "executive" ? "rotate(0deg)" : "rotate(-90deg)" }}>
+                    <polyline points="6,9 12,15 18,9" />
+                  </svg>
+                )}
+              </div>
+              {!sidebarCollapsed && openTopSection === "executive" && (
+                <div style={{ paddingLeft: 10, borderLeft: `1px solid ${COLORS.border}`, marginLeft: 12, marginBottom: 6 }}>
+                  {EXECUTIVE_NAV_ITEMS.map(([key, label, icon]) => (
+                    <button key={key} className={view === key ? "ds-nav-pill ds-nav-pill-active" : "ds-nav-pill"} title={label}
+                      onClick={() => { setView(key); setSelectedNode(null); }} style={navButtonStyle(key, false)}>
+                      {ICONS[icon]}<span>{label}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
           )}
 
+          {(currentUser.role === "admin" || currentUser.role === "apm") && (
+          <>
           <div className="ds-nav-pill" title="APM"
             onClick={() => {
               if (sidebarCollapsed) { toggleSidebarCollapsed(); if (STANDALONE_KEYS.has(view)) setView("portfolio"); setOpenTopSection("apm"); return; }
@@ -6169,7 +6328,11 @@ function APMDashboardLive() {
               ))}
             </div>
           )}
+          </>
+          )}
 
+          {(currentUser.role === "admin" || currentUser.role === "workspace") && (
+          <>
           <div className="ds-nav-pill" title="Workspaces"
             onClick={() => {
               // Clicking the row itself (not a specific canvas in the tree below) always
@@ -6252,7 +6415,11 @@ function APMDashboardLive() {
               </button>
             </div>
           )}
+          </>
+          )}
 
+          {(currentUser.role === "admin" || currentUser.role === "apm") && (
+          <>
           <button className={view === "ontology" ? "ds-nav-pill ds-nav-pill-active" : "ds-nav-pill"} title="Ontology Manager"
             onClick={() => { setView("ontology"); loadOmInstances(omSelectedType); }} style={navButtonStyle("ontology", sidebarCollapsed)}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
@@ -6266,15 +6433,20 @@ function APMDashboardLive() {
               Pick a concept type and manage its instances directly — the type selector and table are in the main panel.
             </div>
           )}
+          </>
+          )}
 
           {/* Its own standalone row, deliberately outside APM — it's a
               governance record of changes across the whole graph, not one
-              more APM sub-view. */}
+              more APM sub-view. Admin-only, unlike Ontology Manager above —
+              see the "Audit Log" role-scoping answer this was built from. */}
+          {currentUser.role === "admin" && (
           <button className={view === "auditlog" ? "ds-nav-pill ds-nav-pill-active" : "ds-nav-pill"} title="Audit Log"
             onClick={() => setView("auditlog")} style={navButtonStyle("auditlog", sidebarCollapsed)}>
             {ICONS.auditlog}
             {!sidebarCollapsed && <span>Audit Log</span>}
           </button>
+          )}
 
           <button className={view === "help" ? "ds-nav-pill ds-nav-pill-active" : "ds-nav-pill"} title="Help"
             onClick={() => setView("help")} style={navButtonStyle("help", sidebarCollapsed)}>
@@ -6292,6 +6464,18 @@ function APMDashboardLive() {
 
           {!sidebarCollapsed && (
             <div style={{ marginTop: 28, paddingTop: 14, borderTop: `1px solid ${COLORS.border}` }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 8px 10px 8px" }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 600, color: COLORS.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {currentUser.name}
+                  </div>
+                  <div style={{ fontSize: 11, color: COLORS.inkSecondary }}>{ROLE_LABELS[currentUser.role]}</div>
+                </div>
+                <span onClick={switchUser} title="Switch user"
+                  style={{ fontSize: 11, color: COLORS.inkSecondary, cursor: "pointer", textDecoration: "underline", flexShrink: 0 }}>
+                  Switch
+                </span>
+              </div>
               <span onClick={() => setShowBrandSettings(true)}
                 style={{ display: "block", fontSize: 11.5, color: COLORS.inkSecondary, cursor: "pointer", padding: "0 8px 8px 8px" }}>
                 ⚙ Customize branding
@@ -6320,7 +6504,7 @@ function APMDashboardLive() {
           </div>
           <div style={{ textAlign: "right" }}>
             <div style={{ fontSize: 12.5, color: COLORS.inkSecondary, display: "flex", alignItems: "center", gap: 10, justifyContent: "flex-end" }}>
-              {view !== "portfolio" && (
+              {view !== "portfolio" && canAccessView("portfolio") && (
                 <span onClick={() => goToView("portfolio")} title="Back to Portfolio Overview"
                   style={{ cursor: "pointer", fontWeight: 600, color: COLORS.ink }}>
                   ← Portfolio Overview
@@ -8786,7 +8970,7 @@ function APMDashboardLive() {
             const guideItemMatches = (item) => !q || item.label.toLowerCase().includes(q) ||
               item.description.toLowerCase().includes(q) || item.tips.some((tip) => tip.toLowerCase().includes(q));
             const guideSectionsMatched = GUIDE_SECTIONS
-              .map((section) => ({ ...section, items: section.items.filter(guideItemMatches) }))
+              .map((section) => ({ ...section, items: section.items.filter((item) => guideItemMatches(item) && canAccessView(item.key)) }))
               .filter((section) => section.items.length > 0);
             const guideSectionsToShow = isSearching
               ? guideSectionsMatched
