@@ -437,7 +437,7 @@ const GUIDE_SECTIONS = [
           "The \"Recommended for AI innovation\" panel is a ranked top 3, not an opinion — genuinely high on both business Importance and the readiness rollup, the same bar as the Applications sub-tab's Accelerate quadrant, one level up. Each entry's Why and How are read straight off that capability's own dimensions, tools, initiatives, and gaps.",
           "None of the four dimension scores are computed from scratch — each rolls up attributes already elsewhere in this tool (capability maturity, process AI readiness, data quality, application AI readiness), normalised onto one 0-100 scale. A dash means no signal exists yet, not a zero.",
           "Click a capability card to open \"What happens if we transform this with AI?\" — initiatives already targeting it (check for overlap before starting a new one), AI models already usable via its applications or data, what's missing, and the applications/processes/data it would touch.",
-          "\"By Application\" is the original per-application Readiness vs. Relevance decision framework (Accelerate/Selective/Prepare/Deprioritize) — still there, still the place to set or review an individual application's own AI Readiness and Relevance from Ontology Manager.",
+          "\"By Application\" is the original per-application Readiness vs. Relevance decision framework (Accelerate/Selective/Prepare/Deprioritize) — still there, still the place to set or review an individual application's own AI Readiness and Relevance from Ontology Manager. It has its own ranked \"Recommended — Accelerate\" panel too, same why/how treatment, one level down.",
         ] },
     ],
   },
@@ -3769,10 +3769,6 @@ function APMDashboardLive() {
       .map((a) => ({ ...a, aiQuadrant: aiPathfinderQuadrant(a) }))
       .filter((a) => a.aiQuadrant);
   }, [appsWithDisposition]);
-  const pathfinderTopPick = useMemo(
-    () => pathfinderApps.find((a) => a.aiQuadrant === "Accelerate"),
-    [pathfinderApps]
-  );
 
   // Portfolio AI Transformation — capability-level. Which of the two sub-tabs
   // is showing: the primary capability view, or the application-level detail
@@ -3969,6 +3965,41 @@ function APMDashboardLive() {
       .sort((a, b) => b.opportunityScore - a.opportunityScore)
       .slice(0, 3);
   }, [capabilityAIProfiles]);
+
+  // Same treatment, one level down: why/how read off fields already on the
+  // application (no new query — aiModelsByAppId is already loaded for the
+  // capability tab above, and aiPathfinderStatus already exists specifically
+  // to answer "is this already in motion," the app-level equivalent of a
+  // capability's initiatives).
+  const buildAppAIRecommendation = (a) => {
+    const tools = aiModelsByAppId[a.id] || [];
+    const whyParts = ["High AI Readiness and Relevance"];
+    if (a.aiAvailability) whyParts.push(`AI capability is already ${a.aiAvailability.toLowerCase()}`);
+    if (a.capabilities && a.capabilities.length) whyParts.push(`supports ${a.capabilities.length} capabilit${a.capabilities.length === 1 ? "y" : "ies"}`);
+    if (tools.length) whyParts.push(`${tools.length} AI tool${tools.length === 1 ? "" : "s"} already connected`);
+    const why = whyParts.join("; ") + ".";
+
+    let how;
+    if (a.aiPathfinderStatus === "Done") {
+      how = `Already marked Done — verify the realised value, or scope the next iteration${a.reviewDate ? ` (review due ${a.reviewDate})` : ""}.`;
+    } else if (a.aiPathfinderStatus === "In Progress") {
+      how = `Already In Progress${a.owner ? ` with ${a.owner}` : ""} — the fastest next step is checking in on that work, not starting something new.`;
+    } else if (tools.length > 0) {
+      how = `Extend "${tools[0].name}" (${tools[0].stereotype || "AI model"}, ${tools[0].status || "status unknown"}) — already connected to this application.`;
+    } else if (a.aiAvailability === "Embedded" || a.aiAvailability === "Available") {
+      how = `AI capability is already ${a.aiAvailability.toLowerCase()} — the target pattern is ${a.aiTargetPattern || "not yet set"}; move straight to scoping delivery.`;
+    } else {
+      how = "No AI capability or tool exists yet — start by confirming the target pattern (Enable/Replace/Rebuild/Consolidate) and assigning an owner.";
+    }
+    return { why, how };
+  };
+  const recommendedApps = useMemo(() => {
+    return pathfinderApps
+      .filter((a) => a.aiQuadrant === "Accelerate")
+      .map((a) => ({ ...a, ...buildAppAIRecommendation(a) }))
+      .sort((a, b) => (a.aiPathfinderStatus === "Done") - (b.aiPathfinderStatus === "Done") || a.name.localeCompare(b.name))
+      .slice(0, 3);
+  }, [pathfinderApps, aiModelsByAppId]);
 
   // Redundancy: group apps by (capability, functional category) — more than
   // one app in the same group is a genuine overlap candidate, not just two
@@ -7968,17 +7999,50 @@ function APMDashboardLive() {
                   </div>
                 </div>
 
-                {pathfinderTopPick && (
-                  <div style={{ background: "#DCEAE1", border: `1px solid ${COLORS.accent}`, borderRadius: 18,
-                    padding: "16px 20px", marginBottom: 24 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.accent, marginBottom: 4 }}>Top Pick — Accelerate</div>
-                    <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>{pathfinderTopPick.name}</div>
-                    <div style={{ fontSize: 12.5, color: COLORS.inkSecondary }}>
-                      High readiness, high relevance — {pathfinderTopPick.aiAvailability ? pathfinderTopPick.aiAvailability.toLowerCase() : "unassessed"} today,
-                      target pattern is {pathfinderTopPick.aiTargetPattern || "unassigned"}.
-                    </div>
+                <div className="ds-card" style={{ background: "#F3EEFC", border: `1px solid ${COLORS.accent2}`,
+                  borderRadius: 18, padding: "18px 22px", marginBottom: 24 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill={COLORS.accent2}>
+                      <path d="M12 3 L13.8 9.2 L20 11 L13.8 12.8 L12 19 L10.2 12.8 L4 11 L10.2 9.2 Z" />
+                    </svg>
+                    <div style={{ fontSize: 13.5, fontWeight: 700, color: COLORS.accent2 }}>Recommended — Accelerate</div>
                   </div>
-                )}
+                  <div style={{ fontSize: 12, color: COLORS.inkSecondary, marginBottom: 14, lineHeight: 1.5 }}>
+                    Every application genuinely high on both AI Readiness and AI Relevance, ranked with why it
+                    qualifies and what to actually do next — not just the single top pick.
+                  </div>
+                  {recommendedApps.length === 0 ? (
+                    <div style={{ fontSize: 12.5, color: COLORS.ink, lineHeight: 1.5 }}>
+                      No application currently clears the bar on both readiness and relevance — set or review AI
+                      Readiness and AI Relevance from Ontology Manager to surface candidates here.
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                      {recommendedApps.map((a, i) => (
+                        <div key={a.id} onClick={() => { setProfileAppId(a.id); setView("profile"); }}
+                          style={{ cursor: "pointer", background: COLORS.card, border: `1px solid ${COLORS.border}`,
+                            borderRadius: 12, padding: 14 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <span style={{ width: 20, height: 20, borderRadius: "50%", background: COLORS.accent2, color: "#fff",
+                                fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                                {i + 1}
+                              </span>
+                              <span style={{ fontSize: 13.5, fontWeight: 600 }}>{a.name}</span>
+                            </div>
+                            <span style={{ fontSize: 11.5, color: COLORS.accent2, fontWeight: 600 }}>Open profile →</span>
+                          </div>
+                          <div style={{ fontSize: 12, color: COLORS.ink, lineHeight: 1.5, marginBottom: 4 }}>
+                            <b>Why:</b> {a.why}
+                          </div>
+                          <div style={{ fontSize: 12, color: COLORS.ink, lineHeight: 1.5 }}>
+                            <b>How:</b> {a.how}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 24, marginBottom: 28 }}>
                   <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18, padding: 20 }}>
