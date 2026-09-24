@@ -6232,6 +6232,30 @@ function APMDashboardLive() {
 
           {view === "portfolio" && (
             <>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
+                {[
+                  { label: "Applications Shown", value: kpis.total, glyph: "▦", color: COLORS.accent },
+                  { label: "In Production", value: kpis.production, glyph: "●", color: COLORS.info },
+                  { label: "With an Active Risk", value: kpis.atRisk, tone: kpis.atRisk > 0 ? "risk" : null, glyph: "▲", color: COLORS.risk },
+                  { label: "Estimated Annual TCO", value: fmtGBP(kpis.totalTco), glyph: "£", color: COLORS.warning },
+                ].map((kpi, i) => (
+                  <div key={i} className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)",
+                    padding: "18px 20px", borderRadius: 18, position: "relative", overflow: "hidden" }}>
+                    <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3,
+                      background: `linear-gradient(90deg, ${kpi.tone === "risk" ? COLORS.risk : kpi.color}, transparent)` }} />
+                    <div style={{ width: 34, height: 34, borderRadius: 10, marginBottom: 12,
+                      background: `${kpi.tone === "risk" ? COLORS.risk : kpi.color}18`,
+                      color: kpi.tone === "risk" ? COLORS.risk : kpi.color,
+                      display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 700 }}>
+                      {kpi.glyph}
+                    </div>
+                    <div style={{ fontSize: 28, fontWeight: 800, fontFamily: "var(--font-display)",
+                      color: kpi.tone === "risk" ? COLORS.risk : COLORS.ink }}>{kpi.value}</div>
+                    <div style={{ fontSize: 12.5, color: COLORS.inkSecondary, marginTop: 4 }}>{kpi.label}</div>
+                  </div>
+                ))}
+              </div>
+
               {subTabs([["portfolio", "Applications"], ["capboard", "Capability Board"]])}
               {askBox("portfolio", "Ask in plain language, e.g. which applications have no owner…")}
 
@@ -6438,30 +6462,6 @@ function APMDashboardLive() {
                     ))}
                   </tbody>
                 </table>
-                ))}
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 28 }}>
-                {[
-                  { label: "Applications Shown", value: kpis.total, glyph: "▦", color: COLORS.accent },
-                  { label: "In Production", value: kpis.production, glyph: "●", color: COLORS.info },
-                  { label: "With an Active Risk", value: kpis.atRisk, tone: kpis.atRisk > 0 ? "risk" : null, glyph: "▲", color: COLORS.risk },
-                  { label: "Estimated Annual TCO", value: fmtGBP(kpis.totalTco), glyph: "£", color: COLORS.warning },
-                ].map((kpi, i) => (
-                  <div key={i} className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)",
-                    padding: "18px 20px", borderRadius: 18, position: "relative", overflow: "hidden" }}>
-                    <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3,
-                      background: `linear-gradient(90deg, ${kpi.tone === "risk" ? COLORS.risk : kpi.color}, transparent)` }} />
-                    <div style={{ width: 34, height: 34, borderRadius: 10, marginBottom: 12,
-                      background: `${kpi.tone === "risk" ? COLORS.risk : kpi.color}18`,
-                      color: kpi.tone === "risk" ? COLORS.risk : kpi.color,
-                      display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 700 }}>
-                      {kpi.glyph}
-                    </div>
-                    <div style={{ fontSize: 28, fontWeight: 800, fontFamily: "var(--font-display)",
-                      color: kpi.tone === "risk" ? COLORS.risk : COLORS.ink }}>{kpi.value}</div>
-                    <div style={{ fontSize: 12.5, color: COLORS.inkSecondary, marginTop: 4 }}>{kpi.label}</div>
-                  </div>
                 ))}
               </div>
 
