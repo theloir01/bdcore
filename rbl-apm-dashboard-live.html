@@ -391,8 +391,10 @@ const GUIDE_SECTIONS = [
       { key: "ai", label: "AI Pathfinder",
         description: "A practical decision framework for where to focus AI change: AI Readiness (feasibility) against AI Relevance (payoff), placing every scored application into Accelerate, Selective, Prepare, or Deprioritize.",
         tips: [
+          "The two scores aren't computed — they're a judgement call entered directly on each application, the same way Criticality or Business Value is. Set or update them from Ontology Manager.",
+          "Readiness asks whether THIS application could take on AI change right now: data quality, integration points, and the team's skills/appetite. Relevance asks whether it's worth it: how repetitive or costly the work is today, and the strategic upside of fixing it.",
           "The \"Top Pick\" callout is always your single highest readiness+relevance application — the one clear place to start.",
-          "Only a \"High\" score counts as the high side of either axis — Medium doesn't cross the line, so the quadrant is intentionally strict.",
+          "Only a \"High\" score counts as the high side of either axis — Medium doesn't cross the line, so the quadrant is intentionally strict: Accelerate means genuinely high on both, not just better than most.",
           "Hover a bubble for AI Availability, Target Pattern, Owner, and status.",
         ] },
     ],
@@ -6832,6 +6834,47 @@ function APMDashboardLive() {
                   A practical decision framework to focus AI change on the applications that matter most —
                   AI Readiness (feasibility) against AI Relevance (payoff), placing every scored application into
                   one of four decisions: Accelerate, Selective, Prepare, or Deprioritize.
+                </div>
+
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`,
+                  boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18,
+                  padding: "18px 22px", marginBottom: 24, maxWidth: 820 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 6 }}>How are these scores derived?</div>
+                  <div style={{ fontSize: 13, color: COLORS.inkSecondary, lineHeight: 1.6 }}>
+                    Not computed — AI Readiness and AI Relevance are a judgement call an architect enters directly on
+                    each application, the same way Criticality or Business Value is set. There's no formula reading
+                    usage stats or data quality behind them; a rating is only as good as the assessment behind it.
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginTop: 14 }}>
+                    <div>
+                      <div style={{ fontSize: 11.5, fontWeight: 700, color: COLORS.inkSecondary, textTransform: "uppercase",
+                        letterSpacing: "0.05em", marginBottom: 6 }}>
+                        AI Readiness — feasibility
+                      </div>
+                      <div style={{ fontSize: 12.5, color: COLORS.ink, lineHeight: 1.6 }}>
+                        How ready THIS application is for AI-driven change: is the underlying data clean and
+                        accessible, are the integration points there to act on an AI output, and does the team
+                        around it have the skills and appetite to adopt it.
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 11.5, fontWeight: 700, color: COLORS.inkSecondary, textTransform: "uppercase",
+                        letterSpacing: "0.05em", marginBottom: 6 }}>
+                        AI Relevance — payoff
+                      </div>
+                      <div style={{ fontSize: 12.5, color: COLORS.ink, lineHeight: 1.6 }}>
+                        How much value AI would actually add here: how repetitive or high-volume the work is, what
+                        it costs to keep doing it the current way, and how much of a strategic difference solving
+                        it would make.
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 12.5, color: COLORS.inkSecondary, marginTop: 14, lineHeight: 1.6 }}>
+                    Only a <b>High</b> rating counts as the high side of either axis when placing an application
+                    into a quadrant — Medium and Low both read as "low," so Accelerate only ever means genuinely
+                    high on both, not just "better than most." Set or update a rating from the application's
+                    record in Ontology Manager.
+                  </div>
                 </div>
 
                 {pathfinderTopPick && (
