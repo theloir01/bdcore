@@ -3218,14 +3218,27 @@ function APMDashboardLive() {
       <polyline points="6,9 12,15 18,9" />
     </svg>
   );
+  // Computed once per filtered app (not per render of each card/row, and
+  // before sorting so a sort-by-blast-radius can read from it) — every
+  // Blast Radius gauge on the Inventory reads from this instead of each
+  // calling computeBlastRadius itself, which walks the dependency graph.
+  const blastRadiusByAppId = useMemo(() => {
+    const map = {};
+    filteredApps.forEach((a) => {
+      map[a.id] = computeBlastRadius(a, apps, depLinks, depNodes, processes, orgsByProcess, controls, flowRows);
+    });
+    return map;
+  }, [filteredApps, apps, depLinks, depNodes, processes, orgsByProcess, controls, flowRows]);
+
   const PORTFOLIO_SORT_VALUE = {
     name: (a) => a.name, vendor: (a) => a.vendor || "", status: (a) => a.status,
     hosting: (a) => a.hosting, criticality: (a) => CRIT_WEIGHT_BR[a.criticality] || 0,
     disposition: (a) => a.disposition.code, tco: (a) => a.tco || 0, risk: (a) => a.risks.length,
+    blastRadius: (a) => (blastRadiusByAppId[a.id] || {}).score || 0,
   };
   const togglePortfolioSort = (key) => {
     if (portfolioSortKey === key) setPortfolioSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    else { setPortfolioSortKey(key); setPortfolioSortDir(key === "tco" || key === "risk" || key === "criticality" ? "desc" : "asc"); }
+    else { setPortfolioSortKey(key); setPortfolioSortDir(key === "tco" || key === "risk" || key === "criticality" || key === "blastRadius" ? "desc" : "asc"); }
   };
   const sortedFilteredApps = useMemo(() => {
     const getValue = PORTFOLIO_SORT_VALUE[portfolioSortKey];
@@ -3236,17 +3249,6 @@ function APMDashboardLive() {
       return portfolioSortDir === "asc" ? cmp : -cmp;
     });
   }, [filteredApps, portfolioSortKey, portfolioSortDir]);
-
-  // Computed once per app shown (not per render of each card/row) — every
-  // Blast Radius gauge on the Inventory reads from this instead of each
-  // calling computeBlastRadius itself, which walks the dependency graph.
-  const blastRadiusByAppId = useMemo(() => {
-    const map = {};
-    sortedFilteredApps.forEach((a) => {
-      map[a.id] = computeBlastRadius(a, apps, depLinks, depNodes, processes, orgsByProcess, controls, flowRows);
-    });
-    return map;
-  }, [sortedFilteredApps, apps, depLinks, depNodes, processes, orgsByProcess, controls, flowRows]);
 
   const kpis = useMemo(() => ({
     total: filteredApps.length,
@@ -6396,7 +6398,9 @@ function APMDashboardLive() {
                             {label}{portfolioSortKey === key ? (portfolioSortDir === "asc" ? " ▲" : " ▼") : ""}
                           </th>
                         ))}
-                      <th>Blast Radius</th>
+                      <th onClick={() => togglePortfolioSort("blastRadius")} style={{ cursor: "pointer", userSelect: "none" }}>
+                        Blast Radius{portfolioSortKey === "blastRadius" ? (portfolioSortDir === "asc" ? " ▲" : " ▼") : ""}
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
