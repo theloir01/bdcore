@@ -303,7 +303,7 @@ const GUIDE_SECTIONS = [
           "Type a question into the Ask box — e.g. \"which applications have no owner?\" — instead of building filters by hand.",
           "The Refine bar sets filters from a plain-language instruction, e.g. \"show only cloud-hosted critical apps.\"",
           "The Inventory itself leads the page, right under the filters — toggle it between a card grid and a sortable table with the two icons above it.",
-          "Click \"⚡ Blast Radius\" on any card or row to pop out that application's blast radius — score, capabilities going dark or degraded, technologies and peer apps impacted, recovery considerations — without leaving Portfolio Overview.",
+          "Click the small score circle on any card or row to pop out that application's blast radius — capabilities going dark or degraded, technologies and peer apps impacted, recovery considerations — without leaving Portfolio Overview.",
           "Bubble size on the quadrant chart is TCO; click a 6R Disposition bar to filter the Inventory to just that disposition.",
           "Every section below the filters — Inventory, the quadrant chart, 6R Disposition, Capability Coverage — collapses via the chevron in its header; all start open.",
           "Switch to the Capability Board sub-tab for the same portfolio grouped by capability instead of by application.",
@@ -3237,6 +3237,17 @@ function APMDashboardLive() {
     });
   }, [filteredApps, portfolioSortKey, portfolioSortDir]);
 
+  // Computed once per app shown (not per render of each card/row) — every
+  // Blast Radius gauge on the Inventory reads from this instead of each
+  // calling computeBlastRadius itself, which walks the dependency graph.
+  const blastRadiusByAppId = useMemo(() => {
+    const map = {};
+    sortedFilteredApps.forEach((a) => {
+      map[a.id] = computeBlastRadius(a, apps, depLinks, depNodes, processes, orgsByProcess, controls, flowRows);
+    });
+    return map;
+  }, [sortedFilteredApps, apps, depLinks, depNodes, processes, orgsByProcess, controls, flowRows]);
+
   const kpis = useMemo(() => ({
     total: filteredApps.length,
     production: filteredApps.filter((a) => a.status === "Production").length,
@@ -5365,6 +5376,31 @@ function APMDashboardLive() {
     setPendingVerb("");
   };
 
+  // The same score/severity gauge the Blast Radius modal's hero band uses,
+  // shrunk down to sit directly on an Inventory card or table row — click
+  // it to pop the full modal open, same as the old text button did.
+  const BlastRadiusGauge = ({ appId, size = "card" }) => {
+    const br = blastRadiusByAppId[appId];
+    if (!br) return null;
+    const gaugeColor = br.severity === "Severe" ? COLORS.risk : br.severity === "Moderate" ? COLORS.warning : COLORS.accent;
+    const dim = size === "card" ? 42 : 26;
+    return (
+      <div onClick={(e) => { e.stopPropagation(); setBlastRadiusAppId(appId); }} title={`${br.severity} blast radius — click for detail`}
+        style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", gap: 3, cursor: "pointer" }}>
+        <div style={{ width: dim, height: dim, borderRadius: "50%", border: `${size === "card" ? 3 : 2}px solid ${gaugeColor}`,
+          display: "flex", alignItems: "center", justifyContent: "center", fontSize: size === "card" ? 14 : 10.5,
+          fontWeight: 700, color: gaugeColor, flexShrink: 0 }}>
+          {br.score}
+        </div>
+        {size === "card" && (
+          <div style={{ fontSize: 9.5, color: COLORS.inkSecondary, textAlign: "center", lineHeight: 1.2, whiteSpace: "nowrap" }}>
+            {br.severity} blast radius
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const EditFormFields = () => (
     <>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 12 }}>
@@ -6312,19 +6348,14 @@ function APMDashboardLive() {
                     ) : (
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 14 }}>
                         {sortedFilteredApps.map((a) => (
-                          <div key={a.id} style={{ border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: 14,
-                            gridColumn: editingAppId === a.id ? "1 / -1" : undefined }}>
+                          <div key={a.id} onClick={() => { setProfileAppId(a.id); setView("profile"); }}
+                            style={{ border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: 14, cursor: "pointer" }}>
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8, gap: 8 }}>
-                              <div onClick={() => { setProfileAppId(a.id); setView("profile"); }} style={{ cursor: "pointer", minWidth: 0 }}>
+                              <div style={{ minWidth: 0 }}>
                                 <div style={{ fontSize: 13.5, fontWeight: 600, textDecoration: "underline", textDecorationColor: COLORS.border }}>{a.name}</div>
                                 <div style={{ fontSize: 11.5, color: COLORS.inkSecondary, marginTop: 2 }}>{a.vendor || "No vendor"}</div>
                               </div>
-                              {a.architectureStyle && a.architectureStyle !== "Traditional" && (
-                                <span style={{ background: COLORS.accent, color: "#fff", fontSize: 10, fontWeight: 600,
-                                  padding: "1px 6px", borderRadius: 6, flexShrink: 0 }}>
-                                  {a.architectureStyle}
-                                </span>
-                              )}
+                              <BlastRadiusGauge appId={a.id} size="card" />
                             </div>
                             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
                               <span style={{ fontSize: 10.5, fontWeight: 600, padding: "2px 8px", borderRadius: 6, background: "#EFEDE5", color: COLORS.inkSecondary }}>
@@ -6334,6 +6365,11 @@ function APMDashboardLive() {
                                 background: DISPOSITION_INFO[a.disposition.code].color, color: "#fff" }}>
                                 {a.disposition.code}
                               </span>
+                              {a.architectureStyle && a.architectureStyle !== "Traditional" && (
+                                <span style={{ fontSize: 10.5, fontWeight: 600, padding: "2px 8px", borderRadius: 6, background: COLORS.accent, color: "#fff" }}>
+                                  {a.architectureStyle}
+                                </span>
+                              )}
                               {a.risks.length > 0 && (
                                 <span style={{ fontSize: 10.5, fontWeight: 600, padding: "2px 8px", borderRadius: 6, background: "#FBE0D8", color: COLORS.risk }}>
                                   {a.risks.length} flagged
@@ -6344,29 +6380,6 @@ function APMDashboardLive() {
                               <div>{a.hosting} · {a.criticality} criticality</div>
                               <div>{fmtGBP(a.tco)} est. annual TCO</div>
                             </div>
-                            <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
-                              <button onClick={() => setBlastRadiusAppId(a.id)} title="Blast radius — what breaks if this goes offline"
-                                style={{ flex: 1, padding: "5px 0", background: "#F6F4EF", color: COLORS.ink,
-                                  border: `1px solid ${COLORS.border}`, borderRadius: 7, fontSize: 11.5, cursor: "pointer" }}>
-                                ⚡ Blast Radius
-                              </button>
-                              <button onClick={() => (editingAppId === a.id ? setEditingAppId(null) : startEdit(a))}
-                                style={{ flex: 1, padding: "5px 0", background: editingAppId === a.id ? "#2C3B4E" : "#F6F4EF",
-                                  color: editingAppId === a.id ? "#fff" : COLORS.ink, border: `1px solid ${COLORS.border}`,
-                                  borderRadius: 7, fontSize: 11.5, cursor: "pointer" }}>
-                                {editingAppId === a.id ? "Close" : "Edit"}
-                              </button>
-                              <button onClick={() => deleteApplication(a)}
-                                style={{ flex: 1, padding: "5px 0", background: "#F6F4EF", color: COLORS.risk,
-                                  border: `1px solid ${COLORS.border}`, borderRadius: 7, fontSize: 11.5, cursor: "pointer" }}>
-                                Delete
-                              </button>
-                            </div>
-                            {editingAppId === a.id && (
-                              <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px dashed ${COLORS.border}` }}>
-                                <EditFormFields />
-                              </div>
-                            )}
                           </div>
                         ))}
                       </div>
@@ -6383,16 +6396,14 @@ function APMDashboardLive() {
                             {label}{portfolioSortKey === key ? (portfolioSortDir === "asc" ? " ▲" : " ▼") : ""}
                           </th>
                         ))}
-                      <th></th>
+                      <th>Blast Radius</th>
                     </tr>
                   </thead>
                   <tbody>
                     {sortedFilteredApps.map((a) => (
-                      <React.Fragment key={a.id}>
-                        <tr>
+                        <tr key={a.id} onClick={() => { setProfileAppId(a.id); setView("profile"); }} style={{ cursor: "pointer" }}>
                           <td style={{ fontWeight: 500 }}>
-                            <span onClick={() => { setProfileAppId(a.id); setView("profile"); }}
-                              style={{ cursor: "pointer", textDecoration: "underline", textDecorationColor: COLORS.border }}>
+                            <span style={{ textDecoration: "underline", textDecorationColor: COLORS.border }}>
                               {a.name}
                             </span>
                             {a.architectureStyle && a.architectureStyle !== "Traditional" && (
@@ -6417,34 +6428,9 @@ function APMDashboardLive() {
                               : "—"}
                           </td>
                           <td>
-                            <div style={{ display: "flex", gap: 6 }}>
-                              <button onClick={() => setBlastRadiusAppId(a.id)} title="Blast radius — what breaks if this goes offline"
-                                style={{ padding: "4px 10px", background: COLORS.card, color: COLORS.ink,
-                                  border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 11.5, cursor: "pointer" }}>
-                                ⚡ Blast Radius
-                              </button>
-                              <button onClick={() => (editingAppId === a.id ? setEditingAppId(null) : startEdit(a))}
-                                style={{ padding: "4px 10px", background: editingAppId === a.id ? "#2C3B4E" : COLORS.card,
-                                  color: editingAppId === a.id ? "#fff" : COLORS.ink, border: `1px solid ${COLORS.border}`,
-                                  borderRadius: 8, fontSize: 11.5, cursor: "pointer" }}>
-                                {editingAppId === a.id ? "Close" : "Edit"}
-                              </button>
-                              <button onClick={() => deleteApplication(a)}
-                                style={{ padding: "4px 10px", background: COLORS.card, color: COLORS.risk,
-                                  border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 11.5, cursor: "pointer" }}>
-                                Delete
-                              </button>
-                            </div>
+                            <BlastRadiusGauge appId={a.id} size="table" />
                           </td>
                         </tr>
-                        {editingAppId === a.id && (
-                          <tr>
-                            <td colSpan={9} style={{ background: "#F3F4F7", padding: 16 }}>
-                              <EditFormFields />
-                            </td>
-                          </tr>
-                        )}
-                      </React.Fragment>
                     ))}
                   </tbody>
                 </table>
