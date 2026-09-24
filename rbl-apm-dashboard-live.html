@@ -7756,6 +7756,13 @@ function APMDashboardLive() {
                       <div style={{ fontSize: 12, color: COLORS.ink, lineHeight: 1.5 }}>Applications Maturity, blended with supporting applications' own AI Readiness — the Applications sub-tab, rolled up.</div>
                     </div>
                   </div>
+                  <div style={{ fontSize: 12.5, color: COLORS.inkSecondary, marginTop: 14, lineHeight: 1.6, paddingTop: 14, borderTop: `1px solid ${COLORS.border}` }}>
+                    <b>The coloured badge in the corner of each card</b> is not an AI score at all — it's the
+                    capability's existing, general business <b>Importance</b> rating (Critical/High/Medium/Low),
+                    the same field used across the rest of this tool. It's shown as context, not urgency: a
+                    Critical capability is one worth transforming carefully and deliberately, not one whose AI
+                    readiness is automatically higher — that's entirely what the four bars below it are for.
+                  </div>
                 </div>
 
                 {aiTransformLoading ? (
@@ -7771,10 +7778,15 @@ function APMDashboardLive() {
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 12 }}>
                           <div style={{ fontSize: 14, fontWeight: 600 }}>{cap.name}</div>
                           {cap.importance && (
-                            <span style={{ flexShrink: 0, fontSize: 10.5, fontWeight: 700, color: "#fff",
-                              background: IMPORTANCE_BADGE[cap.importance] || COLORS.inkSecondary, padding: "2px 8px", borderRadius: 8 }}>
-                              {cap.importance}
-                            </span>
+                            <div style={{ flexShrink: 0, textAlign: "right" }} title="Business Importance — a general rating, not an AI score. See 'How is this scored?' above.">
+                              <div style={{ fontSize: 9, fontWeight: 700, color: COLORS.inkSecondary, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 2 }}>
+                                Importance
+                              </div>
+                              <span style={{ fontSize: 10.5, fontWeight: 700, color: "#fff",
+                                background: IMPORTANCE_BADGE[cap.importance] || COLORS.inkSecondary, padding: "2px 8px", borderRadius: 8 }}>
+                                {cap.importance}
+                              </span>
+                            </div>
                           )}
                         </div>
                         {Object.keys(DIM_LABEL).map((key) => miniBar(key, cap.dims[key]))}
