@@ -152,7 +152,7 @@
     {
       "id": "i5",
       "concept_type": "Initiative",
-      "name": "[FICTIONAL] Retail-Style Robo Research Distribution App",
+      "name": "Retail-Style Robo Research Distribution App",
       "status": "Shelved",
       "sponsor": "Head of Equity Research",
       "start_date": "2025-08-01",
@@ -164,7 +164,7 @@
     {
       "id": "i6",
       "concept_type": "Initiative",
-      "name": "[FICTIONAL] Cross-Asset Sentiment Trading Signal Pilot",
+      "name": "Cross-Asset Sentiment Trading Signal Pilot",
       "status": "Shelved",
       "sponsor": "Head of Quant Research",
       "start_date": "2025-05-01",
@@ -176,7 +176,7 @@
     {
       "id": "i7",
       "concept_type": "Initiative",
-      "name": "[FICTIONAL] Real-Time Cross-Venue Liquidity Heatmap",
+      "name": "Real-Time Cross-Venue Liquidity Heatmap",
       "status": "Shelved",
       "sponsor": "Head of Electronic Trading",
       "start_date": "2025-03-01",
@@ -4104,12 +4104,12 @@
     },
     {
       "source": "a5",
-      "target": "i4",
+      "target": "i5",
       "verb": "blocks",
       "criticality": "Medium",
       "status": "Active",
       "strength": 60,
-      "type": "[FICTIONAL] surveillance rules can't yet clear direct-to-retail research distribution"
+      "type": "surveillance rules can't yet clear direct-to-retail research distribution"
     },
     {
       "source": "a3",
@@ -4118,7 +4118,7 @@
       "criticality": "High",
       "status": "Active",
       "strength": 75,
-      "type": "[FICTIONAL] legacy tick store can't ingest new alt-data feeds fast enough"
+      "type": "legacy tick store can't ingest new alt-data feeds fast enough"
     },
     {
       "source": "a1",
@@ -4127,7 +4127,7 @@
       "criticality": "Medium",
       "status": "Active",
       "strength": 65,
-      "type": "[FICTIONAL] OMS can't stream order-book data in real time without a rearchitecture"
+      "type": "OMS can't stream order-book data in real time without a rearchitecture"
     },
     {
       "source": "a11",
