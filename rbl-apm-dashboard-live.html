@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>RBL Application Portfolio</title>
+<title>BDCore Application Portfolio</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
@@ -200,11 +200,13 @@ const filterChipCloseStyle = { cursor: "pointer", color: COLORS.inkSecondary, fo
 
 // White-label config — persisted in localStorage like the Neo4j credentials.
 // Only `primary`/`accent` actually re-theme the app (they map onto
-// COLORS.ink/COLORS.accent, used pervasively throughout). Chart-specific and
-// concept-type colors deliberately stay fixed — those are multi-hued by
-// design, for visual distinction between categories, not meant to collapse
-// into one brand color.
-const DEFAULT_BRAND = { name: "The Royal British Legion", subtitle: "Digital, Data & Technology", logo: null, primary: "#0A0E1A", accent: "#0EA968" };
+// Customer identity — name and logo only. Set from the Load Demo Dataset
+// admin page (not a separate branding settings screen) so identity swaps
+// together with the customer's data, and persisted as a BrandConfig node in
+// Neo4j (not localStorage) so it's shared across whoever connects to this
+// graph rather than stuck on one browser. Falls back to this generic default
+// before any customer name has ever been set.
+const DEFAULT_BRAND = { name: "Your Organisation", logo: null };
 
 // Simple client-side role gate — NOT real access control. There is no
 // backend server: the browser already holds full Neo4j credentials
@@ -509,9 +511,10 @@ const GUIDE_SECTIONS = [
           "Filter by Actor, Action, or Entity Type using the chips above the table, or export the current 500 most recent entries to CSV for an offline review.",
         ] },
       { key: "dataload", label: "Load Demo Dataset",
-        description: "Admin-only: swaps the entire instance layer — every Application, Capability, Initiative, and every other real record — for a different customer's demo data, in one upload. The schema itself doesn't change, so every view keeps working against the new data untouched.",
+        description: "Admin-only, under Admin in the sidebar: swaps the entire instance layer — every Application, Capability, Initiative, and every other real record — for a different customer's demo data, in one upload. The schema itself doesn't change, so every view keeps working against the new data untouched.",
         tips: [
           "Upload a JSON file shaped like { dataset_name, nodes: [...], relationships: [...] } — download the template from this page for the exact shape and a worked example.",
+          "Set the customer name and logo shown across the site here too, so the whole demo — not just the underlying data — matches whichever customer you're presenting. Leave the name blank to keep the current one.",
           "This is destructive: every existing instance record is permanently deleted first, then replaced. Workspaces, Canvases, and the Audit Log itself are not touched.",
           "The file is validated and previewed — counts by concept type, and any errors — before anything is deleted, so a malformed file is caught before it costs you the current dataset.",
           "You'll be asked to type DELETE to confirm before the swap runs — there's no undo from inside the app once it starts.",
@@ -2365,11 +2368,11 @@ function APMDashboardLive() {
     setCurrentUser(null);
   };
 
-  const [brand, setBrand] = useState(() => {
-    try { const saved = localStorage.getItem("bdcore_brand"); return saved ? { ...DEFAULT_BRAND, ...JSON.parse(saved) } : DEFAULT_BRAND; }
-    catch { return DEFAULT_BRAND; }
-  });
-  const [showBrandSettings, setShowBrandSettings] = useState(false);
+  // Loaded from Neo4j (BrandConfig node) once connected — see fetchData.
+  // Pre-connection (the login screen) this is just the generic default,
+  // since which customer's data this graph holds isn't known yet.
+  const [brand, setBrand] = useState(DEFAULT_BRAND);
+  useEffect(() => { document.title = `${brand.name} — Application Portfolio`; }, [brand.name]);
   const [showEnumManager, setShowEnumManager] = useState(false);
   const [enumManagerAttrName, setEnumManagerAttrName] = useState(null);
   const [enumManagerDraft, setEnumManagerDraft] = useState([]);
@@ -2384,14 +2387,6 @@ function APMDashboardLive() {
   const [newAttrOptionDraft, setNewAttrOptionDraft] = useState("");
   const [newAttrRequired, setNewAttrRequired] = useState(false);
   const [attributeManagerStatus, setAttributeManagerStatus] = useState("");
-  // Keeps the pervasive COLORS.ink/COLORS.accent in sync with the saved brand
-  // on every render — a deliberate exception to "side effects belong in
-  // useEffect": COLORS is a plain module-level object read by hundreds of
-  // inline styles throughout this file, not React state, so the only way to
-  // guarantee this render's JSX sees the current brand color (not last
-  // render's) is to apply it synchronously before any JSX below evaluates.
-  COLORS.ink = brand.primary;
-  COLORS.accent = brand.accent;
 
   const [uri, setUri] = useState(() => localStorage.getItem("bdcore_neo4j_uri") || "");
   const [username, setUsername] = useState(() => localStorage.getItem("bdcore_neo4j_username") || "neo4j");
@@ -2479,6 +2474,13 @@ function APMDashboardLive() {
   const [datasetBusy, setDatasetBusy] = useState(false);
   const [datasetStatus, setDatasetStatus] = useState("");
   const datasetFileInputRef = useRef(null);
+  // Customer identity, set alongside the data swap. Blank customer name means
+  // "leave the current name as-is" (see runLoadDataset); logo uses null for
+  // that same "unspecified" meaning and "" as the explicit "clear it" signal
+  // from the Remove link, so those two states aren't conflated.
+  const [datasetCustomerName, setDatasetCustomerName] = useState("");
+  const [datasetLogoDataUri, setDatasetLogoDataUri] = useState(null);
+  const datasetLogoInputRef = useRef(null);
   const [initiatives, setInitiatives] = useState([]);
   const [initiativesLoading, setInitiativesLoading] = useState(false);
   const [initiativesError, setInitiativesError] = useState("");
@@ -2893,6 +2895,17 @@ function APMDashboardLive() {
         try { icons = JSON.parse(r.icons || "[]"); } catch (e) { icons = []; }
         return { id: r.id, name: r.name, icons };
       }));
+      // Customer identity for this graph — set from the Load Demo Dataset
+      // page, not per-browser, so switching who's connected doesn't also
+      // switch which customer's name/logo shows.
+      const brandRows = await runCypher(apiUrl, authHeader,
+        `OPTIONAL MATCH (b:BrandConfig {id: 'main'}) RETURN b.name AS name, b.logo AS logo`
+      );
+      const brandRow = brandRows[0];
+      setBrand({
+        name: (brandRow && brandRow.name) || DEFAULT_BRAND.name,
+        logo: (brandRow && brandRow.logo) || null,
+      });
       let finalWorkspaces = workspaceRows;
       let finalCanvases = canvasSummaryRows;
       if (finalWorkspaces.length === 0) {
@@ -3713,13 +3726,6 @@ function APMDashboardLive() {
     reader.readAsText(file);
   };
 
-  const saveBrand = (next) => {
-    const merged = { ...brand, ...next };
-    setBrand(merged);
-    localStorage.setItem("bdcore_brand", JSON.stringify(merged));
-  };
-  const resetBrand = () => { setBrand(DEFAULT_BRAND); localStorage.removeItem("bdcore_brand"); };
-
   const handleConnect = () => {
     if (!uri || !password) { setErrorMsg("Enter your Aura connection URI and password."); setStatus("error"); return; }
     localStorage.setItem("bdcore_neo4j_uri", uri);
@@ -3762,9 +3768,14 @@ function APMDashboardLive() {
   const confirmAndLoadDataset = async () => {
     if (!datasetPreview || datasetPreview.errors.length) return;
     const label = datasetPreview.datasetName || datasetFileName || "this dataset";
+    const logoChanging = datasetLogoDataUri !== null;
+    const logoPhrase = datasetLogoDataUri === "" ? "removed" : "updated";
+    const nameNote = datasetCustomerName.trim()
+      ? ` The site's customer name will also change to "${datasetCustomerName.trim()}"${logoChanging ? ` and the logo will be ${logoPhrase}` : ""}.`
+      : (logoChanging ? ` The site's logo will also be ${logoPhrase}.` : "");
     const typed = await askPrompt(
       `This permanently deletes every instance record currently in the graph — every Application, Capability, Initiative, Risk, and everything else with real data — and replaces it with ${label}` +
-      ` (${datasetPreview.nodes.length} nodes, ${datasetPreview.relationships.length} relationships). The schema itself, Workspaces, Canvases, and the Audit Log are not affected. This cannot be undone from here.` +
+      ` (${datasetPreview.nodes.length} nodes, ${datasetPreview.relationships.length} relationships). The schema itself, Workspaces, Canvases, and the Audit Log are not affected.${nameNote} This cannot be undone from here.` +
       ` Type DELETE to confirm.`,
       "", { title: "Replace all instance data?", danger: true, confirmLabel: "Replace Data", cancelLabel: "Cancel" }
     );
@@ -3803,14 +3814,27 @@ function APMDashboardLive() {
         );
       }
 
+      // Customer identity travels with the data swap. Blank name = keep the
+      // current one; datasetLogoDataUri is null (untouched — keep current),
+      // "" (explicit Remove — clear it), or a new data URI.
+      const nameToSave = datasetCustomerName.trim() || brand.name;
+      const logoToSave = datasetLogoDataUri === "" ? null : (datasetLogoDataUri || brand.logo);
+      await runCypher(apiUrl, authHeader,
+        `MERGE (b:BrandConfig {id: 'main'}) SET b.name = $name, b.logo = $logo`,
+        { name: nameToSave, logo: logoToSave }
+      );
+      setBrand({ name: nameToSave, logo: logoToSave });
+
       await logAudit({
         action: "loaded", entityType: "Dataset", entityName: datasetName || datasetFileName,
-        summary: `${nodes.length} instance nodes, ${relationships.length} relationships loaded — previous instance data wiped`,
+        summary: `${nodes.length} instance nodes, ${relationships.length} relationships loaded for "${nameToSave}" — previous instance data wiped`,
       });
 
-      setDatasetStatus(`Done. Loaded ${nodes.length} nodes and ${relationships.length} relationships.`);
+      setDatasetStatus(`Done. Loaded ${nodes.length} nodes and ${relationships.length} relationships for "${nameToSave}".`);
       setDatasetPreview(null);
       setDatasetFileName("");
+      setDatasetCustomerName("");
+      setDatasetLogoDataUri(null);
       handleRefresh();
     } catch (e) {
       setDatasetStatus(`Load failed partway through: ${e.message}. The graph may be in a mixed state — check Ontology Manager before continuing.`);
@@ -4724,14 +4748,19 @@ function APMDashboardLive() {
     journeytrace: "journeys", maturity: "journeys",
   };
   const EXECUTIVE_KEYS = new Set(["brief", "valuedelivered"]);
+  const ADMIN_NAV_ITEMS = [
+    ["dataload", "Load Demo Dataset", "dataload"],
+  ];
+  const ADMIN_KEYS = new Set(["dataload"]);
   // Standalone top-level sidebar items (their own row, no parent group to
   // expand) — jumping to one of these via goToView (e.g. Help's "Open →")
   // must NOT force the "APM" section open, since they live outside it.
-  const STANDALONE_KEYS = new Set(["ontology", "workspaces", "canvas", "auditlog", "dataload"]);
+  const STANDALONE_KEYS = new Set(["ontology", "workspaces", "canvas", "auditlog"]);
   const goToView = (key) => {
     setView(key);
     setSelectedNode(null);
     if (EXECUTIVE_KEYS.has(key)) setOpenTopSection("executive");
+    else if (ADMIN_KEYS.has(key)) setOpenTopSection("admin");
     else if (!STANDALONE_KEYS.has(key)) setOpenTopSection("apm");
     const group = VIEW_GROUP[key];
     if (group) setOpenGroups((prev) => ({ ...prev, [group]: true }));
@@ -4785,6 +4814,7 @@ function APMDashboardLive() {
     businessunits: <svg {...ICON_COMMON}><rect x="9" y="3" width="6" height="4.5" rx="1" /><rect x="3" y="16.5" width="6" height="4.5" rx="1" /><rect x="15" y="16.5" width="6" height="4.5" rx="1" /><path d="M12 7.5v4.5M6 12v4.5M18 12v4.5M6 12h12" /></svg>,
     auditlog: <svg {...ICON_COMMON}><rect x="3" y="3" width="14" height="18" rx="2" /><line x1="6.5" y1="7.5" x2="13.5" y2="7.5" /><line x1="6.5" y1="11" x2="13.5" y2="11" /><line x1="6.5" y1="14.5" x2="10.5" y2="14.5" /><circle cx="17.5" cy="17.5" r="4.2" /><line x1="17.5" y1="15.3" x2="17.5" y2="17.5" /><line x1="17.5" y1="17.5" x2="19" y2="18.5" /></svg>,
     dataload: <svg {...ICON_COMMON}><path d="M12 3v12" /><polyline points="7.5,10.5 12,15 16.5,10.5" /><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" /></svg>,
+    admin: <svg {...ICON_COMMON}><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /><circle cx="12" cy="15.5" r="1.3" fill="currentColor" stroke="none" /></svg>,
     initiatives: <svg {...ICON_COMMON}><rect x="3" y="5" width="11" height="3.2" rx="1" /><rect x="8" y="11" width="13" height="3.2" rx="1" /><rect x="5" y="17" width="9" height="3.2" rx="1" /></svg>,
     dataflow: <svg {...ICON_COMMON}><rect x="2" y="9" width="6" height="6" rx="1.2" /><rect x="16" y="2" width="6" height="6" rx="1.2" /><rect x="16" y="16" width="6" height="6" rx="1.2" /><path d="M8 11l7.5 -6M8 13l7.5 6" /></svg>,
     valuedelivered: <svg {...ICON_COMMON}><path d="M3 19h18" /><path d="M4 15.5 L9 10 L13 13.5 L20 6" /><path d="M15 6h5v5" /></svg>,
@@ -6410,71 +6440,6 @@ function APMDashboardLive() {
         .brief-card:hover { transform: translateY(-3px); box-shadow: 0 4px 10px rgba(28,42,58,0.08), 0 18px 34px rgba(28,42,58,0.10); }
       `}</style>
 
-      {showBrandSettings && (() => {
-        const draft = brand;
-        const setDraft = (patch) => setBrand({ ...brand, ...patch }); // live preview as you type/pick — Save just persists it
-        return (
-          <div style={{ position: "fixed", inset: 0, background: "rgba(20,31,48,0.5)", zIndex: 200,
-            display: "flex", alignItems: "center", justifyContent: "center" }}
-            onClick={() => setShowBrandSettings(false)}>
-            <div onClick={(e) => e.stopPropagation()}
-              style={{ background: "#fff", borderRadius: 16, padding: 26, width: 420, boxShadow: "0 24px 60px rgba(10,14,26,0.38)" }}>
-              <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>Customize branding</div>
-              <div style={{ fontSize: 12, color: COLORS.inkSecondary, marginBottom: 18, lineHeight: 1.5 }}>
-                Changes preview live. Primary and accent re-theme the sidebar, buttons, and highlights throughout the
-                app — chart-specific and concept-type colors stay fixed, those are deliberately multi-hued.
-              </div>
-
-              <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 4 }}>Customer name</label>
-              <input value={draft.name} onChange={(e) => setDraft({ name: e.target.value })}
-                style={{ width: "100%", padding: "8px 10px", border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 13, marginBottom: 12 }} />
-
-              <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 4 }}>Subtitle</label>
-              <input value={draft.subtitle} onChange={(e) => setDraft({ subtitle: e.target.value })}
-                style={{ width: "100%", padding: "8px 10px", border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 13, marginBottom: 12 }} />
-
-              <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 4 }}>Logo</label>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-                {draft.logo && <img src={draft.logo} alt="" style={{ height: 32, maxWidth: 100, objectFit: "contain" }} />}
-                <input type="file" accept="image/*" onChange={(e) => {
-                    const file = e.target.files && e.target.files[0];
-                    if (!file) return;
-                    const reader = new FileReader();
-                    reader.onload = () => setDraft({ logo: reader.result });
-                    reader.readAsDataURL(file);
-                  }}
-                  style={{ fontSize: 11.5 }} />
-                {draft.logo && <span onClick={() => setDraft({ logo: null })} style={{ fontSize: 11, color: COLORS.risk, cursor: "pointer" }}>Remove</span>}
-              </div>
-
-              <div style={{ display: "flex", gap: 16, marginBottom: 20 }}>
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 4 }}>Primary color</label>
-                  <input type="color" value={draft.primary} onChange={(e) => setDraft({ primary: e.target.value })}
-                    style={{ width: 60, height: 34, border: `1px solid ${COLORS.border}`, borderRadius: 8, cursor: "pointer" }} />
-                </div>
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 4 }}>Accent color</label>
-                  <input type="color" value={draft.accent} onChange={(e) => setDraft({ accent: e.target.value })}
-                    style={{ width: 60, height: 34, border: `1px solid ${COLORS.border}`, borderRadius: 8, cursor: "pointer" }} />
-                </div>
-              </div>
-
-              <div style={{ display: "flex", gap: 8 }}>
-                <button onClick={() => { saveBrand(brand); setShowBrandSettings(false); }}
-                  style={{ flex: 1, padding: "9px", background: COLORS.ink, color: "#fff", border: "none", borderRadius: 8,
-                    fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>Save</button>
-                <button onClick={() => resetBrand()}
-                  style={{ padding: "9px 14px", background: "transparent", color: COLORS.inkSecondary, border: `1px solid ${COLORS.border}`,
-                    borderRadius: 8, fontSize: 12.5, cursor: "pointer" }}>Reset</button>
-                <button onClick={() => setShowBrandSettings(false)}
-                  style={{ padding: "9px 14px", background: "transparent", color: COLORS.inkSecondary, border: `1px solid ${COLORS.border}`,
-                    borderRadius: 8, fontSize: 12.5, cursor: "pointer" }}>Cancel</button>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
 
       {showEnumManager && (() => {
         const enumAttrs = (schemaAttributes[omSelectedType] || []).filter((a) => a.type === "enum" || a.type === "multi_enum");
@@ -7026,16 +6991,46 @@ function APMDashboardLive() {
           </button>
           )}
 
-          {/* Also its own standalone row, and also admin-only — swaps the
-              whole instance layer for a different customer's demo data, so
-              it needs the same visibility and the same restriction as
-              anything else that can rewrite the entire graph. */}
+          {/* Admin-only collapsible section, same accordion pattern as
+              Executive Overview above — a home for admin actions that
+              rewrite the whole graph (today: Load Demo Dataset) without
+              cluttering the top-level nav with one-off admin buttons. */}
           {currentUser.role === "admin" && (
-          <button className={view === "dataload" ? "ds-nav-pill ds-nav-pill-active" : "ds-nav-pill"} title="Load Demo Dataset"
-            onClick={() => setView("dataload")} style={navButtonStyle("dataload", sidebarCollapsed)}>
-            {ICONS.dataload}
-            {!sidebarCollapsed && <span>Load Demo Dataset</span>}
-          </button>
+          <>
+          <div className="ds-nav-pill" title="Admin"
+            onClick={() => {
+              const openIt = () => { if (!ADMIN_KEYS.has(view)) setView("dataload"); };
+              if (sidebarCollapsed) { toggleSidebarCollapsed(); openIt(); setOpenTopSection("admin"); return; }
+              openIt();
+              setOpenTopSection((prev) => prev === "admin" ? null : "admin");
+            }}
+            style={{ display: "flex", justifyContent: sidebarCollapsed ? "center" : "space-between", alignItems: "center", cursor: "pointer",
+              padding: sidebarCollapsed ? "9px 0" : "9px 12px", fontSize: 13, fontWeight: 700, borderRadius: 9, marginBottom: 3,
+              background: ADMIN_KEYS.has(view) ? `${COLORS.accent}14` : "transparent",
+              color: ADMIN_KEYS.has(view) ? COLORS.accent : COLORS.inkSecondary }}>
+            <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              {ICONS.admin}
+              {!sidebarCollapsed && "Admin"}
+            </span>
+            {!sidebarCollapsed && (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+                strokeLinecap="round" strokeLinejoin="round"
+                style={{ flexShrink: 0, transition: "transform 0.2s ease", transform: openTopSection === "admin" ? "rotate(0deg)" : "rotate(-90deg)" }}>
+                <polyline points="6,9 12,15 18,9" />
+              </svg>
+            )}
+          </div>
+          {!sidebarCollapsed && openTopSection === "admin" && (
+            <div style={{ paddingLeft: 10, borderLeft: `1px solid ${COLORS.border}`, marginLeft: 12, marginBottom: 6 }}>
+              {ADMIN_NAV_ITEMS.map(([key, label, icon]) => (
+                <button key={key} className={view === key ? "ds-nav-pill ds-nav-pill-active" : "ds-nav-pill"} title={label}
+                  onClick={() => { setView(key); setSelectedNode(null); }} style={navButtonStyle(key, false)}>
+                  {ICONS[icon]}<span>{label}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          </>
           )}
 
           <button className={view === "help" ? "ds-nav-pill ds-nav-pill-active" : "ds-nav-pill"} title="Help"
@@ -7066,10 +7061,6 @@ function APMDashboardLive() {
                   Switch
                 </span>
               </div>
-              <span onClick={() => setShowBrandSettings(true)}
-                style={{ display: "block", fontSize: 11.5, color: COLORS.inkSecondary, cursor: "pointer", padding: "0 8px 8px 8px" }}>
-                ⚙ Customize branding
-              </span>
               <div style={{ fontSize: 10.5, color: "#9AA5B1", padding: "0 8px", letterSpacing: "0.02em" }}>
                 Powered by Bizzdesign
               </div>
@@ -7086,7 +7077,7 @@ function APMDashboardLive() {
           <div>
             <div style={{ fontSize: 12.5, color: COLORS.inkSecondary, marginBottom: 6, fontWeight: 500,
               textTransform: "uppercase", letterSpacing: "0.05em" }}>
-              {brand.name} · {brand.subtitle}
+              {brand.name}
             </div>
             <h1 style={{ fontSize: 28, fontWeight: 600, margin: 0, letterSpacing: "-0.015em" }}>
               {pageTitle}
@@ -9024,6 +9015,52 @@ function APMDashboardLive() {
 
                 <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)",
                   borderRadius: 16, padding: 22, marginBottom: 22, maxWidth: 820 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 4 }}>Customer identity</div>
+                  <div style={{ fontSize: 12, color: COLORS.inkSecondary, marginBottom: 14, lineHeight: 1.5 }}>
+                    Shown across the site wherever the customer's name or logo appears — set here rather than as a
+                    separate settings screen, so it swaps together with the data instead of drifting out of sync
+                    with it. Applied when you confirm the replace below.
+                  </div>
+
+                  <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 4 }}>Customer name</label>
+                  <input value={datasetCustomerName} onChange={(e) => setDatasetCustomerName(e.target.value)}
+                    placeholder={brand.name}
+                    style={{ width: "100%", maxWidth: 360, boxSizing: "border-box", padding: "8px 10px",
+                      border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 13, marginBottom: 4 }} />
+                  <div style={{ fontSize: 11.5, color: COLORS.inkSecondary, marginBottom: 14 }}>
+                    Leave blank to keep the current name ("{brand.name}").
+                  </div>
+
+                  <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 4 }}>Customer logo</label>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    {(datasetLogoDataUri || (datasetLogoDataUri === null && brand.logo)) && (
+                      <img src={datasetLogoDataUri || brand.logo} alt="" style={{ height: 32, maxWidth: 120, objectFit: "contain" }} />
+                    )}
+                    {datasetLogoDataUri === "" && (
+                      <span style={{ fontSize: 11.5, color: COLORS.inkSecondary, fontStyle: "italic" }}>Logo will be removed</span>
+                    )}
+                    <input ref={datasetLogoInputRef} type="file" accept="image/*" style={{ display: "none" }}
+                      onChange={(e) => {
+                        const file = e.target.files && e.target.files[0];
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onload = () => setDatasetLogoDataUri(reader.result);
+                        reader.readAsDataURL(file);
+                        e.target.value = "";
+                      }} />
+                    <button onClick={() => datasetLogoInputRef.current && datasetLogoInputRef.current.click()}
+                      style={{ padding: "6px 12px", background: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.border}`,
+                        borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                      {brand.logo || datasetLogoDataUri ? "Change Logo…" : "Choose Logo…"}
+                    </button>
+                    {(datasetLogoDataUri || (datasetLogoDataUri === null && brand.logo)) && (
+                      <span onClick={() => setDatasetLogoDataUri("")} style={{ fontSize: 11.5, color: COLORS.risk, cursor: "pointer" }}>Remove</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)",
+                  borderRadius: 16, padding: 22, marginBottom: 22, maxWidth: 820 }}>
                   <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 12 }}>Upload dataset</div>
                   <input ref={datasetFileInputRef} type="file" accept=".json,application/json" style={{ display: "none" }}
                     onChange={(e) => { const f = e.target.files && e.target.files[0]; if (f) readDatasetFile(f); e.target.value = ""; }} />
@@ -9312,7 +9349,7 @@ function APMDashboardLive() {
                     color: COLORS.inkSecondary, marginBottom: 18, padding: "5px 13px", background: COLORS.card,
                     border: `1px solid ${COLORS.border}`, borderRadius: 999 }}>
                     <span style={{ width: 6, height: 6, borderRadius: "50%", background: COLORS.accent, flexShrink: 0 }} />
-                    {brand.name} · {brand.subtitle}
+                    {brand.name}
                   </div>
                   {brand.logo && (
                     <img src={brand.logo} alt={brand.name} style={{ height: 36, maxWidth: 200, objectFit: "contain", marginBottom: 16 }} />
