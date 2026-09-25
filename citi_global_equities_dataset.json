@@ -1,0 +1,4277 @@
+{
+  "dataset_name": "Citi Global Equities \u2014 Path to Top-4 Demo Dataset",
+  "nodes": [
+    {
+      "id": "s1",
+      "concept_type": "Strategy",
+      "name": "Path to Top-4 Global Equities by 2028",
+      "status": "Active",
+      "time_horizon": "Long",
+      "priority": "Critical",
+      "owner": "Andrew Wells",
+      "strategic_theme": "Electronic execution quality, AI-augmented research, and prime services scale",
+      "stereotype": "Corporate"
+    },
+    {
+      "id": "g1",
+      "concept_type": "Goal",
+      "name": "Increase Global Equities Execution Market Share",
+      "status": "In Progress",
+      "priority": "Critical",
+      "owner": "Andrew Wells",
+      "stereotype": "Operational"
+    },
+    {
+      "id": "g2",
+      "concept_type": "Goal",
+      "name": "Scale AI-Augmented Research Coverage to Top-4 Peer Parity",
+      "status": "In Progress",
+      "priority": "High",
+      "owner": "Venkatesh Ramachandran",
+      "stereotype": "Operational"
+    },
+    {
+      "id": "g3",
+      "concept_type": "Goal",
+      "name": "Reduce Algo Execution Implementation Shortfall Below Peer Median",
+      "status": "In Progress",
+      "priority": "High",
+      "owner": "Andrew Wells",
+      "stereotype": "Operational"
+    },
+    {
+      "id": "g4",
+      "concept_type": "Goal",
+      "name": "Grow Prime Brokerage Client Balances in APAC & EMEA",
+      "status": "In Progress",
+      "priority": "Medium",
+      "owner": "Head of Prime Services",
+      "stereotype": "Strategic"
+    },
+    {
+      "id": "d1",
+      "concept_type": "Decision",
+      "name": "Consolidate Onto a Single Global Order & Execution Management Platform",
+      "status": "Approved",
+      "decision_maker": "Andrew Wells",
+      "decision_date": "2025-06-01",
+      "rationale": "Citi Equities runs order and execution management on a patchwork of legacy, region-specific systems (including the Direct Market Access gateway) that fragments execution-quality data and slows every attempt to standardise algo strategies globally.",
+      "options_considered": "Retain the regional OMS/EMS patchwork and integrate at the edges; build a new platform from scratch; buy a leading third-party OEMS; consolidate onto the existing Velocity platform globally",
+      "chosen_option": "Consolidate globally onto the existing Velocity OEMS platform \u2014 fastest path to a single execution-quality dataset without a multi-year rebuild",
+      "consequences": "Easier: one global view of execution quality and market share, faster algo strategy rollout, lower run cost from retiring the DMA gateway. Harder: a multi-region migration with real cutover risk, and short-term disruption to APAC desks still on the legacy gateway.",
+      "confidence": "High",
+      "impact_level": "Critical",
+      "stereotype": "Architecture"
+    },
+    {
+      "id": "d2",
+      "concept_type": "Decision",
+      "name": "Migrate Market Data & Tick Store to a Cloud-Native Platform",
+      "status": "Approved",
+      "decision_maker": "Head of Markets Technology",
+      "decision_date": "2025-09-01",
+      "rationale": "The current on-prem tick store is approaching end-of-life, can't elastically scale for new alternative-data ingestion, and is a named single point of failure for every downstream trading and research system.",
+      "options_considered": "Refresh the on-prem hardware in place; move to a managed on-prem alternative; migrate to a cloud-native tick store and messaging platform; build a hybrid model",
+      "chosen_option": "Migrate to a cloud-native tick store and messaging platform, keeping only latency-critical matching-adjacent components co-located",
+      "consequences": "Easier: elastic scaling for new data sources, reduced patching/DR burden, a single golden source feeding both trading and AI research pipelines. Harder: recurring cloud cost replaces one-off capital spend, and low-latency paths need careful re-architecture to avoid execution-quality regressions.",
+      "confidence": "Medium",
+      "impact_level": "High",
+      "stereotype": "Architecture"
+    },
+    {
+      "id": "d3",
+      "concept_type": "Decision",
+      "name": "Establish Central AI Model Risk Governance for Trading & Research Models",
+      "status": "Proposed",
+      "decision_maker": "Venkatesh Ramachandran",
+      "decision_date": "2026-02-01",
+      "rationale": "Three AI models are now in flight across execution and research with no single governance gate \u2014 a regulator or internal audit finding here could stall the whole AI-augmented transformation programme, not just one model.",
+      "options_considered": "Leave governance decentralised within each desk; adopt an existing enterprise-wide model risk framework unmodified; stand up a dedicated Equities AI Model Governance Committee with its own sign-off gate",
+      "chosen_option": "Not yet finalised \u2014 proposed, pending review",
+      "consequences": "Easier (anticipated): one consistent explainability and human-oversight bar before any AI model reaches production, faster regulator conversations. Harder (anticipated): an additional sign-off step in the model delivery pipeline, and desks used to moving fast will feel the friction first.",
+      "confidence": "Medium",
+      "impact_level": "High",
+      "stereotype": "Architecture"
+    },
+    {
+      "id": "i1",
+      "concept_type": "Initiative",
+      "name": "Global Equities Execution Platform Modernisation Programme",
+      "status": "In Progress",
+      "sponsor": "Andrew Wells",
+      "priority": "Critical",
+      "stereotype": "Modernisation",
+      "start_date": "2025-07-01",
+      "target_date": "2026-12-31",
+      "budget": 38000000,
+      "forecast_cost": 35500000,
+      "progress": 45
+    },
+    {
+      "id": "i2",
+      "concept_type": "Initiative",
+      "name": "AI-Augmented Equity Research & Analytics Programme",
+      "status": "In Progress",
+      "sponsor": "Venkatesh Ramachandran",
+      "priority": "High",
+      "stereotype": "Modernisation",
+      "start_date": "2025-10-01",
+      "target_date": "2027-03-31",
+      "budget": 14000000,
+      "forecast_cost": 13200000,
+      "progress": 30
+    },
+    {
+      "id": "i3",
+      "concept_type": "Initiative",
+      "name": "Market Data & Tick Store Cloud Migration",
+      "status": "In Progress",
+      "sponsor": "Head of Markets Technology",
+      "priority": "High",
+      "stereotype": "Modernisation",
+      "start_date": "2025-09-01",
+      "target_date": "2026-09-30",
+      "budget": 9500000,
+      "forecast_cost": 9100000,
+      "progress": 55
+    },
+    {
+      "id": "i4",
+      "concept_type": "Initiative",
+      "name": "Prime Brokerage Client Experience Overhaul",
+      "status": "In Progress",
+      "sponsor": "Head of Prime Services",
+      "priority": "Medium",
+      "stereotype": "Modernisation",
+      "start_date": "2026-01-01",
+      "target_date": "2027-01-31",
+      "budget": 6000000,
+      "forecast_cost": 5600000,
+      "progress": 20
+    },
+    {
+      "id": "i5",
+      "concept_type": "Initiative",
+      "name": "Retail-Style Robo Research Distribution App",
+      "status": "Shelved",
+      "sponsor": "Head of Equity Research",
+      "start_date": "2025-08-01",
+      "target_date": "2025-11-01",
+      "forecast_cost": 2200000,
+      "description": "Wanted to push AI-generated research summaries direct to retail-adjacent channels; compliance couldn't clear direct-to-retail distribution of AI-generated content without an explainability and licensing rework, so it was shelved.",
+      "stereotype": "Commercial"
+    },
+    {
+      "id": "i6",
+      "concept_type": "Initiative",
+      "name": "Cross-Asset Sentiment Trading Signal Pilot",
+      "status": "Shelved",
+      "sponsor": "Head of Quant Research",
+      "start_date": "2025-05-01",
+      "target_date": "2025-08-01",
+      "forecast_cost": 1800000,
+      "description": "Wanted to pilot a cross-asset alt-data sentiment signal; the legacy tick store couldn't ingest new alternative-data feeds fast enough to make the signal usable intraday, so the pilot never left the lab.",
+      "stereotype": "Compliance"
+    },
+    {
+      "id": "i7",
+      "concept_type": "Initiative",
+      "name": "Real-Time Cross-Venue Liquidity Heatmap",
+      "status": "Shelved",
+      "sponsor": "Head of Electronic Trading",
+      "start_date": "2025-03-01",
+      "target_date": "2025-06-01",
+      "forecast_cost": 1400000,
+      "description": "Wanted a real-time cross-venue liquidity heatmap for the trading desk; the OMS couldn't stream order-book data in real time without a rearchitecture, so it shipped as a 15-minute-delayed view the desk still finds too slow to act on.",
+      "stereotype": "Commercial"
+    },
+    {
+      "id": "o1",
+      "concept_type": "Outcome",
+      "name": "Global Equities Ranking Improved to #4",
+      "status": "Expected",
+      "stereotype": "Operational"
+    },
+    {
+      "id": "o2",
+      "concept_type": "Outcome",
+      "name": "Electronic Trading Market Share Increased",
+      "status": "Partially Realised",
+      "stereotype": "Operational"
+    },
+    {
+      "id": "o3",
+      "concept_type": "Outcome",
+      "name": "Research Coverage Breadth Matched to Top-4 Peers",
+      "status": "Expected",
+      "stereotype": "Operational"
+    },
+    {
+      "id": "org1",
+      "concept_type": "Organisation",
+      "name": "Citi Global Equities",
+      "status": "Active",
+      "leader": "Global Head of Equities",
+      "strategic_role": "Core"
+    },
+    {
+      "id": "org2",
+      "concept_type": "Organisation",
+      "name": "Equities Strategy & Transformation",
+      "status": "Active",
+      "parent_organisation": "org1",
+      "leader": "Andrew Wells",
+      "stereotype": "Department"
+    },
+    {
+      "id": "org3",
+      "concept_type": "Organisation",
+      "name": "Equity Analytics & AI",
+      "status": "Active",
+      "parent_organisation": "org1",
+      "leader": "Venkatesh Ramachandran",
+      "stereotype": "Department"
+    },
+    {
+      "id": "org4",
+      "concept_type": "Organisation",
+      "name": "Electronic Trading & Market Making",
+      "status": "Active",
+      "parent_organisation": "org1",
+      "headcount": 210,
+      "stereotype": "Department"
+    },
+    {
+      "id": "org5",
+      "concept_type": "Organisation",
+      "name": "Prime Services",
+      "status": "Active",
+      "parent_organisation": "org1",
+      "headcount": 160,
+      "stereotype": "Department"
+    },
+    {
+      "id": "org6",
+      "concept_type": "Organisation",
+      "name": "Equity Research",
+      "status": "Active",
+      "parent_organisation": "org1",
+      "headcount": 140,
+      "stereotype": "Department"
+    },
+    {
+      "id": "org7",
+      "concept_type": "Organisation",
+      "name": "Market Risk & Trading Controls",
+      "status": "Active",
+      "parent_organisation": "org1",
+      "headcount": 95,
+      "stereotype": "Department"
+    },
+    {
+      "id": "org8",
+      "concept_type": "Organisation",
+      "name": "Equity Capital Markets & Client Coverage",
+      "status": "Active",
+      "parent_organisation": "org1",
+      "headcount": 120,
+      "stereotype": "Department"
+    },
+    {
+      "id": "loc1",
+      "concept_type": "Location",
+      "name": "United States",
+      "status": "Active",
+      "country": "United States",
+      "data_residency_zone": "US",
+      "stereotype": "Country"
+    },
+    {
+      "id": "loc_uk",
+      "concept_type": "Location",
+      "name": "United Kingdom",
+      "status": "Active",
+      "country": "United Kingdom",
+      "data_residency_zone": "UK",
+      "stereotype": "Country"
+    },
+    {
+      "id": "loc2",
+      "concept_type": "Location",
+      "name": "New York",
+      "status": "Active",
+      "country": "United States",
+      "time_zone": "America/New_York",
+      "data_residency_zone": "US",
+      "stereotype": "City"
+    },
+    {
+      "id": "loc3",
+      "concept_type": "Location",
+      "name": "London",
+      "status": "Active",
+      "country": "United Kingdom",
+      "time_zone": "Europe/London",
+      "data_residency_zone": "UK",
+      "stereotype": "City"
+    },
+    {
+      "id": "loc4",
+      "concept_type": "Location",
+      "name": "Singapore",
+      "status": "Active",
+      "country": "Singapore",
+      "time_zone": "Asia/Singapore",
+      "data_residency_zone": "APAC",
+      "stereotype": "Country"
+    },
+    {
+      "id": "loc5",
+      "concept_type": "Location",
+      "name": "AWS US-East Region",
+      "status": "Active",
+      "country": "United States",
+      "data_residency_zone": "US",
+      "stereotype": "Region"
+    },
+    {
+      "id": "loc6",
+      "concept_type": "Location",
+      "name": "Citi Trading Data Centre \u2014 NY4",
+      "status": "Active",
+      "country": "United States",
+      "time_zone": "America/New_York",
+      "data_residency_zone": "US",
+      "stereotype": "Site"
+    },
+    {
+      "id": "loc7",
+      "concept_type": "Location",
+      "name": "Exchange Co-Location Facility \u2014 Secaucus, NJ",
+      "status": "Active",
+      "country": "United States",
+      "time_zone": "America/New_York",
+      "data_residency_zone": "US",
+      "stereotype": "Site"
+    },
+    {
+      "id": "pr1",
+      "concept_type": "Product",
+      "name": "Program & Algorithmic Trading",
+      "status": "Active",
+      "strategic_importance": "Critical",
+      "stereotype": "Service"
+    },
+    {
+      "id": "pr2",
+      "concept_type": "Product",
+      "name": "Prime Brokerage Services",
+      "status": "Active",
+      "strategic_importance": "Critical",
+      "stereotype": "Service"
+    },
+    {
+      "id": "pr3",
+      "concept_type": "Product",
+      "name": "Equity Research Distribution",
+      "status": "Active",
+      "strategic_importance": "High",
+      "stereotype": "Service"
+    },
+    {
+      "id": "pr4",
+      "concept_type": "Product",
+      "name": "Electronic Market Making & Liquidity Provision",
+      "status": "Active",
+      "strategic_importance": "High",
+      "stereotype": "Service"
+    },
+    {
+      "id": "pr5",
+      "concept_type": "Product",
+      "name": "Equity Capital Markets Origination Services",
+      "status": "Active",
+      "strategic_importance": "Medium",
+      "stereotype": "Service"
+    },
+    {
+      "id": "c1",
+      "concept_type": "Capability",
+      "name": "Cash Equities Trading & Execution",
+      "status": "Operational",
+      "importance": "Critical",
+      "market_differentiation": "High",
+      "governance_maturity": "4 - Quantitative",
+      "policies_maturity": "3 - Defined",
+      "process_maturity": "3 - Defined",
+      "people_maturity": "3 - Defined",
+      "applications_maturity": "3 - Defined",
+      "metrics_maturity": "3 - Defined"
+    },
+    {
+      "id": "c2",
+      "concept_type": "Capability",
+      "name": "Equity Derivatives Trading & Structuring",
+      "status": "Operational",
+      "importance": "Critical",
+      "market_differentiation": "High",
+      "governance_maturity": "3 - Defined",
+      "policies_maturity": "3 - Defined",
+      "process_maturity": "2 - Managed",
+      "people_maturity": "3 - Defined",
+      "applications_maturity": "2 - Managed",
+      "metrics_maturity": "2 - Managed"
+    },
+    {
+      "id": "c3",
+      "concept_type": "Capability",
+      "name": "Electronic Trading & Algorithmic Execution",
+      "status": "Operational",
+      "importance": "Critical",
+      "market_differentiation": "High",
+      "governance_maturity": "4 - Quantitative",
+      "policies_maturity": "4 - Quantitative",
+      "process_maturity": "3 - Defined",
+      "people_maturity": "3 - Defined",
+      "applications_maturity": "3 - Defined",
+      "metrics_maturity": "3 - Defined"
+    },
+    {
+      "id": "c4",
+      "concept_type": "Capability",
+      "name": "Prime Brokerage & Financing Services",
+      "status": "Operational",
+      "importance": "Critical",
+      "market_differentiation": "High",
+      "governance_maturity": "3 - Defined",
+      "policies_maturity": "3 - Defined",
+      "process_maturity": "2 - Managed",
+      "people_maturity": "3 - Defined",
+      "applications_maturity": "2 - Managed",
+      "metrics_maturity": "2 - Managed"
+    },
+    {
+      "id": "c5",
+      "concept_type": "Capability",
+      "name": "Equity Research & Analytics",
+      "status": "Operational",
+      "importance": "High",
+      "market_differentiation": "High",
+      "governance_maturity": "3 - Defined",
+      "policies_maturity": "2 - Managed",
+      "process_maturity": "2 - Managed",
+      "people_maturity": "3 - Defined",
+      "applications_maturity": "2 - Managed",
+      "metrics_maturity": "1 - Initial"
+    },
+    {
+      "id": "c6",
+      "concept_type": "Capability",
+      "name": "Equity Capital Markets Origination",
+      "status": "Operational",
+      "importance": "Medium",
+      "market_differentiation": "High",
+      "governance_maturity": "3 - Defined",
+      "policies_maturity": "3 - Defined",
+      "process_maturity": "2 - Managed",
+      "people_maturity": "3 - Defined",
+      "applications_maturity": "2 - Managed",
+      "metrics_maturity": "2 - Managed"
+    },
+    {
+      "id": "c7",
+      "concept_type": "Capability",
+      "name": "Market Risk & Trading Controls",
+      "status": "Operational",
+      "importance": "Critical",
+      "market_differentiation": "High",
+      "governance_maturity": "4 - Quantitative",
+      "policies_maturity": "4 - Quantitative",
+      "process_maturity": "3 - Defined",
+      "people_maturity": "3 - Defined",
+      "applications_maturity": "3 - Defined",
+      "metrics_maturity": "3 - Defined"
+    },
+    {
+      "id": "c8",
+      "concept_type": "Capability",
+      "name": "Post-Trade Operations & Clearing",
+      "status": "Operational",
+      "importance": "High",
+      "market_differentiation": "High",
+      "governance_maturity": "3 - Defined",
+      "policies_maturity": "3 - Defined",
+      "process_maturity": "2 - Managed",
+      "people_maturity": "2 - Managed",
+      "applications_maturity": "2 - Managed",
+      "metrics_maturity": "1 - Initial"
+    },
+    {
+      "id": "c9",
+      "concept_type": "Capability",
+      "name": "Institutional Client Coverage & Sales",
+      "status": "Operational",
+      "importance": "High",
+      "market_differentiation": "High",
+      "governance_maturity": "3 - Defined",
+      "policies_maturity": "2 - Managed",
+      "process_maturity": "2 - Managed",
+      "people_maturity": "3 - Defined",
+      "applications_maturity": "2 - Managed",
+      "metrics_maturity": "2 - Managed"
+    },
+    {
+      "id": "c3a",
+      "concept_type": "Capability",
+      "name": "Smart Order Routing & Algo Suite",
+      "status": "Operational",
+      "importance": "Critical",
+      "market_differentiation": "High",
+      "governance_maturity": "4 - Quantitative",
+      "policies_maturity": "3 - Defined",
+      "process_maturity": "3 - Defined",
+      "people_maturity": "3 - Defined",
+      "applications_maturity": "3 - Defined",
+      "metrics_maturity": "3 - Defined"
+    },
+    {
+      "id": "c3b",
+      "concept_type": "Capability",
+      "name": "Market Making & Liquidity Provision",
+      "status": "Operational",
+      "importance": "High",
+      "market_differentiation": "High",
+      "governance_maturity": "3 - Defined",
+      "policies_maturity": "3 - Defined",
+      "process_maturity": "2 - Managed",
+      "people_maturity": "3 - Defined",
+      "applications_maturity": "2 - Managed",
+      "metrics_maturity": "2 - Managed"
+    },
+    {
+      "id": "c5a",
+      "concept_type": "Capability",
+      "name": "AI-Augmented Research Generation",
+      "status": "Operational",
+      "importance": "High",
+      "market_differentiation": "High",
+      "governance_maturity": "2 - Managed",
+      "policies_maturity": "1 - Initial",
+      "process_maturity": "1 - Initial",
+      "people_maturity": "2 - Managed",
+      "applications_maturity": "1 - Initial",
+      "metrics_maturity": "1 - Initial"
+    },
+    {
+      "id": "c5b",
+      "concept_type": "Capability",
+      "name": "Quant Signal Research & Alpha Generation",
+      "status": "Operational",
+      "importance": "Critical",
+      "market_differentiation": "High",
+      "governance_maturity": "3 - Defined",
+      "policies_maturity": "2 - Managed",
+      "process_maturity": "2 - Managed",
+      "people_maturity": "3 - Defined",
+      "applications_maturity": "2 - Managed",
+      "metrics_maturity": "2 - Managed"
+    },
+    {
+      "id": "c4a",
+      "concept_type": "Capability",
+      "name": "Securities Lending & Financing",
+      "status": "Operational",
+      "importance": "High",
+      "market_differentiation": "High",
+      "governance_maturity": "3 - Defined",
+      "policies_maturity": "3 - Defined",
+      "process_maturity": "2 - Managed",
+      "people_maturity": "3 - Defined",
+      "applications_maturity": "2 - Managed",
+      "metrics_maturity": "2 - Managed"
+    },
+    {
+      "id": "c4b",
+      "concept_type": "Capability",
+      "name": "Client Margin & Risk Management (Prime)",
+      "status": "Operational",
+      "importance": "Critical",
+      "market_differentiation": "High",
+      "governance_maturity": "3 - Defined",
+      "policies_maturity": "3 - Defined",
+      "process_maturity": "3 - Defined",
+      "people_maturity": "3 - Defined",
+      "applications_maturity": "3 - Defined",
+      "metrics_maturity": "2 - Managed"
+    },
+    {
+      "id": "req1",
+      "concept_type": "Requirement",
+      "name": "Sub-Millisecond Smart Order Router Latency",
+      "status": "In Design",
+      "priority": "Must Have",
+      "acceptance_criteria": "Order routing decisions complete in under 1ms at the 99th percentile across all connected venues",
+      "rationale": "Top-4 peers already route sub-millisecond; every extra millisecond of router latency measurably widens implementation shortfall on liquid names",
+      "target_date": "2026-12-31",
+      "stereotype": "Non-Functional"
+    },
+    {
+      "id": "req1a",
+      "concept_type": "Requirement",
+      "name": "Co-Located Matching Engine Access in Key Venues",
+      "status": "Fulfilled",
+      "priority": "Must Have",
+      "acceptance_criteria": "Order flow for the top 10 venues by volume is co-located, verified by round-trip latency audit",
+      "rationale": "Sub-millisecond routing is unreachable without co-location for the venues that carry the majority of volume",
+      "target_date": "2026-06-30",
+      "stereotype": "Non-Functional"
+    },
+    {
+      "id": "req2",
+      "concept_type": "Requirement",
+      "name": "Explainable AI Signals for Research Distribution",
+      "status": "Draft",
+      "priority": "Must Have",
+      "acceptance_criteria": "Every AI-generated research signal ships with a human-readable rationale a PM can audit before acting on it",
+      "rationale": "Portfolio managers and compliance won't act on \u2014 or clear \u2014 a signal they can't explain, no matter how accurate it is",
+      "target_date": "2026-11-30",
+      "stereotype": "Non-Functional"
+    },
+    {
+      "id": "req3",
+      "concept_type": "Requirement",
+      "name": "Single Golden Source Market & Reference Data",
+      "status": "In Design",
+      "priority": "Should Have",
+      "acceptance_criteria": "Every trading, research and risk system reads market/reference data from one platform, with zero reconciliation breaks in a week",
+      "rationale": "Trading, research and risk currently reconcile against slightly different copies of reference data, producing intermittent, hard-to-diagnose discrepancies",
+      "target_date": "2026-09-30",
+      "stereotype": "Non-Functional"
+    },
+    {
+      "id": "req4",
+      "concept_type": "Requirement",
+      "name": "Real-Time Cross-Venue Best Execution Reporting",
+      "status": "Approved",
+      "priority": "Must Have",
+      "acceptance_criteria": "Execution-quality reporting is available to the desk within 60 seconds of a fill, across every connected venue",
+      "rationale": "Best-execution reporting is currently a T+1 batch job, so the desk can't adjust algo behaviour intraday when execution quality is slipping",
+      "target_date": "2027-01-31",
+      "stereotype": "Functional"
+    },
+    {
+      "id": "req5",
+      "concept_type": "Requirement",
+      "name": "Model Risk Sign-Off Prior to Production AI Deployment",
+      "status": "Fulfilled",
+      "priority": "Must Have",
+      "acceptance_criteria": "No AI model reaches production trading or client-facing research without a documented model-risk sign-off",
+      "rationale": "An unreviewed model making live trading or client-facing decisions is an unacceptable regulatory and reputational exposure",
+      "target_date": "2026-01-31",
+      "stereotype": "Non-Functional"
+    },
+    {
+      "id": "iface1",
+      "concept_type": "Interface",
+      "name": "OMS to Algo Suite Order Routing Feed",
+      "status": "Active",
+      "direction": "Outbound",
+      "protocol": "Message Queue",
+      "data_format": "FIX",
+      "frequency": "Real-time",
+      "auth_method": "Certificate",
+      "data_classification": "Restricted"
+    },
+    {
+      "id": "iface2",
+      "concept_type": "Interface",
+      "name": "Consolidated Market Data & Tick Feed",
+      "status": "Active",
+      "direction": "Outbound",
+      "protocol": "Streaming API",
+      "data_format": "Binary",
+      "frequency": "Real-time",
+      "auth_method": "Certificate",
+      "data_classification": "Confidential"
+    },
+    {
+      "id": "iface3",
+      "concept_type": "Interface",
+      "name": "Prime Brokerage Client Reporting API",
+      "status": "Active",
+      "direction": "Outbound",
+      "protocol": "REST API",
+      "data_format": "JSON",
+      "frequency": "Near Real-time",
+      "auth_method": "OAuth2",
+      "data_classification": "Confidential"
+    },
+    {
+      "id": "iface4",
+      "concept_type": "Interface",
+      "name": "Research Distribution Publish Feed",
+      "status": "Active",
+      "direction": "Outbound",
+      "protocol": "REST API",
+      "data_format": "JSON",
+      "frequency": "Near Real-time",
+      "auth_method": "OAuth2",
+      "data_classification": "Internal"
+    },
+    {
+      "id": "iface5",
+      "concept_type": "Interface",
+      "name": "Trade Surveillance Alert Feed",
+      "status": "Active",
+      "direction": "Outbound",
+      "protocol": "Message Queue",
+      "data_format": "JSON",
+      "frequency": "Real-time",
+      "auth_method": "Certificate",
+      "data_classification": "Restricted"
+    },
+    {
+      "id": "iface6",
+      "concept_type": "Interface",
+      "name": "Golden Source Reference Data Feed",
+      "status": "Active",
+      "direction": "Outbound",
+      "protocol": "Batch ETL",
+      "data_format": "CSV",
+      "frequency": "Daily",
+      "auth_method": "API Key",
+      "data_classification": "Confidential"
+    },
+    {
+      "id": "iface7",
+      "concept_type": "Interface",
+      "name": "Post-Trade Clearing & Settlement Feed",
+      "status": "Active",
+      "direction": "Outbound",
+      "protocol": "Batch ETL",
+      "data_format": "SWIFT",
+      "frequency": "Daily",
+      "auth_method": "Certificate",
+      "data_classification": "Restricted"
+    },
+    {
+      "id": "iface8",
+      "concept_type": "Interface",
+      "name": "Risk & VaR Aggregation Feed",
+      "status": "Active",
+      "direction": "Outbound",
+      "protocol": "REST API",
+      "data_format": "JSON",
+      "frequency": "Near Real-time",
+      "auth_method": "OAuth2",
+      "data_classification": "Restricted"
+    },
+    {
+      "id": "p1",
+      "concept_type": "Process",
+      "name": "Order Execution & Smart Routing",
+      "status": "Active",
+      "criticality": "Critical",
+      "automation_level": "Full",
+      "frequency": "Daily",
+      "roles": "Algo Trading Desk, Electronic Trading Ops",
+      "stereotype": "Core"
+    },
+    {
+      "id": "p2",
+      "concept_type": "Process",
+      "name": "Equity Research Production & Distribution",
+      "status": "Active",
+      "criticality": "High",
+      "automation_level": "Partial",
+      "frequency": "Daily",
+      "roles": "Research Analysts, Research Editors",
+      "stereotype": "Core"
+    },
+    {
+      "id": "p3",
+      "concept_type": "Process",
+      "name": "Trade Surveillance & Market Abuse Monitoring",
+      "status": "Active",
+      "criticality": "Critical",
+      "automation_level": "Partial",
+      "frequency": "Daily",
+      "roles": "Surveillance Analysts, Compliance Officers",
+      "stereotype": "Management"
+    },
+    {
+      "id": "p4",
+      "concept_type": "Process",
+      "name": "Prime Brokerage Client Onboarding",
+      "status": "Active",
+      "criticality": "High",
+      "automation_level": "Partial",
+      "frequency": "Weekly",
+      "roles": "Client Onboarding Specialist, Legal & Compliance",
+      "stereotype": "Support"
+    },
+    {
+      "id": "p5",
+      "concept_type": "Process",
+      "name": "Market Risk & Limits Monitoring",
+      "status": "Active",
+      "criticality": "Critical",
+      "automation_level": "Partial",
+      "frequency": "Daily",
+      "roles": "Market Risk Officer, Risk Analyst",
+      "stereotype": "Management"
+    },
+    {
+      "id": "p6",
+      "concept_type": "Process",
+      "name": "Post-Trade Clearing & Settlement",
+      "status": "Active",
+      "criticality": "Critical",
+      "automation_level": "Partial",
+      "frequency": "Daily",
+      "roles": "Settlements Officer, Post-Trade Ops",
+      "stereotype": "Core"
+    },
+    {
+      "id": "j1",
+      "concept_type": "Journey",
+      "name": "Institutional Client Onboarding for Prime Brokerage",
+      "status": "Active",
+      "customer_segment": "Institutional asset managers and hedge funds",
+      "channel": "Sales coverage, legal/compliance and client portal",
+      "importance": "Critical",
+      "strategic_alignment": "High",
+      "lifecycle": "Mature",
+      "risk_level": "High",
+      "performance_measure": "Time from mandate signed to first trade",
+      "target_outcome": "Clients are trading live as fast as compliance allows, with no rework",
+      "stereotype": "Customer"
+    },
+    {
+      "id": "j2",
+      "concept_type": "Journey",
+      "name": "Portfolio Manager Consumes Equity Research",
+      "status": "Active",
+      "customer_segment": "Buy-side portfolio managers and analysts",
+      "channel": "Research distribution platform, AI copilot and sales coverage calls",
+      "importance": "Critical",
+      "strategic_alignment": "High",
+      "lifecycle": "Mature",
+      "risk_level": "Medium",
+      "performance_measure": "Research-to-trade conversion rate",
+      "target_outcome": "Clients find and act on the right research and signals without digging",
+      "stereotype": "Customer"
+    },
+    {
+      "id": "j3",
+      "concept_type": "Journey",
+      "name": "Trade Order to Settlement",
+      "status": "Active",
+      "customer_segment": "Institutional trading clients",
+      "channel": "OMS/EMS, algo suite and post-trade ops",
+      "importance": "Critical",
+      "strategic_alignment": "High",
+      "lifecycle": "Mature",
+      "risk_level": "High",
+      "performance_measure": "Implementation shortfall and time to settlement confirmation",
+      "target_outcome": "Orders are executed at best price and settle without exception",
+      "stereotype": "Customer"
+    },
+    {
+      "id": "js1",
+      "concept_type": "JourneyStage",
+      "name": "Discover & Evaluate Prime Services",
+      "status": "Active",
+      "sequence": 1,
+      "customer_need": "Understand whether Citi's prime offering fits the fund's strategy",
+      "channel": "Sales coverage",
+      "importance": "Critical",
+      "criticality": "High",
+      "pain_point": "Unclear differentiation versus top-4 prime brokers",
+      "performance_measure": "Pitch-to-mandate conversion rate",
+      "risk_level": "Medium",
+      "stereotype": "Entry"
+    },
+    {
+      "id": "js2",
+      "concept_type": "JourneyStage",
+      "name": "Complete KYC/AML & Legal Documentation",
+      "status": "Active",
+      "sequence": 2,
+      "customer_need": "Get through onboarding paperwork with minimal friction",
+      "channel": "Legal & Compliance",
+      "importance": "Critical",
+      "criticality": "Critical",
+      "pain_point": "Documentation requested repeatedly across teams",
+      "performance_measure": "Time to documentation complete",
+      "risk_level": "High",
+      "stereotype": "Interaction"
+    },
+    {
+      "id": "js3",
+      "concept_type": "JourneyStage",
+      "name": "Provision Trading, Custody & Margin Access",
+      "status": "Active",
+      "sequence": 3,
+      "customer_need": "Get trading, custody and margin lines live",
+      "channel": "Prime Services Ops",
+      "importance": "Critical",
+      "criticality": "Critical",
+      "pain_point": "Manual account provisioning across multiple systems",
+      "performance_measure": "Time from documentation to live access",
+      "risk_level": "High",
+      "stereotype": "Decision"
+    },
+    {
+      "id": "js4",
+      "concept_type": "JourneyStage",
+      "name": "Go Live & Receive Ongoing Coverage",
+      "status": "Active",
+      "sequence": 4,
+      "customer_need": "Trade confidently and get proactive coverage",
+      "channel": "Prime Services and Client Coverage",
+      "importance": "High",
+      "criticality": "High",
+      "pain_point": "Coverage quality varies by relationship manager",
+      "performance_measure": "Client satisfaction score",
+      "risk_level": "Medium",
+      "stereotype": "Fulfilment"
+    },
+    {
+      "id": "js5",
+      "concept_type": "JourneyStage",
+      "name": "Discover Relevant Research & Signals",
+      "status": "Active",
+      "sequence": 1,
+      "customer_need": "Find research relevant to the PM's current positions without wading through everything published",
+      "channel": "Research distribution platform",
+      "importance": "Critical",
+      "criticality": "High",
+      "pain_point": "Research volume outpaces a PM's time to read it",
+      "performance_measure": "Time to relevant research found",
+      "risk_level": "Low",
+      "stereotype": "Entry"
+    },
+    {
+      "id": "js6",
+      "concept_type": "JourneyStage",
+      "name": "Consume & Interrogate Research Content",
+      "status": "Active",
+      "sequence": 2,
+      "customer_need": "Quickly get to the thesis and ask follow-up questions",
+      "channel": "Research platform and AI copilot",
+      "importance": "Critical",
+      "criticality": "High",
+      "pain_point": "No way to ask a follow-up question without calling the analyst",
+      "performance_measure": "Research engagement depth",
+      "risk_level": "Medium",
+      "stereotype": "Interaction"
+    },
+    {
+      "id": "js7",
+      "concept_type": "JourneyStage",
+      "name": "Act on Research via Trade Execution",
+      "status": "Active",
+      "sequence": 3,
+      "customer_need": "Move from a research idea straight into an order",
+      "channel": "OMS/EMS",
+      "importance": "High",
+      "criticality": "High",
+      "pain_point": "No direct path from a research idea to an order ticket",
+      "performance_measure": "Research-to-trade conversion rate",
+      "risk_level": "Medium",
+      "stereotype": "Fulfilment"
+    },
+    {
+      "id": "js8",
+      "concept_type": "JourneyStage",
+      "name": "Place & Route Order",
+      "status": "Active",
+      "sequence": 1,
+      "customer_need": "Get an order into the market with the right routing strategy",
+      "channel": "OMS/EMS",
+      "importance": "Critical",
+      "criticality": "Critical",
+      "pain_point": "Manual strategy selection slows time-sensitive orders",
+      "performance_measure": "Order-to-route time",
+      "risk_level": "High",
+      "stereotype": "Entry"
+    },
+    {
+      "id": "js9",
+      "concept_type": "JourneyStage",
+      "name": "Execute Across Venues",
+      "status": "Active",
+      "sequence": 2,
+      "customer_need": "Get filled at the best available price across venues",
+      "channel": "Algo Suite and connected venues",
+      "importance": "Critical",
+      "criticality": "Critical",
+      "pain_point": "Implementation shortfall on liquid names trails top-4 peers",
+      "performance_measure": "Implementation shortfall vs. benchmark",
+      "risk_level": "Critical",
+      "stereotype": "Interaction"
+    },
+    {
+      "id": "js10",
+      "concept_type": "JourneyStage",
+      "name": "Confirm, Clear & Settle Trade",
+      "status": "Active",
+      "sequence": 3,
+      "customer_need": "Get a fast, exception-free settlement confirmation",
+      "channel": "Post-Trade Ops",
+      "importance": "Critical",
+      "criticality": "High",
+      "pain_point": "Exception handling on breaks is still largely manual",
+      "performance_measure": "Time to settlement confirmation",
+      "risk_level": "High",
+      "stereotype": "Fulfilment"
+    },
+    {
+      "id": "st1",
+      "concept_type": "SoftwareTechnology",
+      "name": "Public Cloud Compute Platform (AWS)",
+      "status": "Active",
+      "tech_category": "Cloud Platforms",
+      "lifecycle": "Current",
+      "support_status": "Full",
+      "strategic_classification": "Preferred",
+      "stereotype": "Platform"
+    },
+    {
+      "id": "st2",
+      "concept_type": "SoftwareTechnology",
+      "name": "Legacy On-Prem Trading Platform",
+      "status": "Active",
+      "tech_category": "Infrastructure & Security",
+      "lifecycle": "Approaching EOL",
+      "support_status": "Limited",
+      "strategic_classification": "Contained",
+      "stereotype": "Platform"
+    },
+    {
+      "id": "st3",
+      "concept_type": "SoftwareTechnology",
+      "name": "Low-Latency Market Data Messaging Bus",
+      "status": "Active",
+      "tech_category": "Data & Analytics",
+      "lifecycle": "Current",
+      "support_status": "Full",
+      "strategic_classification": "Preferred",
+      "stereotype": "Platform"
+    },
+    {
+      "id": "st4",
+      "concept_type": "SoftwareTechnology",
+      "name": "Enterprise AI/ML Platform",
+      "status": "Active",
+      "tech_category": "Data & Analytics",
+      "lifecycle": "Current",
+      "support_status": "Full",
+      "strategic_classification": "Preferred",
+      "stereotype": "Platform"
+    },
+    {
+      "id": "h1",
+      "concept_type": "HardwareTechnology",
+      "name": "Co-Located Matching-Adjacent Servers",
+      "status": "Active",
+      "tech_category": "Infrastructure & Security",
+      "lifecycle": "Current",
+      "support_status": "Full",
+      "technical_health": "High",
+      "stereotype": "Server"
+    },
+    {
+      "id": "h2",
+      "concept_type": "HardwareTechnology",
+      "name": "Legacy On-Prem Trading Data Centre Hardware",
+      "status": "Active",
+      "tech_category": "Infrastructure & Security",
+      "lifecycle": "EOL",
+      "support_status": "Limited",
+      "technical_health": "Poor",
+      "stereotype": "Server"
+    },
+    {
+      "id": "dt1",
+      "concept_type": "Data",
+      "name": "Market & Reference Data",
+      "status": "Active",
+      "classification": "Confidential",
+      "quality": "High",
+      "stereotype": "Master"
+    },
+    {
+      "id": "dt2",
+      "concept_type": "Data",
+      "name": "Client Order & Execution Data",
+      "status": "Active",
+      "classification": "Restricted",
+      "sensitivity": "High",
+      "quality": "Adequate",
+      "stereotype": "Transactional"
+    },
+    {
+      "id": "dt3",
+      "concept_type": "Data",
+      "name": "Research Content & Analyst Notes",
+      "status": "Active",
+      "classification": "Internal",
+      "quality": "Poor",
+      "stereotype": "Master"
+    },
+    {
+      "id": "dt4",
+      "concept_type": "Data",
+      "name": "Client Prime Brokerage & Margin Data",
+      "status": "Active",
+      "classification": "Confidential",
+      "quality": "High",
+      "stereotype": "Transactional"
+    },
+    {
+      "id": "dt5",
+      "concept_type": "Data",
+      "name": "Trade Surveillance & Compliance Data",
+      "status": "Active",
+      "classification": "Restricted",
+      "quality": "Adequate",
+      "stereotype": "Transactional"
+    },
+    {
+      "id": "dt6",
+      "concept_type": "Data",
+      "name": "Client Engagement & Coverage History",
+      "status": "Active",
+      "classification": "Confidential",
+      "quality": "Adequate",
+      "stereotype": "Transactional"
+    },
+    {
+      "id": "aim1",
+      "concept_type": "AIModel",
+      "name": "Equity Research Summarisation & Signal Extraction Model",
+      "status": "Evaluation",
+      "vendor": "Anthropic",
+      "model_purpose": "Summarise sell-side and buy-side research, extract structured signals for analysts and PMs",
+      "provider": "Anthropic API",
+      "version": "claude-sonnet-5",
+      "lifecycle_status": "Tactical",
+      "criticality": "High",
+      "business_value": "High",
+      "technical_health": "Adequate",
+      "risk_level": "Medium",
+      "approval_status": "Pending",
+      "human_oversight": "Recommended",
+      "explainability": "Medium",
+      "hosting_model": "Cloud",
+      "regulatory_relevance": [
+        "MiFID II",
+        "SEC Reg AC"
+      ],
+      "tco": 1400000,
+      "owner": "Venkatesh Ramachandran",
+      "stereotype": "Generative"
+    },
+    {
+      "id": "aim2",
+      "concept_type": "AIModel",
+      "name": "Execution Optimisation Reinforcement Model",
+      "status": "Production",
+      "vendor": "Internal",
+      "model_purpose": "Dynamic order slicing and venue selection to minimise implementation shortfall",
+      "provider": "Internal ML Platform",
+      "version": "3.2",
+      "lifecycle_status": "Strategic",
+      "criticality": "Critical",
+      "business_value": "High",
+      "technical_health": "Adequate",
+      "risk_level": "High",
+      "approval_status": "Approved",
+      "human_oversight": "Required",
+      "explainability": "Low",
+      "hosting_model": "Cloud",
+      "regulatory_relevance": [
+        "MiFID II",
+        "Reg NMS"
+      ],
+      "tco": 2100000,
+      "owner": "Andrew Wells",
+      "stereotype": "Predictive"
+    },
+    {
+      "id": "aim3",
+      "concept_type": "AIModel",
+      "name": "Client Next-Best-Action Prediction Model",
+      "status": "Evaluation",
+      "vendor": "Internal",
+      "model_purpose": "Predict which research, trade ideas or outreach to surface to which coverage client",
+      "provider": "Internal ML Platform",
+      "version": "1.1",
+      "lifecycle_status": "Tactical",
+      "criticality": "Medium",
+      "business_value": "Medium",
+      "technical_health": "Adequate",
+      "risk_level": "Medium",
+      "approval_status": "Approved",
+      "human_oversight": "Recommended",
+      "explainability": "High",
+      "hosting_model": "Cloud",
+      "regulatory_relevance": [
+        "MiFID II"
+      ],
+      "tco": 650000,
+      "owner": "Venkatesh Ramachandran",
+      "stereotype": "Predictive"
+    },
+    {
+      "id": "a1",
+      "concept_type": "Application",
+      "category": "Trading Platform",
+      "architecture_style": "Traditional",
+      "service_level": "Platinum",
+      "rto": "1 hour",
+      "rpo": "5 minutes",
+      "active_date": "2019-03-01",
+      "user_count": 420,
+      "name": "Velocity Order & Execution Management System (OEMS)",
+      "status": "Production",
+      "vendor": "Internal",
+      "business_value": 3,
+      "technical_health": 3,
+      "criticality": "Critical",
+      "tco": 9800000,
+      "hosting_model": "On-Prem",
+      "owner": "Head of Electronic Trading Technology",
+      "stereotype": "Custom",
+      "ai_readiness": "Medium",
+      "ai_relevance": "High",
+      "ai_availability": "Planned",
+      "ai_target_pattern": "Enable",
+      "ai_pathfinder_status": "In Progress",
+      "review_date": "2026-12-01"
+    },
+    {
+      "id": "a2",
+      "concept_type": "Application",
+      "category": "Trading Platform",
+      "architecture_style": "Traditional",
+      "service_level": "Platinum",
+      "rto": "15 minutes",
+      "rpo": "1 minute",
+      "active_date": "2023-01-01",
+      "user_count": 85,
+      "name": "Global Algo Execution Suite",
+      "status": "Production",
+      "vendor": "Internal",
+      "business_value": 3,
+      "technical_health": 4,
+      "criticality": "Critical",
+      "tco": 6200000,
+      "hosting_model": "Cloud",
+      "owner": "Andrew Wells",
+      "stereotype": "Custom",
+      "ai_readiness": "High",
+      "ai_relevance": "High",
+      "ai_availability": "Available",
+      "ai_target_pattern": "Enable",
+      "ai_pathfinder_status": "In Progress",
+      "review_date": "2026-10-01"
+    },
+    {
+      "id": "a3",
+      "concept_type": "Application",
+      "category": "Market Data",
+      "architecture_style": "Traditional",
+      "service_level": "Gold",
+      "rto": "4 hours",
+      "rpo": "15 minutes",
+      "active_date": "2012-06-01",
+      "user_count": 30,
+      "name": "Consolidated Market Data & Tick Store",
+      "status": "Production",
+      "vendor": "Internal (legacy)",
+      "business_value": 3,
+      "technical_health": 2,
+      "criticality": "Critical",
+      "tco": 5400000,
+      "hosting_model": "On-Prem",
+      "owner": "Head of Markets Technology",
+      "stereotype": "Custom",
+      "ai_readiness": "Low",
+      "ai_relevance": "High",
+      "ai_availability": "Planned",
+      "ai_target_pattern": "Rebuild",
+      "ai_pathfinder_status": "Not Started",
+      "review_date": "2026-09-01"
+    },
+    {
+      "id": "a4",
+      "concept_type": "Application",
+      "category": "Research Distribution",
+      "architecture_style": "Traditional",
+      "service_level": "Gold",
+      "rto": "8 hours",
+      "rpo": "1 hour",
+      "active_date": "2018-01-01",
+      "user_count": 140,
+      "name": "Equity Research Publishing & Distribution Platform",
+      "status": "Production",
+      "vendor": "Internal",
+      "business_value": 2,
+      "technical_health": 3,
+      "criticality": "High",
+      "tco": 3100000,
+      "hosting_model": "Cloud",
+      "owner": "Head of Equity Research",
+      "stereotype": "Custom",
+      "ai_readiness": "High",
+      "ai_relevance": "High",
+      "ai_availability": "Planned",
+      "ai_target_pattern": "Enable",
+      "ai_pathfinder_status": "In Progress",
+      "review_date": "2027-02-01"
+    },
+    {
+      "id": "a5",
+      "concept_type": "Application",
+      "category": "Compliance Surveillance",
+      "architecture_style": "Traditional",
+      "service_level": "Gold",
+      "rto": "4 hours",
+      "rpo": "15 minutes",
+      "active_date": "2020-01-01",
+      "user_count": 45,
+      "name": "Trade Surveillance & Market Abuse Monitoring",
+      "status": "Production",
+      "vendor": "Nasdaq SMARTS",
+      "business_value": 3,
+      "technical_health": 3,
+      "criticality": "Critical",
+      "tco": 2800000,
+      "hosting_model": "SaaS",
+      "owner": "Head of Trading Controls",
+      "stereotype": "COTS",
+      "ai_readiness": "Medium",
+      "ai_relevance": "High",
+      "ai_availability": "Planned",
+      "ai_target_pattern": "Enable",
+      "ai_pathfinder_status": "Not Started",
+      "review_date": "2027-05-01"
+    },
+    {
+      "id": "a6",
+      "concept_type": "Application",
+      "category": "Prime Brokerage",
+      "architecture_style": "Traditional",
+      "service_level": "Gold",
+      "rto": "4 hours",
+      "rpo": "15 minutes",
+      "active_date": "2017-01-01",
+      "user_count": 95,
+      "name": "Prime Brokerage Client Portal",
+      "status": "Production",
+      "vendor": "Internal",
+      "business_value": 3,
+      "technical_health": 3,
+      "criticality": "High",
+      "tco": 2600000,
+      "hosting_model": "Cloud",
+      "owner": "Head of Prime Services",
+      "stereotype": "Custom",
+      "ai_readiness": "Medium",
+      "ai_relevance": "Medium",
+      "ai_availability": "Planned",
+      "ai_target_pattern": "Enable",
+      "ai_pathfinder_status": "Not Started",
+      "review_date": "2027-04-01"
+    },
+    {
+      "id": "a7",
+      "concept_type": "Application",
+      "category": "Prime Brokerage",
+      "architecture_style": "Traditional",
+      "service_level": "Silver",
+      "rto": "24 hours",
+      "rpo": "4 hours",
+      "active_date": "2009-01-01",
+      "user_count": 40,
+      "name": "Securities Lending & Financing Platform",
+      "status": "Production",
+      "vendor": "Internal (legacy)",
+      "business_value": 2,
+      "technical_health": 2,
+      "criticality": "High",
+      "tco": 3400000,
+      "hosting_model": "On-Prem",
+      "owner": "Head of Prime Services",
+      "stereotype": "Custom",
+      "ai_readiness": "Low",
+      "ai_relevance": "Medium",
+      "ai_availability": "Planned",
+      "ai_target_pattern": "Rebuild",
+      "ai_pathfinder_status": "Not Started",
+      "review_date": "2027-06-01"
+    },
+    {
+      "id": "a8",
+      "concept_type": "Application",
+      "category": "Finance & ERP",
+      "architecture_style": "Traditional",
+      "service_level": "Platinum",
+      "rto": "1 hour",
+      "rpo": "5 minutes",
+      "active_date": "2015-01-01",
+      "user_count": 60,
+      "name": "Market Risk & VaR Engine",
+      "status": "Production",
+      "vendor": "MSCI",
+      "business_value": 3,
+      "technical_health": 3,
+      "criticality": "Critical",
+      "tco": 4200000,
+      "hosting_model": "On-Prem",
+      "owner": "Head of Market Risk",
+      "stereotype": "COTS",
+      "ai_readiness": "Medium",
+      "ai_relevance": "High",
+      "ai_availability": "Planned",
+      "ai_target_pattern": "Enable",
+      "ai_pathfinder_status": "Not Started",
+      "review_date": "2027-01-01"
+    },
+    {
+      "id": "a9",
+      "concept_type": "Application",
+      "category": "Post-Trade",
+      "architecture_style": "Traditional",
+      "service_level": "Gold",
+      "rto": "4 hours",
+      "rpo": "15 minutes",
+      "active_date": "2011-01-01",
+      "user_count": 55,
+      "name": "Post-Trade Clearing & Settlement System",
+      "status": "Production",
+      "vendor": "Broadridge",
+      "business_value": 2,
+      "technical_health": 2,
+      "criticality": "Critical",
+      "tco": 3900000,
+      "hosting_model": "On-Prem",
+      "owner": "Head of Post-Trade Operations",
+      "stereotype": "COTS",
+      "ai_readiness": "Low",
+      "ai_relevance": "Medium",
+      "ai_availability": "Planned",
+      "ai_target_pattern": "Rebuild",
+      "ai_pathfinder_status": "Not Started",
+      "review_date": "2027-03-01"
+    },
+    {
+      "id": "a10",
+      "concept_type": "Application",
+      "category": "Analytics",
+      "architecture_style": "Traditional",
+      "service_level": "Silver",
+      "rto": "24 hours",
+      "rpo": "4 hours",
+      "active_date": "2021-06-01",
+      "user_count": 110,
+      "name": "Client Analytics & Coverage Dashboard",
+      "status": "Production",
+      "vendor": "Internal",
+      "business_value": 2,
+      "technical_health": 4,
+      "criticality": "Medium",
+      "tco": 1600000,
+      "hosting_model": "Cloud",
+      "owner": "Head of Client Coverage",
+      "stereotype": "Custom",
+      "ai_readiness": "High",
+      "ai_relevance": "High",
+      "ai_availability": "Embedded",
+      "ai_target_pattern": "Enable",
+      "ai_pathfinder_status": "Done",
+      "review_date": "2026-11-01"
+    },
+    {
+      "id": "a11",
+      "concept_type": "Application",
+      "category": "Research Distribution",
+      "architecture_style": "AI Agent",
+      "service_level": "Gold",
+      "rto": "8 hours",
+      "rpo": "1 hour",
+      "planned_date": "2026-06-01",
+      "user_count": 140,
+      "name": "Equity Research AI Copilot",
+      "status": "In Development",
+      "vendor": "Internal",
+      "business_value": "High",
+      "technical_health": "Adequate",
+      "criticality": "High",
+      "tco": 1900000,
+      "hosting_model": "Cloud",
+      "owner": "Venkatesh Ramachandran",
+      "stereotype": "Custom",
+      "ai_readiness": "High",
+      "ai_relevance": "High",
+      "ai_availability": "Planned",
+      "ai_target_pattern": "Enable",
+      "ai_pathfinder_status": "In Progress",
+      "review_date": "2026-06-01"
+    },
+    {
+      "id": "a12",
+      "concept_type": "Application",
+      "category": "Trading Platform",
+      "architecture_style": "AI Agent",
+      "service_level": "Platinum",
+      "rto": "15 minutes",
+      "rpo": "1 minute",
+      "active_date": "2026-01-15",
+      "user_count": 85,
+      "name": "Algo Execution Signal Optimizer",
+      "status": "Production",
+      "vendor": "Internal",
+      "business_value": "High",
+      "technical_health": "Adequate",
+      "criticality": "Critical",
+      "tco": 2400000,
+      "hosting_model": "Cloud",
+      "owner": "Andrew Wells",
+      "stereotype": "Custom",
+      "ai_readiness": "High",
+      "ai_relevance": "High",
+      "ai_availability": "Embedded",
+      "ai_target_pattern": "Enable",
+      "ai_pathfinder_status": "Done",
+      "review_date": "2026-07-15"
+    },
+    {
+      "id": "a13",
+      "concept_type": "Application",
+      "category": "Client Coverage",
+      "architecture_style": "AI Agent",
+      "service_level": "Silver",
+      "rto": "24 hours",
+      "rpo": "4 hours",
+      "planned_date": "2026-10-01",
+      "user_count": 110,
+      "name": "Client Coverage Next-Best-Action Assistant",
+      "status": "Planned",
+      "vendor": "Internal",
+      "business_value": "Medium",
+      "technical_health": "Adequate",
+      "criticality": "Medium",
+      "tco": 900000,
+      "hosting_model": "Cloud",
+      "owner": "Venkatesh Ramachandran",
+      "stereotype": "Custom",
+      "ai_readiness": "High",
+      "ai_relevance": "Medium",
+      "ai_availability": "Planned",
+      "ai_target_pattern": "Enable",
+      "ai_pathfinder_status": "Not Started",
+      "review_date": "2026-10-01"
+    },
+    {
+      "id": "a14",
+      "concept_type": "Application",
+      "category": "Trading Platform",
+      "architecture_style": "Traditional",
+      "service_level": "Bronze",
+      "rto": "72 hours",
+      "rpo": "24 hours",
+      "active_date": "2006-01-01",
+      "sunset_date": "2025-12-01",
+      "retiring_date": "2026-06-01",
+      "decommission_date": "2027-01-01",
+      "user_count": 15,
+      "name": "Legacy Direct Market Access (DMA) Gateway",
+      "status": "Retiring",
+      "vendor": "Unsupported",
+      "business_value": 1,
+      "technical_health": 1,
+      "criticality": "Medium",
+      "tco": 1200000,
+      "hosting_model": "On-Prem",
+      "owner": "Head of Electronic Trading Technology",
+      "stereotype": "Legacy",
+      "ai_readiness": "Low",
+      "ai_relevance": "Low",
+      "ai_availability": "Planned",
+      "ai_target_pattern": "Consolidate",
+      "ai_pathfinder_status": "Not Started"
+    },
+    {
+      "id": "f1",
+      "concept_type": "Flow",
+      "name": "Client Order to Execution & Settlement Flow",
+      "status": "Active",
+      "stereotype": "Functional",
+      "trigger": "A client order is submitted via the OEMS",
+      "criticality": "Critical",
+      "frequency": "Daily"
+    },
+    {
+      "id": "fs1",
+      "concept_type": "FlowStep",
+      "name": "Capture client order",
+      "status": "Active",
+      "sequence": 1,
+      "step_type": "Trigger",
+      "criticality": "Critical"
+    },
+    {
+      "id": "fs2",
+      "concept_type": "FlowStep",
+      "name": "Route order via smart router",
+      "status": "Active",
+      "sequence": 2,
+      "step_type": "Process",
+      "criticality": "Critical"
+    },
+    {
+      "id": "fs3",
+      "concept_type": "FlowStep",
+      "name": "Execute at venue",
+      "status": "Active",
+      "sequence": 3,
+      "step_type": "Integration",
+      "criticality": "Critical"
+    },
+    {
+      "id": "fs4",
+      "concept_type": "FlowStep",
+      "name": "Confirm and report execution",
+      "status": "Active",
+      "sequence": 4,
+      "step_type": "Process",
+      "criticality": "High"
+    },
+    {
+      "id": "fs5",
+      "concept_type": "FlowStep",
+      "name": "Clear and settle trade",
+      "status": "Active",
+      "sequence": 5,
+      "step_type": "Output",
+      "criticality": "Critical"
+    },
+    {
+      "id": "f2",
+      "concept_type": "Flow",
+      "name": "Nightly Market & Reference Data Reconciliation Flow",
+      "status": "Active",
+      "stereotype": "Technical",
+      "trigger": "Scheduled nightly batch window",
+      "criticality": "High",
+      "frequency": "Daily"
+    },
+    {
+      "id": "fs6",
+      "concept_type": "FlowStep",
+      "name": "Extract from consolidated tape",
+      "status": "Active",
+      "sequence": 1,
+      "step_type": "Trigger",
+      "criticality": "High"
+    },
+    {
+      "id": "fs7",
+      "concept_type": "FlowStep",
+      "name": "Transfer across legacy on-prem infrastructure",
+      "status": "Active",
+      "sequence": 2,
+      "step_type": "Integration",
+      "criticality": "High"
+    },
+    {
+      "id": "fs8",
+      "concept_type": "FlowStep",
+      "name": "Load into golden source reference store",
+      "status": "Active",
+      "sequence": 3,
+      "step_type": "Process",
+      "criticality": "Medium"
+    },
+    {
+      "id": "vs1",
+      "concept_type": "ValueStream",
+      "name": "Client Trades Equities Through Citi",
+      "status": "Active",
+      "stereotype": "Core",
+      "trigger_event": "An institutional client decides to place an equity order",
+      "value_delivered": "Client receives efficient execution, timely settlement, and ongoing research and coverage that keeps them trading with Citi",
+      "stakeholder": "Institutional trading client",
+      "strategic_importance": "Critical"
+    },
+    {
+      "id": "vss1",
+      "concept_type": "ValueStreamStage",
+      "name": "Client Places Order",
+      "status": "Active",
+      "sequence": 1,
+      "value_item": "Order captured and ready to route"
+    },
+    {
+      "id": "vss2",
+      "concept_type": "ValueStreamStage",
+      "name": "Order Executed Across Venues",
+      "status": "Active",
+      "sequence": 2,
+      "value_item": "Fill obtained at best available price"
+    },
+    {
+      "id": "vss3",
+      "concept_type": "ValueStreamStage",
+      "name": "Trade Cleared & Settled",
+      "status": "Active",
+      "sequence": 3,
+      "value_item": "Trade confirmed and settled without exception"
+    },
+    {
+      "id": "vss4",
+      "concept_type": "ValueStreamStage",
+      "name": "Client Relationship Reinforced via Research & Coverage",
+      "status": "Active",
+      "sequence": 4,
+      "value_item": "Client retained and engaged for the next order"
+    },
+    {
+      "id": "risk1",
+      "concept_type": "Risk",
+      "name": "Algo Execution Model Risk / Implementation Shortfall Exposure",
+      "status": "Assessed",
+      "likelihood": "Likely",
+      "impact": "High",
+      "stereotype": "Technology"
+    },
+    {
+      "id": "risk2",
+      "concept_type": "Risk",
+      "name": "AI Model Explainability & Regulatory Risk (Model Risk Management)",
+      "status": "Assessed",
+      "likelihood": "Possible",
+      "impact": "Critical",
+      "stereotype": "Compliance"
+    },
+    {
+      "id": "risk3",
+      "concept_type": "Risk",
+      "name": "Legacy Trading Infrastructure Single Point of Failure",
+      "status": "Assessed",
+      "likelihood": "Possible",
+      "impact": "Critical",
+      "stereotype": "Technology"
+    },
+    {
+      "id": "risk4",
+      "concept_type": "Risk",
+      "name": "Market Abuse / Surveillance Gap Risk",
+      "status": "Assessed",
+      "likelihood": "Possible",
+      "impact": "High",
+      "stereotype": "Compliance"
+    },
+    {
+      "id": "ctrl1",
+      "concept_type": "Control",
+      "name": "Algo Trading Kill-Switch & Pre-Trade Risk Controls",
+      "status": "Implemented",
+      "stereotype": "Preventive"
+    },
+    {
+      "id": "ctrl2",
+      "concept_type": "Control",
+      "name": "AI/Model Risk Governance Committee Sign-Off",
+      "status": "Implemented",
+      "stereotype": "Preventive"
+    },
+    {
+      "id": "ctrl3",
+      "concept_type": "Control",
+      "name": "Trade Surveillance Alerting & Review",
+      "status": "Implemented",
+      "stereotype": "Detective"
+    },
+    {
+      "id": "ctrl4",
+      "concept_type": "Control",
+      "name": "Trading Infrastructure DR & Failover Plan",
+      "status": "Implemented",
+      "stereotype": "Corrective"
+    }
+  ],
+  "relationships": [
+    {
+      "source": "org1",
+      "target": "org2",
+      "verb": "contains",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "org1",
+      "target": "org3",
+      "verb": "contains",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "org1",
+      "target": "org4",
+      "verb": "contains",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "org1",
+      "target": "org5",
+      "verb": "contains",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "org1",
+      "target": "org6",
+      "verb": "contains",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "org1",
+      "target": "org7",
+      "verb": "contains",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "org1",
+      "target": "org8",
+      "verb": "contains",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "loc1",
+      "target": "loc2",
+      "verb": "contains",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "loc1",
+      "target": "loc5",
+      "verb": "contains",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "loc1",
+      "target": "loc6",
+      "verb": "contains",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "loc1",
+      "target": "loc7",
+      "verb": "contains",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "loc_uk",
+      "target": "loc3",
+      "verb": "contains",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "org1",
+      "target": "loc2",
+      "verb": "based at",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "org3",
+      "target": "loc3",
+      "verb": "based at",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "org8",
+      "target": "loc4",
+      "verb": "based at",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "c3",
+      "target": "c3a",
+      "verb": "contains",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "c3",
+      "target": "c3b",
+      "verb": "contains",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "c5",
+      "target": "c5a",
+      "verb": "contains",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "c5",
+      "target": "c5b",
+      "verb": "contains",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "c4",
+      "target": "c4a",
+      "verb": "contains",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "c4",
+      "target": "c4b",
+      "verb": "contains",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "req1",
+      "target": "req1a",
+      "verb": "contains",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "p1",
+      "target": "c3",
+      "verb": "realises",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "p2",
+      "target": "c5",
+      "verb": "realises",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "p3",
+      "target": "c7",
+      "verb": "realises",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "p4",
+      "target": "c4",
+      "verb": "realises",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "p5",
+      "target": "c7",
+      "verb": "realises",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "p6",
+      "target": "c8",
+      "verb": "realises",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "j1",
+      "target": "js1",
+      "verb": "contains",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "j1",
+      "target": "js2",
+      "verb": "contains",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "j1",
+      "target": "js3",
+      "verb": "contains",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "j1",
+      "target": "js4",
+      "verb": "contains",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "j2",
+      "target": "js5",
+      "verb": "contains",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "j2",
+      "target": "js6",
+      "verb": "contains",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "j2",
+      "target": "js7",
+      "verb": "contains",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "j3",
+      "target": "js8",
+      "verb": "contains",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "j3",
+      "target": "js9",
+      "verb": "contains",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "j3",
+      "target": "js10",
+      "verb": "contains",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "js1",
+      "target": "js2",
+      "verb": "precedes",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "js2",
+      "target": "js3",
+      "verb": "precedes",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "js3",
+      "target": "js4",
+      "verb": "precedes",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "js5",
+      "target": "js6",
+      "verb": "precedes",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "js6",
+      "target": "js7",
+      "verb": "precedes",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "js8",
+      "target": "js9",
+      "verb": "precedes",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "js9",
+      "target": "js10",
+      "verb": "precedes",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "c4",
+      "target": "js1",
+      "verb": "enables",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "c4",
+      "target": "js2",
+      "verb": "enables",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "c4",
+      "target": "js3",
+      "verb": "enables",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 95
+    },
+    {
+      "source": "c4",
+      "target": "js4",
+      "verb": "enables",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "c5",
+      "target": "js5",
+      "verb": "enables",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "c5",
+      "target": "js6",
+      "verb": "enables",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "c3",
+      "target": "js7",
+      "verb": "enables",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "c3",
+      "target": "js8",
+      "verb": "enables",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "c3",
+      "target": "js9",
+      "verb": "enables",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 95
+    },
+    {
+      "source": "c8",
+      "target": "js10",
+      "verb": "enables",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "p4",
+      "target": "js2",
+      "verb": "supports",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "p4",
+      "target": "js3",
+      "verb": "supports",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 95
+    },
+    {
+      "source": "p2",
+      "target": "js5",
+      "verb": "supports",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "p2",
+      "target": "js6",
+      "verb": "supports",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "p1",
+      "target": "js8",
+      "verb": "supports",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "p1",
+      "target": "js9",
+      "verb": "supports",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 95
+    },
+    {
+      "source": "p6",
+      "target": "js10",
+      "verb": "supports",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "st2",
+      "target": "h2",
+      "verb": "runs on",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "st3",
+      "target": "h1",
+      "verb": "runs on",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 95
+    },
+    {
+      "source": "st2",
+      "target": "loc6",
+      "verb": "hosted at",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "st1",
+      "target": "loc5",
+      "verb": "hosted at",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "h1",
+      "target": "loc7",
+      "verb": "hosted at",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 95
+    },
+    {
+      "source": "h2",
+      "target": "loc6",
+      "verb": "hosted at",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "dt1",
+      "target": "c1",
+      "verb": "belongs to",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "dt2",
+      "target": "c3",
+      "verb": "belongs to",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "dt3",
+      "target": "c5",
+      "verb": "belongs to",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "dt4",
+      "target": "c4",
+      "verb": "belongs to",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 75
+    },
+    {
+      "source": "dt5",
+      "target": "c7",
+      "verb": "belongs to",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "aim1",
+      "target": "dt3",
+      "verb": "trained on",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85,
+      "type": "fine-tuned on historical analyst research corpus"
+    },
+    {
+      "source": "aim2",
+      "target": "dt2",
+      "verb": "consumes",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90,
+      "type": "live order and execution data for reinforcement signal"
+    },
+    {
+      "source": "aim3",
+      "target": "dt6",
+      "verb": "trained on",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 80,
+      "type": "client engagement and coverage history"
+    },
+    {
+      "source": "f1",
+      "target": "fs1",
+      "verb": "contains",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "f1",
+      "target": "fs2",
+      "verb": "contains",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "f1",
+      "target": "fs3",
+      "verb": "contains",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "f1",
+      "target": "fs4",
+      "verb": "contains",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "f1",
+      "target": "fs5",
+      "verb": "contains",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "f2",
+      "target": "fs6",
+      "verb": "contains",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "f2",
+      "target": "fs7",
+      "verb": "contains",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "f2",
+      "target": "fs8",
+      "verb": "contains",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "fs1",
+      "target": "fs2",
+      "verb": "precedes",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "fs2",
+      "target": "fs3",
+      "verb": "precedes",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "fs3",
+      "target": "fs4",
+      "verb": "precedes",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "fs4",
+      "target": "fs5",
+      "verb": "precedes",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "fs6",
+      "target": "fs7",
+      "verb": "precedes",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "fs7",
+      "target": "fs8",
+      "verb": "precedes",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "a1",
+      "target": "fs1",
+      "verb": "supports",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "a2",
+      "target": "fs2",
+      "verb": "supports",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "a5",
+      "target": "fs4",
+      "verb": "supports",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "a9",
+      "target": "fs5",
+      "verb": "supports",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "a3",
+      "target": "fs6",
+      "verb": "supports",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "st2",
+      "target": "fs7",
+      "verb": "supports",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "a3",
+      "target": "fs8",
+      "verb": "supports",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "vs1",
+      "target": "vss1",
+      "verb": "contains",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "vs1",
+      "target": "vss2",
+      "verb": "contains",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "vs1",
+      "target": "vss3",
+      "verb": "contains",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "vs1",
+      "target": "vss4",
+      "verb": "contains",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "c9",
+      "target": "vss1",
+      "verb": "enables",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "a10",
+      "target": "vss1",
+      "verb": "supports",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 75
+    },
+    {
+      "source": "c3a",
+      "target": "vss2",
+      "verb": "enables",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "a2",
+      "target": "vss2",
+      "verb": "supports",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "c8",
+      "target": "vss3",
+      "verb": "enables",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "a9",
+      "target": "vss3",
+      "verb": "supports",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "c5",
+      "target": "vss4",
+      "verb": "enables",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "a4",
+      "target": "vss4",
+      "verb": "supports",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 75
+    },
+    {
+      "source": "vs1",
+      "target": "s1",
+      "verb": "contributes to",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "risk1",
+      "target": "a2",
+      "verb": "affects",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "risk1",
+      "target": "i1",
+      "verb": "affects",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 70,
+      "type": "programme is the mitigation"
+    },
+    {
+      "source": "risk2",
+      "target": "a11",
+      "verb": "affects",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "risk2",
+      "target": "a12",
+      "verb": "affects",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "risk2",
+      "target": "a13",
+      "verb": "affects",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 75
+    },
+    {
+      "source": "risk3",
+      "target": "a1",
+      "verb": "affects",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "risk3",
+      "target": "a3",
+      "verb": "affects",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "risk3",
+      "target": "i3",
+      "verb": "affects",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 65,
+      "type": "programme is the mitigation"
+    },
+    {
+      "source": "risk4",
+      "target": "a5",
+      "verb": "affects",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 75
+    },
+    {
+      "source": "risk4",
+      "target": "c7",
+      "verb": "affects",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 65
+    },
+    {
+      "source": "ctrl1",
+      "target": "risk1",
+      "verb": "mitigates",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "ctrl1",
+      "target": "a2",
+      "verb": "constrains",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "ctrl2",
+      "target": "risk2",
+      "verb": "mitigates",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "ctrl2",
+      "target": "a11",
+      "verb": "constrains",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "ctrl2",
+      "target": "a12",
+      "verb": "constrains",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "ctrl2",
+      "target": "a13",
+      "verb": "constrains",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 75
+    },
+    {
+      "source": "ctrl3",
+      "target": "risk4",
+      "verb": "mitigates",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "ctrl3",
+      "target": "p3",
+      "verb": "constrains",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "ctrl4",
+      "target": "risk3",
+      "verb": "mitigates",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "ctrl4",
+      "target": "st2",
+      "verb": "constrains",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 70
+    },
+    {
+      "source": "org7",
+      "target": "risk1",
+      "verb": "owns",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 70
+    },
+    {
+      "source": "org7",
+      "target": "risk3",
+      "verb": "owns",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 70
+    },
+    {
+      "source": "org7",
+      "target": "risk4",
+      "verb": "owns",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 70
+    },
+    {
+      "source": "org7",
+      "target": "ctrl1",
+      "verb": "owns",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "org7",
+      "target": "ctrl3",
+      "verb": "owns",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "org7",
+      "target": "ctrl4",
+      "verb": "owns",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "org3",
+      "target": "risk2",
+      "verb": "owns",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "org3",
+      "target": "ctrl2",
+      "verb": "owns",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "s1",
+      "target": "g1",
+      "verb": "drives",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "s1",
+      "target": "g2",
+      "verb": "drives",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "s1",
+      "target": "g3",
+      "verb": "drives",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "s1",
+      "target": "g4",
+      "verb": "drives",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 70
+    },
+    {
+      "source": "s1",
+      "target": "i1",
+      "verb": "drives",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 95
+    },
+    {
+      "source": "s1",
+      "target": "c3",
+      "verb": "prioritises",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "d1",
+      "target": "i1",
+      "verb": "justifies",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "d1",
+      "target": "i1",
+      "verb": "approves investment in",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "d1",
+      "target": "i1",
+      "verb": "governs",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "d1",
+      "target": "a14",
+      "verb": "rationalises",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "d2",
+      "target": "i3",
+      "verb": "justifies",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "d2",
+      "target": "i3",
+      "verb": "approves investment in",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "d3",
+      "target": "i2",
+      "verb": "governs",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 75
+    },
+    {
+      "source": "i1",
+      "target": "g1",
+      "verb": "contributes to",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "i1",
+      "target": "o1",
+      "verb": "delivers",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "i1",
+      "target": "o2",
+      "verb": "delivers",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "i1",
+      "target": "a1",
+      "verb": "implements",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "i1",
+      "target": "a14",
+      "verb": "retires",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "i1",
+      "target": "a14",
+      "verb": "replaces",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 90,
+      "type": "consolidated into Velocity OEMS"
+    },
+    {
+      "source": "i2",
+      "target": "g2",
+      "verb": "contributes to",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "i2",
+      "target": "o3",
+      "verb": "delivers",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "i2",
+      "target": "c5",
+      "verb": "transforms",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 75
+    },
+    {
+      "source": "i2",
+      "target": "a11",
+      "verb": "implements",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "i3",
+      "target": "a3",
+      "verb": "implements",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "i3",
+      "target": "g1",
+      "verb": "contributes to",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 60
+    },
+    {
+      "source": "i3",
+      "target": "i2",
+      "verb": "must precede",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80,
+      "type": "AI research models need the modernised, cloud-native market/research data platform before they can be trained reliably"
+    },
+    {
+      "source": "i4",
+      "target": "g4",
+      "verb": "contributes to",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 70
+    },
+    {
+      "source": "i4",
+      "target": "a6",
+      "verb": "implements",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 75
+    },
+    {
+      "source": "o1",
+      "target": "i1",
+      "verb": "results from",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "o2",
+      "target": "g1",
+      "verb": "evidences",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 75
+    },
+    {
+      "source": "o3",
+      "target": "g2",
+      "verb": "evidences",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 75
+    },
+    {
+      "source": "g1",
+      "target": "o2",
+      "verb": "measures",
+      "criticality": "Medium",
+      "status": "Planned",
+      "strength": 60
+    },
+    {
+      "source": "g2",
+      "target": "o3",
+      "verb": "measures",
+      "criticality": "Medium",
+      "status": "Planned",
+      "strength": 60
+    },
+    {
+      "source": "org1",
+      "target": "i1",
+      "verb": "funds",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "org1",
+      "target": "i2",
+      "verb": "funds",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "org1",
+      "target": "i3",
+      "verb": "funds",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "org1",
+      "target": "i4",
+      "verb": "funds",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 70
+    },
+    {
+      "source": "org1",
+      "target": "c3",
+      "verb": "invests in",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "s1",
+      "target": "c3",
+      "verb": "invests in",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "org3",
+      "target": "c5a",
+      "verb": "invests in",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "i1",
+      "target": "org1",
+      "verb": "consumes investment from",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "c8",
+      "target": "s1",
+      "verb": "under-invested relative to",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 55,
+      "type": "illustrative \u2014 post-trade seen as commodity, receiving disproportionately low investment despite settlement risk exposure"
+    },
+    {
+      "source": "org2",
+      "target": "c3",
+      "verb": "owns",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "org3",
+      "target": "c5a",
+      "verb": "owns",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "org4",
+      "target": "c1",
+      "verb": "owns",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "org4",
+      "target": "c2",
+      "verb": "owns",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "org5",
+      "target": "c4",
+      "verb": "owns",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "org6",
+      "target": "c5",
+      "verb": "owns",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "org7",
+      "target": "c7",
+      "verb": "owns",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "org8",
+      "target": "c9",
+      "verb": "owns",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "org8",
+      "target": "c6",
+      "verb": "owns",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "org4",
+      "target": "a1",
+      "verb": "owns",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "org4",
+      "target": "a2",
+      "verb": "owns",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "org4",
+      "target": "a3",
+      "verb": "owns",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "org5",
+      "target": "a6",
+      "verb": "owns",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "org5",
+      "target": "a7",
+      "verb": "owns",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "org6",
+      "target": "a4",
+      "verb": "owns",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "org7",
+      "target": "a5",
+      "verb": "owns",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "org7",
+      "target": "a8",
+      "verb": "owns",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "org4",
+      "target": "a9",
+      "verb": "owns",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "org8",
+      "target": "a10",
+      "verb": "owns",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "org3",
+      "target": "a11",
+      "verb": "owns",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "org2",
+      "target": "a12",
+      "verb": "owns",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "org8",
+      "target": "a13",
+      "verb": "owns",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 75
+    },
+    {
+      "source": "org4",
+      "target": "a14",
+      "verb": "owns",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 70
+    },
+    {
+      "source": "org6",
+      "target": "dt3",
+      "verb": "owns",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "org5",
+      "target": "dt4",
+      "verb": "owns",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "org8",
+      "target": "dt6",
+      "verb": "owns",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 75
+    },
+    {
+      "source": "org4",
+      "target": "p1",
+      "verb": "performs",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "org6",
+      "target": "p2",
+      "verb": "performs",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "org7",
+      "target": "p3",
+      "verb": "performs",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "org5",
+      "target": "p4",
+      "verb": "performs",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "org7",
+      "target": "p5",
+      "verb": "performs",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "org4",
+      "target": "p6",
+      "verb": "performs",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 75
+    },
+    {
+      "source": "a1",
+      "target": "c1",
+      "verb": "supports",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "a1",
+      "target": "c3",
+      "verb": "supports",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "a1",
+      "target": "c3",
+      "verb": "enables",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "a2",
+      "target": "c3",
+      "verb": "supports",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "a2",
+      "target": "c3a",
+      "verb": "supports",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "a2",
+      "target": "c3a",
+      "verb": "enables",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "a3",
+      "target": "c1",
+      "verb": "supports",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "a4",
+      "target": "c5",
+      "verb": "supports",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "a4",
+      "target": "c5a",
+      "verb": "supports",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 70
+    },
+    {
+      "source": "a5",
+      "target": "c7",
+      "verb": "supports",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "a6",
+      "target": "c4",
+      "verb": "supports",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "a6",
+      "target": "c4b",
+      "verb": "supports",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 75
+    },
+    {
+      "source": "a7",
+      "target": "c4",
+      "verb": "supports",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "a7",
+      "target": "c4a",
+      "verb": "supports",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "a8",
+      "target": "c7",
+      "verb": "supports",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "a9",
+      "target": "c8",
+      "verb": "supports",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "a10",
+      "target": "c9",
+      "verb": "supports",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "a11",
+      "target": "c5a",
+      "verb": "supports",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "a12",
+      "target": "c3a",
+      "verb": "supports",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "a13",
+      "target": "c9",
+      "verb": "supports",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 70
+    },
+    {
+      "source": "a1",
+      "target": "req1a",
+      "verb": "fulfils",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "a2",
+      "target": "req4",
+      "verb": "fulfils",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "a12",
+      "target": "req5",
+      "verb": "fulfils",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "a1",
+      "target": "iface1",
+      "verb": "provides",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "a2",
+      "target": "iface1",
+      "verb": "uses",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "iface1",
+      "target": "dt2",
+      "verb": "provides",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "a3",
+      "target": "iface2",
+      "verb": "provides",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "a1",
+      "target": "iface2",
+      "verb": "uses",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "a2",
+      "target": "iface2",
+      "verb": "uses",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "a10",
+      "target": "iface2",
+      "verb": "uses",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 70
+    },
+    {
+      "source": "iface2",
+      "target": "dt1",
+      "verb": "provides",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "a6",
+      "target": "iface3",
+      "verb": "provides",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "a10",
+      "target": "iface3",
+      "verb": "uses",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 70
+    },
+    {
+      "source": "iface3",
+      "target": "dt4",
+      "verb": "provides",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 75
+    },
+    {
+      "source": "a4",
+      "target": "iface4",
+      "verb": "provides",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 75
+    },
+    {
+      "source": "a11",
+      "target": "iface4",
+      "verb": "uses",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "iface4",
+      "target": "dt3",
+      "verb": "provides",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 70
+    },
+    {
+      "source": "a5",
+      "target": "iface5",
+      "verb": "provides",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "a1",
+      "target": "iface5",
+      "verb": "uses",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 75
+    },
+    {
+      "source": "iface5",
+      "target": "dt5",
+      "verb": "provides",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "a3",
+      "target": "iface6",
+      "verb": "provides",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 75
+    },
+    {
+      "source": "a7",
+      "target": "iface6",
+      "verb": "uses",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 65
+    },
+    {
+      "source": "iface6",
+      "target": "dt1",
+      "verb": "provides",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 70
+    },
+    {
+      "source": "a9",
+      "target": "iface7",
+      "verb": "provides",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "a8",
+      "target": "iface7",
+      "verb": "uses",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 70
+    },
+    {
+      "source": "iface7",
+      "target": "dt2",
+      "verb": "provides",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 70
+    },
+    {
+      "source": "a8",
+      "target": "iface8",
+      "verb": "provides",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "a10",
+      "target": "iface8",
+      "verb": "uses",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 65
+    },
+    {
+      "source": "iface8",
+      "target": "dt2",
+      "verb": "provides",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 65
+    },
+    {
+      "source": "a1",
+      "target": "dt2",
+      "verb": "stores",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "dt2",
+      "target": "a1",
+      "verb": "stored by",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "a3",
+      "target": "dt1",
+      "verb": "stores",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "dt1",
+      "target": "a3",
+      "verb": "stored by",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "a4",
+      "target": "dt3",
+      "verb": "stores",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "dt3",
+      "target": "a4",
+      "verb": "stored by",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "a6",
+      "target": "dt4",
+      "verb": "stores",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "dt4",
+      "target": "a6",
+      "verb": "stored by",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "a5",
+      "target": "dt5",
+      "verb": "stores",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "dt5",
+      "target": "a5",
+      "verb": "stored by",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "a10",
+      "target": "dt6",
+      "verb": "stores",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 75
+    },
+    {
+      "source": "dt6",
+      "target": "a10",
+      "verb": "stored by",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 75
+    },
+    {
+      "source": "dt5",
+      "target": "org7",
+      "verb": "governed by",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "a1",
+      "target": "st2",
+      "verb": "runs on",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90,
+      "type": "on-prem trading infrastructure"
+    },
+    {
+      "source": "a2",
+      "target": "st1",
+      "verb": "runs on",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85,
+      "type": "cloud-native execution infrastructure"
+    },
+    {
+      "source": "a3",
+      "target": "st2",
+      "verb": "runs on",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85,
+      "type": "on-prem tick store, migration target"
+    },
+    {
+      "source": "a11",
+      "target": "st4",
+      "verb": "runs on",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85,
+      "type": "model hosting"
+    },
+    {
+      "source": "a12",
+      "target": "st4",
+      "verb": "runs on",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90,
+      "type": "model hosting"
+    },
+    {
+      "source": "a13",
+      "target": "st4",
+      "verb": "runs on",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 80,
+      "type": "model hosting"
+    },
+    {
+      "source": "a6",
+      "target": "loc3",
+      "verb": "hosted at",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 75
+    },
+    {
+      "source": "a10",
+      "target": "loc2",
+      "verb": "hosted at",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 75
+    },
+    {
+      "source": "a13",
+      "target": "loc4",
+      "verb": "hosted at",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 70
+    },
+    {
+      "source": "a10",
+      "target": "a3",
+      "verb": "depends on",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 75,
+      "type": "market and reference data for client analytics"
+    },
+    {
+      "source": "a9",
+      "target": "a1",
+      "verb": "depends on",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80,
+      "type": "trade confirmation and execution details for settlement"
+    },
+    {
+      "source": "a5",
+      "target": "i5",
+      "verb": "blocks",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 60,
+      "type": "surveillance rules can't yet clear direct-to-retail research distribution"
+    },
+    {
+      "source": "a3",
+      "target": "i6",
+      "verb": "blocks",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 75,
+      "type": "legacy tick store can't ingest new alt-data feeds fast enough"
+    },
+    {
+      "source": "a1",
+      "target": "i7",
+      "verb": "blocks",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 65,
+      "type": "OMS can't stream order-book data in real time without a rearchitecture"
+    },
+    {
+      "source": "a11",
+      "target": "aim1",
+      "verb": "uses",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85,
+      "type": "research summarisation and signal extraction"
+    },
+    {
+      "source": "a11",
+      "target": "dt3",
+      "verb": "consumes",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80,
+      "type": "analyst research corpus and notes"
+    },
+    {
+      "source": "a11",
+      "target": "p2",
+      "verb": "augments",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 75,
+      "type": "draft generation and signal extraction support"
+    },
+    {
+      "source": "a11",
+      "target": "js6",
+      "verb": "augments",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 75,
+      "type": "conversational research Q&A for portfolio managers"
+    },
+    {
+      "source": "a11",
+      "target": "js5",
+      "verb": "relates to",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 65,
+      "type": "research discovery touchpoint"
+    },
+    {
+      "source": "a12",
+      "target": "aim2",
+      "verb": "uses",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90,
+      "type": "execution optimisation and venue selection"
+    },
+    {
+      "source": "a12",
+      "target": "dt2",
+      "verb": "consumes",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 85,
+      "type": "live order and execution data"
+    },
+    {
+      "source": "a12",
+      "target": "p1",
+      "verb": "augments",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 85,
+      "type": "dynamic execution parameter tuning"
+    },
+    {
+      "source": "a13",
+      "target": "aim3",
+      "verb": "uses",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 80,
+      "type": "client next-best-action prediction"
+    },
+    {
+      "source": "a13",
+      "target": "dt6",
+      "verb": "consumes",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 75,
+      "type": "client engagement and coverage history"
+    },
+    {
+      "source": "a13",
+      "target": "js1",
+      "verb": "augments",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 65,
+      "type": "next-best-action content and outreach suggestions during onboarding"
+    },
+    {
+      "source": "a9",
+      "target": "p6",
+      "verb": "automates",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 55,
+      "type": "partial automation \u2014 automated matching for standard settlement instructions"
+    },
+    {
+      "source": "a1",
+      "target": "js8",
+      "verb": "relates to",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 75,
+      "type": "order placement"
+    },
+    {
+      "source": "a9",
+      "target": "js10",
+      "verb": "relates to",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80,
+      "type": "settlement confirmation"
+    },
+    {
+      "source": "a6",
+      "target": "js1",
+      "verb": "relates to",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 65,
+      "type": "prime services discovery"
+    },
+    {
+      "source": "a6",
+      "target": "js4",
+      "verb": "relates to",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 70,
+      "type": "ongoing coverage via portal"
+    }
+  ]
+}

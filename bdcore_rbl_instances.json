@@ -1,0 +1,4323 @@
+{
+  "dataset_name": "Royal British Legion — Demo Dataset",
+  "nodes": [
+    {
+      "id": "s1",
+      "concept_type": "Strategy",
+      "name": "RBL Strategy to 2035",
+      "status": "Active",
+      "time_horizon": "Long",
+      "priority": "Critical",
+      "owner": "Board of Trustees",
+      "strategic_theme": "Connect, Remember, Support",
+      "stereotype": "Corporate"
+    },
+    {
+      "id": "g1",
+      "concept_type": "Goal",
+      "name": "Modernise Service Delivery",
+      "status": "In Progress",
+      "priority": "High",
+      "owner": "Executive Director: Digital, Data & Technology",
+      "stereotype": "Operational"
+    },
+    {
+      "id": "g2",
+      "concept_type": "Goal",
+      "name": "Achieve a Single Trusted Supporter View",
+      "status": "In Progress",
+      "priority": "High",
+      "owner": "Head of Data, Insight and Fundraising CRM",
+      "stereotype": "Operational"
+    },
+    {
+      "id": "g3",
+      "concept_type": "Goal",
+      "name": "Widen Participation in Remembrance",
+      "status": "In Progress",
+      "priority": "Medium",
+      "owner": "Director of Remembrance",
+      "stereotype": "Strategic"
+    },
+    {
+      "id": "d1",
+      "concept_type": "Decision",
+      "name": "Adopt Microsoft Dynamics 365 as core CRM platform",
+      "status": "Approved",
+      "decision_maker": "Chief Information Officer",
+      "decision_date": "2019-03-01",
+      "rationale": "Legacy CRM was over a decade old, built for direct marketing, and not integrated with digital channels",
+      "options_considered": "Retain and extend the legacy CRM; build a bespoke platform; adopt Salesforce Nonprofit Cloud; adopt Microsoft Dynamics 365",
+      "chosen_option": "Microsoft Dynamics 365 — best fit for existing Microsoft 365/Azure investment and lower integration overhead",
+      "consequences": "Easier: single supporter view across channels, native Power Platform automation, reduced integration cost with other Microsoft services. Harder: licensing cost scales with user count; direct-marketing data required significant cleansing to migrate.",
+      "confidence": "High",
+      "impact_level": "Critical",
+      "stereotype": "Architecture"
+    },
+    {
+      "id": "d2",
+      "concept_type": "Decision",
+      "name": "Modernise legacy SQL Server infrastructure via managed service",
+      "status": "Approved",
+      "decision_maker": "Executive Director: Digital, Data & Technology",
+      "decision_date": "2021-06-01",
+      "rationale": "Legacy SQL infrastructure was complex, outdated, and relied on a single point of failure",
+      "options_considered": "Do nothing and accept the risk; in-place hardware refresh; managed cloud service; full application re-platform",
+      "chosen_option": "Managed service on Azure — addressed the single-point-of-failure risk without the cost/risk of a full re-platform",
+      "consequences": "Easier: reduced operational burden on internal IT, built-in DR/failover, predictable running cost. Harder: recurring managed-service cost replaces one-off capital spend; less low-level control over tuning.",
+      "confidence": "Medium",
+      "impact_level": "High",
+      "stereotype": "Architecture"
+    },
+    {
+      "id": "d3",
+      "concept_type": "Decision",
+      "name": "Extend to a cloud-native data platform beyond the managed-service intermediary",
+      "status": "Proposed",
+      "decision_maker": "Executive Director: Digital, Data & Technology",
+      "decision_date": "2026-01-01",
+      "rationale": "The managed-service approach solved the immediate resilience risk, but reporting and cross-system data needs have grown beyond what a lift-and-shift managed instance comfortably supports",
+      "options_considered": "Stay on the current managed service; move to a cloud-native platform (e.g. Azure SQL / Synapse-style); adopt a separate analytics platform alongside the existing service",
+      "chosen_option": "Not yet finalised — proposed, pending review",
+      "consequences": "Easier (anticipated): elastic scaling for reporting workloads, reduced patching overhead. Harder (anticipated): migration effort from the current managed instance; team upskilling required.",
+      "confidence": "Medium",
+      "impact_level": "High",
+      "stereotype": "Architecture"
+    },
+    {
+      "id": "i1",
+      "concept_type": "Initiative",
+      "name": "CRM Modernisation Programme",
+      "status": "In Progress",
+      "sponsor": "Executive Director: Digital, Data & Technology",
+      "priority": "Critical",
+      "stereotype": "Modernisation",
+      "start_date": "2025-09-01",
+      "target_date": "2026-08-31",
+      "budget": 450000,
+      "forecast_cost": 420000,
+      "progress": 55
+    },
+    {
+      "id": "i2",
+      "concept_type": "Initiative",
+      "name": "Enterprise Data Integration Programme",
+      "status": "In Progress",
+      "sponsor": "Head of Data, Insight and Fundraising CRM",
+      "priority": "High",
+      "stereotype": "Modernisation",
+      "start_date": "2025-11-01",
+      "target_date": "2026-10-31",
+      "budget": 180000,
+      "forecast_cost": 165000,
+      "progress": 35
+    },
+    {
+      "id": "i3",
+      "concept_type": "Initiative",
+      "name": "Legacy SQL Server Infrastructure Modernisation",
+      "status": "In Progress",
+      "sponsor": "Executive Director: Digital, Data & Technology",
+      "priority": "High",
+      "stereotype": "Modernisation",
+      "start_date": "2026-01-01",
+      "target_date": "2026-07-31",
+      "budget": 95000,
+      "forecast_cost": 90000,
+      "progress": 20
+    },
+    {
+      "id": "i4",
+      "concept_type": "Initiative",
+      "name": "[FICTIONAL] Tiered Membership Pricing Change",
+      "status": "Shelved",
+      "sponsor": "Head of Membership",
+      "start_date": "2025-11-01",
+      "target_date": "2026-01-15",
+      "forecast_cost": 35000,
+      "description": "Wanted to offer tiered membership pricing; the membership database's flat record structure couldn't express tiers without a costly rebuild, so it was shelved.",
+      "stereotype": "Commercial"
+    },
+    {
+      "id": "i5",
+      "concept_type": "Initiative",
+      "name": "[FICTIONAL] Corporate Partner Revenue-Share Integration",
+      "status": "Shelved",
+      "sponsor": "Head of Corporate Partnerships",
+      "start_date": "2025-06-01",
+      "target_date": "2025-09-01",
+      "forecast_cost": 52000,
+      "description": "A corporate partner wanted automated revenue-share reporting; the finance system's data model had no concept of a shared transaction, so the deal proceeded on manual monthly reconciliation instead.",
+      "stereotype": "Commercial"
+    },
+    {
+      "id": "i6",
+      "concept_type": "Initiative",
+      "name": "[FICTIONAL] AI-Assisted Grant Triage Pilot",
+      "status": "Shelved",
+      "sponsor": "Director of Services",
+      "start_date": "2026-01-01",
+      "target_date": "2026-03-01",
+      "forecast_cost": 18000,
+      "description": "Wanted to pilot AI-assisted triage of incoming welfare grant applications; nobody could extract clean, structured case data out of the system fast enough, so the pilot never left the lab.",
+      "stereotype": "Compliance"
+    },
+    {
+      "id": "i7",
+      "concept_type": "Initiative",
+      "name": "[FICTIONAL] Real-Time Poppy Appeal Campaign Dashboard",
+      "status": "Shelved",
+      "sponsor": "Head of Digital Marketing",
+      "start_date": "2025-09-01",
+      "target_date": "2025-10-01",
+      "forecast_cost": 12000,
+      "description": "Wanted a real-time fundraising dashboard for the Poppy Appeal; the data platform only refreshes overnight, so it shipped as a nightly manual export the ops team still runs by hand.",
+      "stereotype": "Commercial"
+    },
+    {
+      "id": "o1",
+      "concept_type": "Outcome",
+      "name": "Single Trusted Supporter View Achieved",
+      "status": "Partially Realised",
+      "stereotype": "Operational"
+    },
+    {
+      "id": "o2",
+      "concept_type": "Outcome",
+      "name": "Improved Digital-First Customer Experience",
+      "status": "Expected",
+      "stereotype": "Operational"
+    },
+    {
+      "id": "o3",
+      "concept_type": "Outcome",
+      "name": "Improved Data Platform Reliability",
+      "status": "Partially Realised",
+      "stereotype": "Operational"
+    },
+    {
+      "id": "c1",
+      "concept_type": "Capability",
+      "name": "Welfare & Independent Living Support",
+      "status": "Operational",
+      "importance": "Critical",
+      "market_differentiation": "High",
+      "governance_maturity": "3 - Defined",
+      "policies_maturity": "3 - Defined",
+      "process_maturity": "2 - Managed",
+      "people_maturity": "3 - Defined",
+      "applications_maturity": "2 - Managed",
+      "metrics_maturity": "2 - Managed"
+    },
+    {
+      "id": "c2",
+      "concept_type": "Capability",
+      "name": "Remembrance & Commemoration",
+      "status": "Operational",
+      "importance": "Critical",
+      "market_differentiation": "High",
+      "governance_maturity": "4 - Quantitative",
+      "policies_maturity": "4 - Quantitative",
+      "process_maturity": "3 - Defined",
+      "people_maturity": "3 - Defined",
+      "applications_maturity": "3 - Defined",
+      "metrics_maturity": "2 - Managed"
+    },
+    {
+      "id": "c3",
+      "concept_type": "Capability",
+      "name": "Fundraising & Supporter Engagement",
+      "status": "Operational",
+      "importance": "Critical",
+      "market_differentiation": "Medium",
+      "governance_maturity": "4 - Quantitative",
+      "policies_maturity": "3 - Defined",
+      "process_maturity": "3 - Defined",
+      "people_maturity": "4 - Quantitative",
+      "applications_maturity": "3 - Defined",
+      "metrics_maturity": "3 - Defined"
+    },
+    {
+      "id": "c4",
+      "concept_type": "Capability",
+      "name": "Membership & Branch Network Management",
+      "status": "Operational",
+      "importance": "High",
+      "market_differentiation": "Medium",
+      "governance_maturity": "3 - Defined",
+      "policies_maturity": "3 - Defined",
+      "process_maturity": "2 - Managed",
+      "people_maturity": "3 - Defined",
+      "applications_maturity": "2 - Managed",
+      "metrics_maturity": "2 - Managed"
+    },
+    {
+      "id": "c5",
+      "concept_type": "Capability",
+      "name": "Campaigning & Policy Influence",
+      "status": "Operational",
+      "importance": "Medium",
+      "market_differentiation": "High",
+      "governance_maturity": "2 - Managed",
+      "policies_maturity": "2 - Managed",
+      "process_maturity": "2 - Managed",
+      "people_maturity": "3 - Defined",
+      "applications_maturity": "2 - Managed",
+      "metrics_maturity": "1 - Initial"
+    },
+    {
+      "id": "c6",
+      "concept_type": "Capability",
+      "name": "Workforce & People Management",
+      "status": "Operational",
+      "importance": "High",
+      "market_differentiation": "Low",
+      "governance_maturity": "3 - Defined",
+      "policies_maturity": "4 - Quantitative",
+      "process_maturity": "3 - Defined",
+      "people_maturity": "3 - Defined",
+      "applications_maturity": "3 - Defined",
+      "metrics_maturity": "2 - Managed"
+    },
+    {
+      "id": "c7",
+      "concept_type": "Capability",
+      "name": "Finance & Corporate Services",
+      "status": "Operational",
+      "importance": "Critical",
+      "market_differentiation": "Low",
+      "governance_maturity": "4 - Quantitative",
+      "policies_maturity": "4 - Quantitative",
+      "process_maturity": "4 - Quantitative",
+      "people_maturity": "3 - Defined",
+      "applications_maturity": "3 - Defined",
+      "metrics_maturity": "3 - Defined"
+    },
+    {
+      "id": "c1a",
+      "concept_type": "Capability",
+      "name": "Welfare Grant Assessment & Award",
+      "status": "Operational",
+      "importance": "Critical",
+      "market_differentiation": "High",
+      "governance_maturity": "3 - Defined",
+      "policies_maturity": "3 - Defined",
+      "process_maturity": "2 - Managed",
+      "people_maturity": "3 - Defined",
+      "applications_maturity": "2 - Managed",
+      "metrics_maturity": "2 - Managed"
+    },
+    {
+      "id": "c1b",
+      "concept_type": "Capability",
+      "name": "Independent Living & Care Coordination",
+      "status": "Operational",
+      "importance": "Critical",
+      "market_differentiation": "High",
+      "governance_maturity": "2 - Managed",
+      "policies_maturity": "2 - Managed",
+      "process_maturity": "2 - Managed",
+      "people_maturity": "3 - Defined",
+      "applications_maturity": "1 - Initial",
+      "metrics_maturity": "1 - Initial"
+    },
+    {
+      "id": "c1c",
+      "concept_type": "Capability",
+      "name": "Crisis & Emergency Support",
+      "status": "Operational",
+      "importance": "High",
+      "market_differentiation": "Medium",
+      "governance_maturity": "2 - Managed",
+      "policies_maturity": "2 - Managed",
+      "process_maturity": "1 - Initial",
+      "people_maturity": "3 - Defined",
+      "applications_maturity": "1 - Initial",
+      "metrics_maturity": "1 - Initial"
+    },
+    {
+      "id": "c3a",
+      "concept_type": "Capability",
+      "name": "Poppy Appeal & Seasonal Campaigns",
+      "status": "Operational",
+      "importance": "Critical",
+      "market_differentiation": "High",
+      "governance_maturity": "4 - Quantitative",
+      "policies_maturity": "3 - Defined",
+      "process_maturity": "3 - Defined",
+      "people_maturity": "4 - Quantitative",
+      "applications_maturity": "3 - Defined",
+      "metrics_maturity": "3 - Defined"
+    },
+    {
+      "id": "c3b",
+      "concept_type": "Capability",
+      "name": "Individual & Regular Giving",
+      "status": "Operational",
+      "importance": "High",
+      "market_differentiation": "Medium",
+      "governance_maturity": "3 - Defined",
+      "policies_maturity": "3 - Defined",
+      "process_maturity": "3 - Defined",
+      "people_maturity": "3 - Defined",
+      "applications_maturity": "3 - Defined",
+      "metrics_maturity": "3 - Defined"
+    },
+    {
+      "id": "c3c",
+      "concept_type": "Capability",
+      "name": "Corporate & Major Donor Relations",
+      "status": "Operational",
+      "importance": "Medium",
+      "market_differentiation": "Medium",
+      "governance_maturity": "3 - Defined",
+      "policies_maturity": "2 - Managed",
+      "process_maturity": "2 - Managed",
+      "people_maturity": "3 - Defined",
+      "applications_maturity": "2 - Managed",
+      "metrics_maturity": "2 - Managed"
+    },
+    {
+      "id": "c4a",
+      "concept_type": "Capability",
+      "name": "Membership Administration",
+      "status": "Operational",
+      "importance": "High",
+      "market_differentiation": "Low",
+      "governance_maturity": "3 - Defined",
+      "policies_maturity": "3 - Defined",
+      "process_maturity": "2 - Managed",
+      "people_maturity": "3 - Defined",
+      "applications_maturity": "2 - Managed",
+      "metrics_maturity": "2 - Managed"
+    },
+    {
+      "id": "c4b",
+      "concept_type": "Capability",
+      "name": "Branch & Volunteer Network Coordination",
+      "status": "Operational",
+      "importance": "High",
+      "market_differentiation": "Medium",
+      "governance_maturity": "2 - Managed",
+      "policies_maturity": "2 - Managed",
+      "process_maturity": "2 - Managed",
+      "people_maturity": "3 - Defined",
+      "applications_maturity": "1 - Initial",
+      "metrics_maturity": "1 - Initial"
+    },
+    {
+      "id": "req1",
+      "concept_type": "Requirement",
+      "name": "Single Customer View Across Donor & Member Records",
+      "status": "In Design",
+      "priority": "Must Have",
+      "acceptance_criteria": "A supporter's full history (donations, membership, grants, communications) is viewable from one screen without switching systems",
+      "rationale": "Fragmented records across systems mean staff can't see a supporter's full relationship with RBL, leading to poor donor experience and duplicated outreach",
+      "target_date": "2027-03-31",
+      "stereotype": "Functional"
+    },
+    {
+      "id": "req1a",
+      "concept_type": "Requirement",
+      "name": "Deduplicate Existing Donor Records Before Go-Live",
+      "status": "Fulfilled",
+      "priority": "Must Have",
+      "acceptance_criteria": "Zero duplicate donor records remain in the migrated dataset, verified by matching on name, postcode, and email",
+      "rationale": "Historic exports from the legacy CRM and direct-marketing database contain known duplicates that would corrupt the single customer view if migrated as-is",
+      "target_date": "2026-11-30",
+      "stereotype": "Functional"
+    },
+    {
+      "id": "req2",
+      "concept_type": "Requirement",
+      "name": "Encrypt All Personal Data At Rest And In Transit",
+      "status": "Approved",
+      "priority": "Must Have",
+      "acceptance_criteria": "All systems holding personal data pass an annual encryption audit with no exceptions",
+      "rationale": "GDPR Article 32 requires appropriate technical measures; current on-prem systems have inconsistent encryption coverage",
+      "target_date": "2026-12-31",
+      "stereotype": "Non-Functional"
+    },
+    {
+      "id": "req3",
+      "concept_type": "Requirement",
+      "name": "Eliminate Single Point of Failure in Core Hosting",
+      "status": "Proposed",
+      "priority": "Should Have",
+      "acceptance_criteria": "No single server or data centre failure can take down more than one critical system at a time",
+      "rationale": "Current on-prem hosting concentrates multiple critical systems on shared infrastructure with no failover",
+      "target_date": "2027-06-30",
+      "stereotype": "Non-Functional"
+    },
+    {
+      "id": "req4",
+      "concept_type": "Requirement",
+      "name": "Automated Initial Eligibility Screening for Welfare Grants",
+      "status": "Draft",
+      "priority": "Should Have",
+      "acceptance_criteria": "Applications clearly ineligible on stated criteria (e.g. service history mismatch) are flagged before reaching a caseworker, reducing manual triage time",
+      "rationale": "Caseworkers currently spend significant time on manual first-pass eligibility checks that could be automated for clear-cut cases",
+      "target_date": "2027-01-31",
+      "stereotype": "Functional"
+    },
+    {
+      "id": "req5",
+      "concept_type": "Requirement",
+      "name": "Single Sign-On Across Core Staff Systems",
+      "status": "Fulfilled",
+      "priority": "Must Have",
+      "acceptance_criteria": "Staff authenticate once to access CRM, finance, and membership systems without separate logins",
+      "rationale": "Staff currently maintain separate credentials for each core system, increasing password fatigue and IT support burden",
+      "target_date": "2026-09-30",
+      "stereotype": "Non-Functional"
+    },
+    {
+      "id": "req6",
+      "concept_type": "Requirement",
+      "name": "Real-Time Visibility of Poppy Appeal Fundraising Totals",
+      "status": "Draft",
+      "priority": "Could Have",
+      "acceptance_criteria": "Regional fundraising totals are visible to coordinators within 15 minutes of a donation being processed, not next-day",
+      "rationale": "Regional coordinators currently rely on next-day batch reports, making it hard to react to slow-starting campaigns during the appeal period",
+      "target_date": "2027-10-31",
+      "stereotype": "Functional"
+    },
+    {
+      "id": "iface1",
+      "concept_type": "Interface",
+      "name": "Talend to Dynamics 365 Donor/Member ETL Feed",
+      "status": "Active",
+      "direction": "Outbound",
+      "protocol": "Batch ETL",
+      "data_format": "CSV",
+      "frequency": "Daily",
+      "auth_method": "API Key",
+      "data_classification": "Confidential"
+    },
+    {
+      "id": "iface2",
+      "concept_type": "Interface",
+      "name": "PayPal Donation Webhook",
+      "status": "Active",
+      "direction": "Outbound",
+      "protocol": "Webhook",
+      "data_format": "JSON",
+      "frequency": "Real-time",
+      "auth_method": "API Key",
+      "data_classification": "Confidential"
+    },
+    {
+      "id": "iface3",
+      "concept_type": "Interface",
+      "name": "Website Donation & Signup Feed",
+      "status": "Active",
+      "direction": "Outbound",
+      "protocol": "REST API",
+      "data_format": "JSON",
+      "frequency": "Near Real-time",
+      "auth_method": "OAuth2",
+      "data_classification": "Confidential"
+    },
+    {
+      "id": "iface4",
+      "concept_type": "Interface",
+      "name": "Membership Database Live Link",
+      "status": "Active",
+      "direction": "Bidirectional",
+      "protocol": "Database Link",
+      "data_format": "N/A",
+      "frequency": "Real-time",
+      "auth_method": "Basic Auth",
+      "data_classification": "Internal"
+    },
+    {
+      "id": "iface5",
+      "concept_type": "Interface",
+      "name": "Welfare Case Data API",
+      "status": "Active",
+      "direction": "Outbound",
+      "protocol": "REST API",
+      "data_format": "JSON",
+      "frequency": "Near Real-time",
+      "auth_method": "OAuth2",
+      "data_classification": "Restricted"
+    },
+    {
+      "id": "iface6",
+      "concept_type": "Interface",
+      "name": "Benefits Platform Payroll Export",
+      "status": "Active",
+      "direction": "Outbound",
+      "protocol": "Batch ETL",
+      "data_format": "CSV",
+      "frequency": "Weekly",
+      "auth_method": "API Key",
+      "data_classification": "Confidential"
+    },
+    {
+      "id": "iface7",
+      "concept_type": "Interface",
+      "name": "Poppy Shop Sales Reconciliation Feed",
+      "status": "Active",
+      "direction": "Outbound",
+      "protocol": "File Transfer (SFTP)",
+      "data_format": "Fixed-Width",
+      "frequency": "Daily",
+      "auth_method": "Certificate",
+      "data_classification": "Confidential"
+    },
+    {
+      "id": "iface8",
+      "concept_type": "Interface",
+      "name": "CRM Donor Engagement Event Stream",
+      "status": "Active",
+      "direction": "Outbound",
+      "protocol": "Message Queue",
+      "data_format": "JSON",
+      "frequency": "Real-time",
+      "auth_method": "Certificate",
+      "data_classification": "Internal"
+    },
+    {
+      "id": "p1",
+      "concept_type": "Process",
+      "name": "Poppy Appeal Collection & Fundraising",
+      "status": "Active",
+      "criticality": "Critical",
+      "automation_level": "Partial",
+      "frequency": "Daily",
+      "roles": "Fundraising Officer, Community Fundraising Coordinator",
+      "stereotype": "Core"
+    },
+    {
+      "id": "p2",
+      "concept_type": "Process",
+      "name": "Welfare Grant Assessment",
+      "status": "Active",
+      "criticality": "Critical",
+      "automation_level": "Manual",
+      "frequency": "Daily",
+      "roles": "Grants Caseworker, Welfare Officer",
+      "stereotype": "Core"
+    },
+    {
+      "id": "p3",
+      "concept_type": "Process",
+      "name": "Membership Renewal",
+      "status": "Active",
+      "criticality": "Medium",
+      "automation_level": "Partial",
+      "frequency": "Monthly",
+      "roles": "Membership Administrator",
+      "stereotype": "Support"
+    },
+    {
+      "id": "p4",
+      "concept_type": "Process",
+      "name": "Employee Onboarding & Benefits Administration",
+      "status": "Active",
+      "criticality": "Medium",
+      "automation_level": "Partial",
+      "frequency": "Monthly",
+      "roles": "HR Advisor, People & Culture Coordinator",
+      "stereotype": "Support"
+    },
+    {
+      "id": "p5",
+      "concept_type": "Process",
+      "name": "Financial Close & Reporting",
+      "status": "Active",
+      "criticality": "Critical",
+      "automation_level": "Manual",
+      "frequency": "Monthly",
+      "roles": "Finance Officer, Management Accountant",
+      "stereotype": "Management"
+    },
+    {
+      "id": "p6",
+      "concept_type": "Process",
+      "name": "Volunteer Recruitment & Deployment",
+      "status": "Active",
+      "criticality": "High",
+      "automation_level": "Manual",
+      "frequency": "Weekly",
+      "roles": "Volunteer Coordinator",
+      "stereotype": "Core"
+    },
+    {
+      "id": "j1",
+      "concept_type": "Journey",
+      "name": "Apply for Welfare Support",
+      "status": "Active",
+      "customer_segment": "Beneficiaries and their families",
+      "channel": "Website, telephone and local services",
+      "importance": "Critical",
+      "strategic_alignment": "High",
+      "lifecycle": "Mature",
+      "risk_level": "High",
+      "performance_measure": "Time from initial request to support decision",
+      "target_outcome": "Beneficiaries receive appropriate support through a clear and timely process",
+      "stereotype": "Customer"
+    },
+    {
+      "id": "j2",
+      "concept_type": "Journey",
+      "name": "Join or Renew RBL Membership",
+      "status": "Active",
+      "customer_segment": "Members and prospective members",
+      "channel": "Website, branch and offline channels",
+      "importance": "High",
+      "strategic_alignment": "High",
+      "lifecycle": "Mature",
+      "risk_level": "Medium",
+      "performance_measure": "Membership conversion and renewal completion rate",
+      "target_outcome": "People can join, renew and remain connected to the Legion and its branch network",
+      "stereotype": "Customer"
+    },
+    {
+      "id": "j3",
+      "concept_type": "Journey",
+      "name": "Make a Poppy Appeal Donation",
+      "status": "Active",
+      "customer_segment": "Donors and supporters",
+      "channel": "Website and digital fundraising channels",
+      "importance": "Critical",
+      "strategic_alignment": "High",
+      "lifecycle": "Mature",
+      "risk_level": "Medium",
+      "performance_measure": "Donation completion rate and time to confirmation",
+      "target_outcome": "Supporters can make a donation easily and receive timely confirmation",
+      "stereotype": "Customer"
+    },
+    {
+      "id": "js1",
+      "concept_type": "JourneyStage",
+      "name": "Learn about welfare support",
+      "status": "Active",
+      "sequence": 1,
+      "customer_need": "Understand whether support may be available",
+      "channel": "Website, telephone and local services",
+      "importance": "Critical",
+      "criticality": "High",
+      "pain_point": "Unclear routes to support",
+      "performance_measure": "Enquiry-to-application conversion rate",
+      "risk_level": "Medium",
+      "stereotype": "Entry"
+    },
+    {
+      "id": "js2",
+      "concept_type": "JourneyStage",
+      "name": "Submit welfare support request",
+      "status": "Active",
+      "sequence": 2,
+      "customer_need": "Provide information needed to request support",
+      "channel": "Website, telephone and local services",
+      "importance": "Critical",
+      "criticality": "High",
+      "pain_point": "Repeated requests for information across channels",
+      "performance_measure": "Application completion rate",
+      "risk_level": "High",
+      "stereotype": "Interaction"
+    },
+    {
+      "id": "js3",
+      "concept_type": "JourneyStage",
+      "name": "Assess needs and eligibility",
+      "status": "Active",
+      "sequence": 3,
+      "customer_need": "Receive a fair and timely assessment",
+      "channel": "Services Department",
+      "importance": "Critical",
+      "criticality": "Critical",
+      "pain_point": "Manual assessment and safeguarding checks can delay decisions",
+      "performance_measure": "Time from complete application to decision",
+      "risk_level": "Critical",
+      "stereotype": "Decision"
+    },
+    {
+      "id": "js4",
+      "concept_type": "JourneyStage",
+      "name": "Receive welfare support",
+      "status": "Active",
+      "sequence": 4,
+      "customer_need": "Receive the agreed grant or independent living support",
+      "channel": "Services Department and partner channels",
+      "importance": "Critical",
+      "criticality": "Critical",
+      "pain_point": "Limited visibility of progress after approval",
+      "performance_measure": "Time from decision to support received",
+      "risk_level": "High",
+      "stereotype": "Fulfilment"
+    },
+    {
+      "id": "js5",
+      "concept_type": "JourneyStage",
+      "name": "Discover membership",
+      "status": "Active",
+      "sequence": 1,
+      "customer_need": "Understand the benefits of joining the Legion",
+      "channel": "Website and branch",
+      "importance": "High",
+      "criticality": "High",
+      "pain_point": "Membership information is spread across digital and branch channels",
+      "performance_measure": "Membership enquiry-to-join conversion rate",
+      "risk_level": "Low",
+      "stereotype": "Entry"
+    },
+    {
+      "id": "js6",
+      "concept_type": "JourneyStage",
+      "name": "Join or renew membership",
+      "status": "Active",
+      "sequence": 2,
+      "customer_need": "Join or renew membership with minimal effort",
+      "channel": "Website, branch and offline channels",
+      "importance": "High",
+      "criticality": "High",
+      "pain_point": "Legacy membership records may require manual intervention",
+      "performance_measure": "Join and renewal completion rate",
+      "risk_level": "Medium",
+      "stereotype": "Interaction"
+    },
+    {
+      "id": "js7",
+      "concept_type": "JourneyStage",
+      "name": "Receive confirmation and connect with a branch",
+      "status": "Active",
+      "sequence": 3,
+      "customer_need": "Know that membership is active and understand how to participate",
+      "channel": "Digital and branch channels",
+      "importance": "High",
+      "criticality": "Medium",
+      "pain_point": "Incomplete visibility of member and branch engagement",
+      "performance_measure": "Time to membership confirmation",
+      "risk_level": "Medium",
+      "stereotype": "Fulfilment"
+    },
+    {
+      "id": "js8",
+      "concept_type": "JourneyStage",
+      "name": "Discover the Poppy Appeal",
+      "status": "Active",
+      "sequence": 1,
+      "customer_need": "Understand the cause and choose how to support it",
+      "channel": "Public website and campaign channels",
+      "importance": "Critical",
+      "criticality": "High",
+      "pain_point": "Campaign information and donation routes may be fragmented",
+      "performance_measure": "Campaign engagement-to-donation conversion rate",
+      "risk_level": "Medium",
+      "stereotype": "Entry"
+    },
+    {
+      "id": "js9",
+      "concept_type": "JourneyStage",
+      "name": "Choose donation and provide details",
+      "status": "Active",
+      "sequence": 2,
+      "customer_need": "Select a donation amount and provide supporter details securely",
+      "channel": "Public website and digital fundraising channels",
+      "importance": "Critical",
+      "criticality": "High",
+      "pain_point": "Every additional form step can cause abandonment",
+      "performance_measure": "Donation form completion rate",
+      "risk_level": "Medium",
+      "stereotype": "Interaction"
+    },
+    {
+      "id": "js10",
+      "concept_type": "JourneyStage",
+      "name": "Complete payment and receive confirmation",
+      "status": "Active",
+      "sequence": 3,
+      "customer_need": "Complete the donation securely and receive confirmation",
+      "channel": "Public website and payment channel",
+      "importance": "Critical",
+      "criticality": "Critical",
+      "pain_point": "Payment or confirmation failure can undermine supporter trust",
+      "performance_measure": "Successful payment rate and confirmation time",
+      "risk_level": "High",
+      "stereotype": "Fulfilment"
+    },
+    {
+      "id": "f1",
+      "concept_type": "Flow",
+      "name": "Welfare Referral Handoff",
+      "status": "Active",
+      "stereotype": "Functional",
+      "trigger": "A welfare enquiry is submitted through the website or by phone",
+      "criticality": "Critical",
+      "frequency": "Daily"
+    },
+    {
+      "id": "fs1",
+      "concept_type": "FlowStep",
+      "name": "Capture welfare enquiry",
+      "status": "Active",
+      "sequence": 1,
+      "step_type": "Trigger",
+      "criticality": "High"
+    },
+    {
+      "id": "fs2",
+      "concept_type": "FlowStep",
+      "name": "Create supporter record and initial case note",
+      "status": "Active",
+      "sequence": 2,
+      "step_type": "Process",
+      "criticality": "Critical"
+    },
+    {
+      "id": "fs3",
+      "concept_type": "FlowStep",
+      "name": "Open welfare case and assign case worker",
+      "status": "Active",
+      "sequence": 3,
+      "step_type": "Integration",
+      "criticality": "Critical"
+    },
+    {
+      "id": "fs4",
+      "concept_type": "FlowStep",
+      "name": "Assess",
+      "decide": null,
+      "and deliver support": null,
+      "status": "Active",
+      "sequence": 4,
+      "step_type": "Process",
+      "criticality": "Critical"
+    },
+    {
+      "id": "fs5",
+      "concept_type": "FlowStep",
+      "name": "Log outcome back to supporter record",
+      "status": "Active",
+      "sequence": 5,
+      "step_type": "Output",
+      "criticality": "Medium"
+    },
+    {
+      "id": "f2",
+      "concept_type": "Flow",
+      "name": "Nightly Donor & Member Database Replication",
+      "status": "Active",
+      "stereotype": "Technical",
+      "trigger": "Scheduled nightly batch window",
+      "criticality": "High",
+      "frequency": "Daily"
+    },
+    {
+      "id": "fs6",
+      "concept_type": "FlowStep",
+      "name": "Extract changed records from SQL Server",
+      "status": "Active",
+      "sequence": 1,
+      "step_type": "Trigger",
+      "criticality": "High"
+    },
+    {
+      "id": "fs7",
+      "concept_type": "FlowStep",
+      "name": "Transfer extract across on-prem server infrastructure",
+      "status": "Active",
+      "sequence": 2,
+      "step_type": "Integration",
+      "criticality": "High"
+    },
+    {
+      "id": "fs8",
+      "concept_type": "FlowStep",
+      "name": "Transform and load into the integration platform",
+      "status": "Active",
+      "sequence": 3,
+      "step_type": "Process",
+      "criticality": "Medium"
+    },
+    {
+      "id": "vs1",
+      "concept_type": "ValueStream",
+      "name": "Donor Gives to RBL",
+      "status": "Active",
+      "stereotype": "Core",
+      "trigger_event": "A member of the public decides to donate",
+      "value_delivered": "Donor receives confirmation, a tax receipt if Gift Aid eligible, and is retained for future engagement",
+      "stakeholder": "Individual donor",
+      "strategic_importance": "Critical"
+    },
+    {
+      "id": "vss1",
+      "concept_type": "ValueStreamStage",
+      "name": "Donor Discovers Giving Opportunity",
+      "status": "Active",
+      "sequence": 1,
+      "value_item": "Awareness of a specific way to give"
+    },
+    {
+      "id": "vss2",
+      "concept_type": "ValueStreamStage",
+      "name": "Donor Makes Donation",
+      "status": "Active",
+      "sequence": 2,
+      "value_item": "Donation captured and payment confirmed"
+    },
+    {
+      "id": "vss3",
+      "concept_type": "ValueStreamStage",
+      "name": "Donation Processed & Receipted",
+      "status": "Active",
+      "sequence": 3,
+      "value_item": "Donation recorded, receipted, Gift Aid claimed if eligible"
+    },
+    {
+      "id": "vss4",
+      "concept_type": "ValueStreamStage",
+      "name": "Donor Retained & Re-engaged",
+      "status": "Active",
+      "sequence": 4,
+      "value_item": "Donor relationship maintained for future giving"
+    },
+    {
+      "id": "loc1",
+      "concept_type": "Location",
+      "name": "United Kingdom",
+      "status": "Active",
+      "country": "United Kingdom",
+      "data_residency_zone": "UK",
+      "stereotype": "Country"
+    },
+    {
+      "id": "loc2",
+      "concept_type": "Location",
+      "name": "London",
+      "status": "Active",
+      "country": "United Kingdom",
+      "time_zone": "Europe/London",
+      "data_residency_zone": "UK",
+      "stereotype": "City"
+    },
+    {
+      "id": "loc3",
+      "concept_type": "Location",
+      "name": "Edinburgh",
+      "status": "Active",
+      "country": "United Kingdom",
+      "time_zone": "Europe/London",
+      "data_residency_zone": "UK",
+      "stereotype": "City"
+    },
+    {
+      "id": "loc4",
+      "concept_type": "Location",
+      "name": "RBL Head Office",
+      "status": "Active",
+      "country": "United Kingdom",
+      "time_zone": "Europe/London",
+      "data_residency_zone": "UK",
+      "stereotype": "Site"
+    },
+    {
+      "id": "loc5",
+      "concept_type": "Location",
+      "name": "Azure UK South",
+      "status": "Active",
+      "country": "United Kingdom",
+      "data_residency_zone": "UK",
+      "stereotype": "Region"
+    },
+    {
+      "id": "loc6",
+      "concept_type": "Location",
+      "name": "OCI UK Region",
+      "status": "Active",
+      "country": "United Kingdom",
+      "data_residency_zone": "UK",
+      "stereotype": "Region"
+    },
+    {
+      "id": "loc7",
+      "concept_type": "Location",
+      "name": "Poppyscotland Office",
+      "status": "Active",
+      "country": "United Kingdom",
+      "time_zone": "Europe/London",
+      "data_residency_zone": "UK",
+      "stereotype": "Site"
+    },
+    {
+      "id": "org1",
+      "concept_type": "Organisation",
+      "name": "Royal British Legion",
+      "status": "Active",
+      "leader": "Director General",
+      "strategic_role": "Core"
+    },
+    {
+      "id": "org2",
+      "concept_type": "Organisation",
+      "name": "Digital, Data & Technology (DDaT) Directorate",
+      "status": "Active",
+      "parent_organisation": "org1",
+      "leader": "Executive Director: Digital, Data & Technology",
+      "stereotype": "Department"
+    },
+    {
+      "id": "org3",
+      "concept_type": "Organisation",
+      "name": "Services Department",
+      "status": "Active",
+      "parent_organisation": "org1",
+      "headcount": 400,
+      "stereotype": "Department"
+    },
+    {
+      "id": "org4",
+      "concept_type": "Organisation",
+      "name": "Fundraising, Marketing & Remembrance Directorate",
+      "status": "Active",
+      "parent_organisation": "org1",
+      "stereotype": "Department"
+    },
+    {
+      "id": "org5",
+      "concept_type": "Organisation",
+      "name": "Poppyscotland",
+      "status": "Active",
+      "parent_organisation": "org1",
+      "stereotype": "External"
+    },
+    {
+      "id": "org6",
+      "concept_type": "Organisation",
+      "name": "People & Culture Directorate",
+      "status": "Active",
+      "parent_organisation": "org1",
+      "stereotype": "Department"
+    },
+    {
+      "id": "org7",
+      "concept_type": "Organisation",
+      "name": "Finance Directorate",
+      "status": "Active",
+      "parent_organisation": "org1",
+      "stereotype": "Department"
+    },
+    {
+      "id": "org8",
+      "concept_type": "Organisation",
+      "name": "Poppy Shop",
+      "status": "Active",
+      "parent_organisation": "org1",
+      "stereotype": "External"
+    },
+    {
+      "id": "pr1",
+      "concept_type": "Product",
+      "name": "Poppy Appeal",
+      "status": "Active",
+      "strategic_importance": "Critical",
+      "stereotype": "Service"
+    },
+    {
+      "id": "pr2",
+      "concept_type": "Product",
+      "name": "Welfare Grants & Independent Living Service",
+      "status": "Active",
+      "strategic_importance": "Critical",
+      "stereotype": "Service"
+    },
+    {
+      "id": "pr3",
+      "concept_type": "Product",
+      "name": "National Remembrance Gardens (formerly National Memorial Arboretum)",
+      "status": "Active",
+      "strategic_importance": "High",
+      "stereotype": "Service"
+    },
+    {
+      "id": "pr4",
+      "concept_type": "Product",
+      "name": "RBL Membership",
+      "status": "Active",
+      "strategic_importance": "High",
+      "stereotype": "Service"
+    },
+    {
+      "id": "pr5",
+      "concept_type": "Product",
+      "name": "Poppy Shop Retail",
+      "status": "Active",
+      "strategic_importance": "Medium",
+      "stereotype": "External"
+    },
+    {
+      "id": "pr6",
+      "concept_type": "Product",
+      "name": "Campaigning & Public Affairs",
+      "status": "Active",
+      "strategic_importance": "Medium",
+      "stereotype": "Internal"
+    },
+    {
+      "id": "a1",
+      "concept_type": "Application",
+      "category": "CRM",
+      "architecture_style": "Traditional",
+      "service_level": "Platinum",
+      "rto": "4 hours",
+      "rpo": "15 minutes",
+      "active_date": "2025-03-01",
+      "user_count": 850,
+      "name": "Microsoft Dynamics 365 CRM",
+      "status": "Production",
+      "vendor": "Microsoft",
+      "business_value": 3,
+      "technical_health": 4,
+      "criticality": "Critical",
+      "tco": 420000,
+      "hosting_model": "SaaS",
+      "owner": "Head of Data, Insight and Fundraising CRM",
+      "stereotype": "SaaS",
+      "ai_readiness": "High",
+      "ai_relevance": "High",
+      "ai_availability": "Available",
+      "ai_target_pattern": "Enable",
+      "ai_pathfinder_status": "In Progress",
+      "review_date": "2026-12-01",
+      "renewal_date": "2026-11-15"
+    },
+    {
+      "id": "a2",
+      "concept_type": "Application",
+      "category": "Website/CMS",
+      "architecture_style": "Traditional",
+      "service_level": "Gold",
+      "rto": "8 hours",
+      "rpo": "1 hour",
+      "active_date": "2011-06-01",
+      "user_count": 40,
+      "name": "britishlegion.org.uk (public website)",
+      "status": "Production",
+      "vendor": "WordPress",
+      "business_value": 3,
+      "technical_health": 3,
+      "criticality": "High",
+      "tco": 180000,
+      "hosting_model": "Cloud",
+      "owner": "Head of Digital Marketing",
+      "stereotype": "COTS",
+      "ai_readiness": "High",
+      "ai_relevance": "Medium",
+      "ai_availability": "Planned",
+      "ai_target_pattern": "Enable",
+      "ai_pathfinder_status": "Not Started",
+      "review_date": "2027-03-01",
+      "renewal_date": "2027-02-15"
+    },
+    {
+      "id": "a3",
+      "concept_type": "Application",
+      "category": "Data Integration",
+      "architecture_style": "Traditional",
+      "service_level": "Silver",
+      "rto": "24 hours",
+      "rpo": "4 hours",
+      "active_date": "2024-02-01",
+      "user_count": 8,
+      "name": "Talend Data Integration Platform",
+      "status": "Production",
+      "vendor": "Talend",
+      "business_value": 2,
+      "technical_health": 4,
+      "criticality": "High",
+      "tco": 150000,
+      "hosting_model": "SaaS",
+      "stereotype": "SaaS",
+      "ai_readiness": "Medium",
+      "ai_relevance": "Low",
+      "ai_availability": "Planned",
+      "ai_target_pattern": "Consolidate",
+      "ai_pathfinder_status": "Not Started",
+      "review_date": "2027-06-01",
+      "renewal_date": "2027-05-01"
+    },
+    {
+      "id": "a4",
+      "concept_type": "Application",
+      "category": "Payment Processing",
+      "architecture_style": "Traditional",
+      "service_level": "Gold",
+      "rto": "8 hours",
+      "rpo": "1 hour",
+      "active_date": "2015-01-01",
+      "name": "PayPal Donation Processing",
+      "status": "Production",
+      "vendor": "PayPal",
+      "business_value": 3,
+      "technical_health": 4,
+      "criticality": "High",
+      "tco": 60000,
+      "hosting_model": "SaaS",
+      "stereotype": "SaaS",
+      "ai_readiness": "High",
+      "ai_relevance": "Medium",
+      "ai_availability": "Embedded",
+      "ai_target_pattern": "Enable",
+      "ai_pathfinder_status": "Done",
+      "review_date": "2027-01-01",
+      "renewal_date": "2026-08-15"
+    },
+    {
+      "id": "a5",
+      "concept_type": "Application",
+      "category": "Analytics",
+      "architecture_style": "Traditional",
+      "service_level": "Silver",
+      "rto": "24 hours",
+      "rpo": "4 hours",
+      "active_date": "2019-01-01",
+      "user_count": 15,
+      "name": "Adobe Analytics",
+      "status": "Production",
+      "vendor": "Adobe",
+      "business_value": 2,
+      "technical_health": 4,
+      "criticality": "Medium",
+      "tco": 90000,
+      "hosting_model": "SaaS",
+      "stereotype": "SaaS",
+      "ai_readiness": "High",
+      "ai_relevance": "High",
+      "ai_availability": "Embedded",
+      "ai_target_pattern": "Enable",
+      "ai_pathfinder_status": "In Progress",
+      "review_date": "2026-11-01",
+      "renewal_date": "2026-10-31"
+    },
+    {
+      "id": "a6",
+      "concept_type": "Application",
+      "category": "CRM",
+      "architecture_style": "Traditional",
+      "service_level": "Platinum",
+      "rto": "4 hours",
+      "rpo": "15 minutes",
+      "active_date": "2010-01-01",
+      "sunset_date": "2024-09-01",
+      "retiring_date": "2026-06-01",
+      "decommission_date": "2027-03-01",
+      "user_count": 60,
+      "name": "Legacy Direct-Marketing CRM",
+      "status": "Retiring",
+      "vendor": "Unsupported",
+      "business_value": 1,
+      "technical_health": 1,
+      "criticality": "Medium",
+      "tco": 210000,
+      "hosting_model": "On-Prem",
+      "owner": "Executive Director: Digital, Data & Technology",
+      "stereotype": "Legacy",
+      "ai_readiness": "Low",
+      "ai_relevance": "Low",
+      "ai_availability": "Planned",
+      "ai_target_pattern": "Consolidate",
+      "ai_pathfinder_status": "Not Started"
+    },
+    {
+      "id": "a7",
+      "concept_type": "Application",
+      "category": "Membership Management",
+      "architecture_style": "Traditional",
+      "service_level": "Bronze",
+      "rto": "72 hours",
+      "rpo": "24 hours",
+      "active_date": "2008-01-01",
+      "user_count": 25,
+      "name": "Membership Central Database",
+      "status": "Production",
+      "vendor": "Internal (legacy)",
+      "business_value": 3,
+      "technical_health": 2,
+      "criticality": "High",
+      "tco": 95000,
+      "hosting_model": "On-Prem",
+      "stereotype": "Custom",
+      "ai_readiness": "Low",
+      "ai_relevance": "High",
+      "ai_availability": "Planned",
+      "ai_target_pattern": "Rebuild",
+      "ai_pathfinder_status": "Not Started",
+      "review_date": "2026-12-01"
+    },
+    {
+      "id": "a8",
+      "concept_type": "Application",
+      "category": "Case Management",
+      "architecture_style": "Traditional",
+      "service_level": "Gold",
+      "rto": "8 hours",
+      "rpo": "1 hour",
+      "active_date": "2017-01-01",
+      "user_count": 180,
+      "name": "Welfare Case Management System",
+      "status": "Production",
+      "vendor": "Undisclosed",
+      "business_value": 3,
+      "technical_health": 2,
+      "criticality": "Critical",
+      "tco": 140000,
+      "hosting_model": "Cloud",
+      "owner": "Director of Services",
+      "stereotype": "Custom",
+      "ai_readiness": "Medium",
+      "ai_relevance": "High",
+      "ai_availability": "Planned",
+      "ai_target_pattern": "Enable",
+      "ai_pathfinder_status": "In Progress",
+      "review_date": "2026-04-01",
+      "renewal_date": "2027-01-20"
+    },
+    {
+      "id": "a9",
+      "concept_type": "Application",
+      "category": "HR & Benefits",
+      "architecture_style": "Traditional",
+      "service_level": "Silver",
+      "rto": "24 hours",
+      "rpo": "4 hours",
+      "active_date": "2021-01-15",
+      "user_count": 800,
+      "name": "Reward Gateway Employee Benefits Platform",
+      "status": "Production",
+      "vendor": "Reward Gateway",
+      "business_value": 2,
+      "technical_health": 4,
+      "criticality": "Medium",
+      "tco": 45000,
+      "hosting_model": "SaaS",
+      "owner": "Director of People & Culture",
+      "stereotype": "SaaS",
+      "ai_readiness": "High",
+      "ai_relevance": "Low",
+      "ai_availability": "Available",
+      "ai_target_pattern": "Enable",
+      "ai_pathfinder_status": "Not Started",
+      "review_date": "2027-06-01",
+      "renewal_date": "2027-06-01"
+    },
+    {
+      "id": "a10",
+      "concept_type": "Application",
+      "category": "E-commerce",
+      "architecture_style": "Traditional",
+      "service_level": "Silver",
+      "rto": "24 hours",
+      "rpo": "4 hours",
+      "active_date": "2016-01-01",
+      "name": "Poppy Shop E-commerce Platform",
+      "status": "Production",
+      "vendor": "Undisclosed",
+      "business_value": 2,
+      "technical_health": 3,
+      "criticality": "Medium",
+      "tco": 70000,
+      "hosting_model": "Cloud",
+      "stereotype": "COTS",
+      "ai_readiness": "Medium",
+      "ai_relevance": "High",
+      "ai_availability": "Planned",
+      "ai_target_pattern": "Enable",
+      "ai_pathfinder_status": "Not Started",
+      "review_date": "2027-01-01",
+      "renewal_date": "2026-12-10"
+    },
+    {
+      "id": "a11",
+      "concept_type": "Application",
+      "category": "Campaign Management",
+      "architecture_style": "Traditional",
+      "service_level": "Silver",
+      "rto": "24 hours",
+      "rpo": "4 hours",
+      "active_date": "2020-01-01",
+      "user_count": 12,
+      "name": "Campaigns & Public Affairs Tracker",
+      "status": "Production",
+      "vendor": "Undisclosed",
+      "business_value": 2,
+      "technical_health": 3,
+      "criticality": "Medium",
+      "tco": 35000,
+      "hosting_model": "SaaS",
+      "stereotype": "SaaS",
+      "ai_readiness": "Medium",
+      "ai_relevance": "Low",
+      "ai_availability": "Planned",
+      "ai_target_pattern": "Consolidate",
+      "ai_pathfinder_status": "Not Started",
+      "review_date": "2027-09-01"
+    },
+    {
+      "id": "a12",
+      "concept_type": "Application",
+      "category": "Finance & ERP",
+      "architecture_style": "Traditional",
+      "service_level": "Platinum",
+      "rto": "4 hours",
+      "rpo": "15 minutes",
+      "active_date": "2010-01-01",
+      "user_count": 20,
+      "name": "Finance & Accounting System",
+      "status": "Production",
+      "vendor": "Undisclosed",
+      "business_value": 3,
+      "technical_health": 2,
+      "criticality": "Critical",
+      "tco": 160000,
+      "hosting_model": "On-Prem",
+      "owner": "Director of Finance",
+      "stereotype": "Custom",
+      "ai_readiness": "Low",
+      "ai_relevance": "High",
+      "ai_availability": "Planned",
+      "ai_target_pattern": "Rebuild",
+      "ai_pathfinder_status": "Not Started",
+      "review_date": "2027-03-01"
+    },
+    {
+      "id": "a13",
+      "concept_type": "Application",
+      "category": "Case Management",
+      "architecture_style": "AI Agent",
+      "service_level": "Gold",
+      "rto": "8 hours",
+      "rpo": "1 hour",
+      "planned_date": "2026-04-01",
+      "user_count": 60,
+      "name": "Welfare Grant Triage Agent",
+      "status": "In Development",
+      "vendor": "Illustrative AI Service",
+      "business_value": "High",
+      "technical_health": "Adequate",
+      "criticality": "Critical",
+      "tco": 120000,
+      "hosting_model": "Cloud",
+      "owner": "Director of Services",
+      "stereotype": "Custom",
+      "ai_readiness": "High",
+      "ai_relevance": "High",
+      "ai_availability": "Planned",
+      "ai_target_pattern": "Enable",
+      "ai_pathfinder_status": "In Progress",
+      "review_date": "2026-04-01"
+    },
+    {
+      "id": "a14",
+      "concept_type": "Application",
+      "category": "Supporter Engagement",
+      "architecture_style": "AI Agent",
+      "service_level": "Gold",
+      "rto": "8 hours",
+      "rpo": "1 hour",
+      "planned_date": "2026-09-01",
+      "user_count": 25,
+      "name": "Poppy Appeal Supporter Assistant",
+      "status": "Planned",
+      "vendor": "Illustrative AI Service",
+      "business_value": "High",
+      "technical_health": "Adequate",
+      "criticality": "High",
+      "tco": 90000,
+      "hosting_model": "Cloud",
+      "owner": "Head of Digital Marketing",
+      "stereotype": "Custom",
+      "ai_readiness": "High",
+      "ai_relevance": "High",
+      "ai_availability": "Planned",
+      "ai_target_pattern": "Enable",
+      "ai_pathfinder_status": "Not Started",
+      "review_date": "2026-09-01"
+    },
+    {
+      "id": "a15",
+      "concept_type": "Application",
+      "category": "Membership Management",
+      "architecture_style": "AI Agent",
+      "service_level": "Silver",
+      "rto": "24 hours",
+      "rpo": "4 hours",
+      "active_date": "2026-02-01",
+      "user_count": 15,
+      "name": "Membership Renewal Assistant",
+      "status": "Production",
+      "vendor": "Illustrative AI Service",
+      "business_value": "Medium",
+      "technical_health": "Adequate",
+      "criticality": "High",
+      "tco": 65000,
+      "hosting_model": "SaaS",
+      "owner": "Head of Membership",
+      "stereotype": "SaaS",
+      "ai_readiness": "High",
+      "ai_relevance": "High",
+      "ai_availability": "Embedded",
+      "ai_target_pattern": "Enable",
+      "ai_pathfinder_status": "Done",
+      "review_date": "2027-02-01",
+      "renewal_date": "2027-08-01"
+    },
+    {
+      "id": "aim1",
+      "concept_type": "AIModel",
+      "name": "Welfare Case Assessment Model",
+      "status": "Evaluation",
+      "vendor": "OpenAI",
+      "model_purpose": "Summarisation, triage and caseworker decision support",
+      "provider": "Microsoft Azure OpenAI Service",
+      "version": "GPT-4.1",
+      "lifecycle_status": "Tactical",
+      "criticality": "Critical",
+      "business_value": "High",
+      "technical_health": "Adequate",
+      "risk_level": "High",
+      "approval_status": "Pending",
+      "human_oversight": "Required",
+      "explainability": "Medium",
+      "hosting_model": "Cloud",
+      "regulatory_relevance": [
+        "GDPR"
+      ],
+      "tco": 80000,
+      "owner": "Director of Services",
+      "stereotype": "Generative"
+    },
+    {
+      "id": "aim2",
+      "concept_type": "AIModel",
+      "name": "Supporter Conversation Model",
+      "status": "Evaluation",
+      "vendor": "Anthropic",
+      "model_purpose": "Supporter questions, campaign guidance and donation assistance",
+      "provider": "Anthropic API",
+      "version": "claude-sonnet-5",
+      "lifecycle_status": "Tactical",
+      "criticality": "High",
+      "business_value": "High",
+      "technical_health": "Adequate",
+      "risk_level": "Medium",
+      "approval_status": "Pending",
+      "human_oversight": "Recommended",
+      "explainability": "Low",
+      "hosting_model": "Cloud",
+      "regulatory_relevance": [
+        "GDPR"
+      ],
+      "tco": 60000,
+      "owner": "Head of Digital Marketing",
+      "stereotype": "Generative"
+    },
+    {
+      "id": "aim3",
+      "concept_type": "AIModel",
+      "name": "Membership Renewal Prediction Model",
+      "status": "Production",
+      "vendor": "Internal",
+      "model_purpose": "Renewal propensity, timing and member engagement prediction",
+      "provider": "Microsoft Azure Machine Learning",
+      "version": "1.0",
+      "lifecycle_status": "Tactical",
+      "criticality": "Medium",
+      "business_value": "Medium",
+      "technical_health": "Adequate",
+      "risk_level": "Medium",
+      "approval_status": "Approved",
+      "human_oversight": "Recommended",
+      "explainability": "High",
+      "hosting_model": "SaaS",
+      "regulatory_relevance": [
+        "GDPR"
+      ],
+      "tco": 45000,
+      "owner": "Head of Membership",
+      "stereotype": "Predictive"
+    },
+    {
+      "id": "dt1",
+      "concept_type": "Data",
+      "name": "Supporter & Donor Data",
+      "status": "Active",
+      "classification": "Confidential",
+      "quality": "High",
+      "stereotype": "Master"
+    },
+    {
+      "id": "dt2",
+      "concept_type": "Data",
+      "name": "Beneficiary / Welfare Case Data",
+      "status": "Active",
+      "classification": "Restricted",
+      "sensitivity": "High",
+      "quality": "Adequate",
+      "stereotype": "Transactional"
+    },
+    {
+      "id": "dt3",
+      "concept_type": "Data",
+      "name": "Membership Data",
+      "status": "Active",
+      "classification": "Internal",
+      "quality": "Poor",
+      "stereotype": "Master"
+    },
+    {
+      "id": "dt4",
+      "concept_type": "Data",
+      "name": "Employee & HR Data",
+      "status": "Active",
+      "classification": "Confidential",
+      "quality": "High",
+      "stereotype": "Master"
+    },
+    {
+      "id": "dt5",
+      "concept_type": "Data",
+      "name": "Financial & Transactional Data",
+      "status": "Active",
+      "classification": "Restricted",
+      "quality": "Poor",
+      "stereotype": "Transactional"
+    },
+    {
+      "id": "st1",
+      "concept_type": "SoftwareTechnology",
+      "name": "Oracle Cloud Infrastructure",
+      "tech_category": "Cloud Platforms",
+      "lifecycle": "Current",
+      "support_status": "Full",
+      "strategic_classification": "Preferred",
+      "status": "Active",
+      "stereotype": "Platform"
+    },
+    {
+      "id": "st2",
+      "concept_type": "SoftwareTechnology",
+      "name": "Microsoft Azure",
+      "tech_category": "Cloud Platforms",
+      "lifecycle": "Current",
+      "support_status": "Full",
+      "strategic_classification": "Preferred",
+      "status": "Active",
+      "stereotype": "Platform"
+    },
+    {
+      "id": "st3",
+      "concept_type": "SoftwareTechnology",
+      "name": "Citrix Virtual Apps and Desktops",
+      "tech_category": "Infrastructure & Security",
+      "lifecycle": "Current",
+      "support_status": "Full",
+      "strategic_classification": "Contained",
+      "status": "Active",
+      "stereotype": "Platform"
+    },
+    {
+      "id": "st4",
+      "concept_type": "SoftwareTechnology",
+      "name": "Microsoft Intune",
+      "tech_category": "Infrastructure & Security",
+      "lifecycle": "Current",
+      "support_status": "Full",
+      "strategic_classification": "Preferred",
+      "status": "Active",
+      "stereotype": "Platform"
+    },
+    {
+      "id": "st5",
+      "concept_type": "SoftwareTechnology",
+      "name": "Microsoft SQL Server",
+      "tech_category": "Data & Analytics",
+      "lifecycle": "Approaching EOL",
+      "support_status": "Limited",
+      "strategic_classification": "Contained",
+      "status": "Active",
+      "stereotype": "Database"
+    },
+    {
+      "id": "h1",
+      "concept_type": "HardwareTechnology",
+      "name": "Corporate Laptop & Desktop Fleet",
+      "tech_category": "Infrastructure & Security",
+      "lifecycle": "Approaching EOL",
+      "support_status": "Full",
+      "technical_health": "Adequate",
+      "status": "Active",
+      "stereotype": "End User"
+    },
+    {
+      "id": "h2",
+      "concept_type": "HardwareTechnology",
+      "name": "On-Premises Server Infrastructure",
+      "tech_category": "Infrastructure & Security",
+      "lifecycle": "EOL",
+      "support_status": "Limited",
+      "technical_health": "Poor",
+      "status": "Active",
+      "stereotype": "Server"
+    },
+    {
+      "id": "risk1",
+      "concept_type": "Risk",
+      "name": "Legacy CRM Technical Debt / Fragmented Supporter Data",
+      "status": "Assessed",
+      "likelihood": "Likely",
+      "impact": "High",
+      "stereotype": "Technology"
+    },
+    {
+      "id": "risk2",
+      "concept_type": "Risk",
+      "name": "Safeguarding Risk in Welfare Casework",
+      "status": "Assessed",
+      "likelihood": "Possible",
+      "impact": "Critical",
+      "stereotype": "Operational"
+    },
+    {
+      "id": "risk3",
+      "concept_type": "Risk",
+      "name": "GDPR / Data Protection Compliance Risk",
+      "status": "Assessed",
+      "likelihood": "Possible",
+      "impact": "High",
+      "stereotype": "Compliance"
+    },
+    {
+      "id": "risk4",
+      "concept_type": "Risk",
+      "name": "Single Point of Failure in Legacy On-Prem Systems",
+      "status": "Assessed",
+      "likelihood": "Possible",
+      "impact": "Critical",
+      "stereotype": "Technology"
+    },
+    {
+      "id": "ctrl1",
+      "concept_type": "Control",
+      "name": "Data Protection & GDPR Compliance Framework",
+      "status": "Implemented",
+      "stereotype": "Preventive"
+    },
+    {
+      "id": "ctrl2",
+      "concept_type": "Control",
+      "name": "Welfare Casework Safeguarding Policy & Review",
+      "status": "Implemented",
+      "stereotype": "Detective"
+    },
+    {
+      "id": "ctrl3",
+      "concept_type": "Control",
+      "name": "Financial Grant Approval Authorisation Control",
+      "status": "Implemented",
+      "stereotype": "Preventive"
+    },
+    {
+      "id": "ctrl4",
+      "concept_type": "Control",
+      "name": "IT Disaster Recovery & Backup Policy",
+      "status": "Implemented",
+      "stereotype": "Corrective"
+    }
+  ],
+  "relationships": [
+    {
+      "source": "req1",
+      "target": "risk1",
+      "verb": "results from"
+    },
+    {
+      "source": "req2",
+      "target": "risk3",
+      "verb": "results from"
+    },
+    {
+      "source": "req3",
+      "target": "risk4",
+      "verb": "results from"
+    },
+    {
+      "source": "req4",
+      "target": "i6",
+      "verb": "results from"
+    },
+    {
+      "source": "req5",
+      "target": "d1",
+      "verb": "results from"
+    },
+    {
+      "source": "req6",
+      "target": "c3a",
+      "verb": "results from"
+    },
+    {
+      "source": "req1",
+      "target": "req1a",
+      "verb": "contains"
+    },
+    {
+      "source": "a1",
+      "target": "req1",
+      "verb": "fulfils"
+    },
+    {
+      "source": "a3",
+      "target": "req1a",
+      "verb": "fulfils"
+    },
+    {
+      "source": "st2",
+      "target": "req2",
+      "verb": "fulfils"
+    },
+    {
+      "source": "a13",
+      "target": "req4",
+      "verb": "fulfils"
+    },
+    {
+      "source": "st4",
+      "target": "req5",
+      "verb": "fulfils"
+    },
+    {
+      "source": "a3",
+      "target": "iface1",
+      "verb": "provides",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "a1",
+      "target": "iface1",
+      "verb": "uses",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "iface1",
+      "target": "dt1",
+      "verb": "provides"
+    },
+    {
+      "source": "a4",
+      "target": "iface2",
+      "verb": "provides",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "a1",
+      "target": "iface2",
+      "verb": "uses",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "iface2",
+      "target": "dt1",
+      "verb": "provides"
+    },
+    {
+      "source": "a2",
+      "target": "iface3",
+      "verb": "provides",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "a1",
+      "target": "iface3",
+      "verb": "uses",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "iface3",
+      "target": "dt1",
+      "verb": "provides"
+    },
+    {
+      "source": "a7",
+      "target": "iface4",
+      "verb": "provides",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "a15",
+      "target": "iface4",
+      "verb": "uses",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "iface4",
+      "target": "dt3",
+      "verb": "provides"
+    },
+    {
+      "source": "a8",
+      "target": "iface5",
+      "verb": "provides",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "a13",
+      "target": "iface5",
+      "verb": "uses",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "iface5",
+      "target": "dt2",
+      "verb": "provides"
+    },
+    {
+      "source": "a9",
+      "target": "iface6",
+      "verb": "provides",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 70
+    },
+    {
+      "source": "a12",
+      "target": "iface6",
+      "verb": "uses",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 70
+    },
+    {
+      "source": "iface6",
+      "target": "dt4",
+      "verb": "provides"
+    },
+    {
+      "source": "a10",
+      "target": "iface7",
+      "verb": "provides",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 75
+    },
+    {
+      "source": "a12",
+      "target": "iface7",
+      "verb": "uses",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 75
+    },
+    {
+      "source": "iface7",
+      "target": "dt5",
+      "verb": "provides"
+    },
+    {
+      "source": "a1",
+      "target": "iface8",
+      "verb": "provides",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 65
+    },
+    {
+      "source": "a11",
+      "target": "iface8",
+      "verb": "uses",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 65
+    },
+    {
+      "source": "iface8",
+      "target": "dt1",
+      "verb": "provides"
+    },
+    {
+      "source": "c1",
+      "target": "c1a",
+      "verb": "contains"
+    },
+    {
+      "source": "c1",
+      "target": "c1b",
+      "verb": "contains"
+    },
+    {
+      "source": "c1",
+      "target": "c1c",
+      "verb": "contains"
+    },
+    {
+      "source": "c3",
+      "target": "c3a",
+      "verb": "contains"
+    },
+    {
+      "source": "c3",
+      "target": "c3b",
+      "verb": "contains"
+    },
+    {
+      "source": "c3",
+      "target": "c3c",
+      "verb": "contains"
+    },
+    {
+      "source": "c4",
+      "target": "c4a",
+      "verb": "contains"
+    },
+    {
+      "source": "c4",
+      "target": "c4b",
+      "verb": "contains"
+    },
+    {
+      "source": "d3",
+      "target": "d2",
+      "verb": "supersedes"
+    },
+    {
+      "source": "a9",
+      "target": "p4",
+      "verb": "supports",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "loc1",
+      "target": "loc2",
+      "verb": "contains"
+    },
+    {
+      "source": "loc1",
+      "target": "loc3",
+      "verb": "contains"
+    },
+    {
+      "source": "loc2",
+      "target": "loc4",
+      "verb": "contains"
+    },
+    {
+      "source": "loc3",
+      "target": "loc7",
+      "verb": "contains"
+    },
+    {
+      "source": "org1",
+      "target": "loc4",
+      "verb": "based at"
+    },
+    {
+      "source": "org5",
+      "target": "loc3",
+      "verb": "based at"
+    },
+    {
+      "source": "h2",
+      "target": "loc4",
+      "verb": "hosted at"
+    },
+    {
+      "source": "a12",
+      "target": "loc4",
+      "verb": "hosted at"
+    },
+    {
+      "source": "a12",
+      "target": "loc7",
+      "verb": "hosted at"
+    },
+    {
+      "source": "st1",
+      "target": "loc6",
+      "verb": "hosted at"
+    },
+    {
+      "source": "st2",
+      "target": "loc5",
+      "verb": "hosted at"
+    },
+    {
+      "source": "a7",
+      "target": "i4",
+      "verb": "blocks",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 70,
+      "type": "[FICTIONAL] flat record structure couldn't express pricing tiers"
+    },
+    {
+      "source": "a12",
+      "target": "i5",
+      "verb": "blocks",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80,
+      "type": "[FICTIONAL] no data model concept of a shared/partner transaction"
+    },
+    {
+      "source": "a8",
+      "target": "i6",
+      "verb": "blocks",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 75,
+      "type": "[FICTIONAL] couldn't extract clean structured case data fast enough"
+    },
+    {
+      "source": "a3",
+      "target": "i7",
+      "verb": "blocks",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 60,
+      "type": "[FICTIONAL] overnight-only data refresh, no real-time feed"
+    },
+    {
+      "source": "s1",
+      "target": "g1",
+      "verb": "drives",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "s1",
+      "target": "i1",
+      "verb": "drives",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 95
+    },
+    {
+      "source": "s1",
+      "target": "c3",
+      "verb": "prioritises",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "s1",
+      "target": "g3",
+      "verb": "drives",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 70
+    },
+    {
+      "source": "g3",
+      "target": "s1",
+      "verb": "contributes to",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 70
+    },
+    {
+      "source": "d1",
+      "target": "i1",
+      "verb": "justifies",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "d1",
+      "target": "i1",
+      "verb": "approves investment in",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "i1",
+      "target": "g1",
+      "verb": "contributes to",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "i1",
+      "target": "o2",
+      "verb": "delivers",
+      "criticality": "High",
+      "status": "Planned",
+      "strength": 60
+    },
+    {
+      "source": "i2",
+      "target": "o1",
+      "verb": "delivers",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 75
+    },
+    {
+      "source": "o1",
+      "target": "g2",
+      "verb": "evidences",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 75
+    },
+    {
+      "source": "o1",
+      "target": "i2",
+      "verb": "results from",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "g1",
+      "target": "o2",
+      "verb": "measures",
+      "criticality": "Medium",
+      "status": "Planned",
+      "strength": 60
+    },
+    {
+      "source": "p1",
+      "target": "c3",
+      "verb": "realises",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "p2",
+      "target": "c1",
+      "verb": "realises",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "p3",
+      "target": "c4",
+      "verb": "realises",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "a1",
+      "target": "c3",
+      "verb": "supports",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "a2",
+      "target": "pr1",
+      "verb": "supports",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "a2",
+      "target": "c3",
+      "verb": "supports",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 75
+    },
+    {
+      "source": "a3",
+      "target": "c3",
+      "verb": "supports",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 75
+    },
+    {
+      "source": "a4",
+      "target": "c3",
+      "verb": "supports",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 70
+    },
+    {
+      "source": "a4",
+      "target": "p1",
+      "verb": "supports",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90,
+      "type": "donation payment processing"
+    },
+    {
+      "source": "a5",
+      "target": "c3",
+      "verb": "supports",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 65
+    },
+    {
+      "source": "a6",
+      "target": "c3",
+      "verb": "supports",
+      "criticality": "Medium",
+      "status": "Retiring",
+      "strength": 40,
+      "type": "legacy support — being superseded by a1"
+    },
+    {
+      "source": "dt1",
+      "target": "c3",
+      "verb": "belongs to",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "dt2",
+      "target": "c1",
+      "verb": "belongs to",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "dt3",
+      "target": "c4",
+      "verb": "belongs to",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 75
+    },
+    {
+      "source": "pr1",
+      "target": "c3",
+      "verb": "delivers",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "org1",
+      "target": "org2",
+      "verb": "contains",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "org1",
+      "target": "org3",
+      "verb": "contains",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "org1",
+      "target": "org4",
+      "verb": "contains",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "org1",
+      "target": "org5",
+      "verb": "contains",
+      "criticality": "Low",
+      "status": "Active",
+      "strength": 60,
+      "type": "federated sister charity"
+    },
+    {
+      "source": "org3",
+      "target": "c1",
+      "verb": "owns",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "org4",
+      "target": "c3",
+      "verb": "owns",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "org1",
+      "target": "c2",
+      "verb": "owns",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "org1",
+      "target": "c4",
+      "verb": "owns",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "org1",
+      "target": "c5",
+      "verb": "owns",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "org2",
+      "target": "a1",
+      "verb": "owns",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 95
+    },
+    {
+      "source": "org2",
+      "target": "a3",
+      "verb": "owns",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "org1",
+      "target": "dt1",
+      "verb": "owns",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "org2",
+      "target": "a5",
+      "verb": "uses",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 70
+    },
+    {
+      "source": "org3",
+      "target": "p2",
+      "verb": "performs",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "org4",
+      "target": "p1",
+      "verb": "performs",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "org1",
+      "target": "p3",
+      "verb": "performs",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 75
+    },
+    {
+      "source": "a1",
+      "target": "st2",
+      "verb": "runs on",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 95,
+      "type": "IaaS hosting"
+    },
+    {
+      "source": "a2",
+      "target": "st1",
+      "verb": "runs on",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85,
+      "type": "IaaS hosting"
+    },
+    {
+      "source": "a1",
+      "target": "dt1",
+      "verb": "stores",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 95
+    },
+    {
+      "source": "a4",
+      "target": "dt1",
+      "verb": "provides",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 70,
+      "type": "donation transaction feed"
+    },
+    {
+      "source": "a2",
+      "target": "a4",
+      "verb": "depends on",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80,
+      "type": "payment processing"
+    },
+    {
+      "source": "st3",
+      "target": "h1",
+      "verb": "runs on",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 75
+    },
+    {
+      "source": "dt1",
+      "target": "a1",
+      "verb": "stored by",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 95
+    },
+    {
+      "source": "dt2",
+      "target": "org3",
+      "verb": "governed by",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "i1",
+      "target": "a1",
+      "verb": "implements",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "i1",
+      "target": "a6",
+      "verb": "retires",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "i1",
+      "target": "a6",
+      "verb": "replaces",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 90,
+      "type": "platform migration"
+    },
+    {
+      "source": "i2",
+      "target": "c3",
+      "verb": "transforms",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 75
+    },
+    {
+      "source": "i2",
+      "target": "a3",
+      "verb": "implements",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "i1",
+      "target": "i2",
+      "verb": "must precede",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80,
+      "type": "CRM platform required before deeper data integration"
+    },
+    {
+      "source": "d1",
+      "target": "a6",
+      "verb": "rationalises",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "d1",
+      "target": "i1",
+      "verb": "governs",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "risk1",
+      "target": "a6",
+      "verb": "affects",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "risk1",
+      "target": "i1",
+      "verb": "affects",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 70,
+      "type": "programme is the mitigation"
+    },
+    {
+      "source": "risk2",
+      "target": "p2",
+      "verb": "affects",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "risk2",
+      "target": "c1",
+      "verb": "affects",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 75
+    },
+    {
+      "source": "risk3",
+      "target": "dt2",
+      "verb": "affects",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "risk3",
+      "target": "org1",
+      "verb": "affects",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 70
+    },
+    {
+      "source": "ctrl1",
+      "target": "risk3",
+      "verb": "mitigates",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "ctrl1",
+      "target": "dt2",
+      "verb": "constrains",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "ctrl2",
+      "target": "risk2",
+      "verb": "mitigates",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "ctrl2",
+      "target": "p2",
+      "verb": "constrains",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "ctrl3",
+      "target": "p2",
+      "verb": "constrains",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "d1",
+      "target": "risk1",
+      "verb": "accepts",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 60,
+      "type": "residual risk accepted pending programme completion"
+    },
+    {
+      "source": "org1",
+      "target": "risk1",
+      "verb": "owns",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 70
+    },
+    {
+      "source": "org1",
+      "target": "ctrl1",
+      "verb": "owns",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "org1",
+      "target": "i1",
+      "verb": "funds",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "org1",
+      "target": "i2",
+      "verb": "funds",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "org1",
+      "target": "c1",
+      "verb": "invests in",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "s1",
+      "target": "c3",
+      "verb": "invests in",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "i1",
+      "target": "org1",
+      "verb": "consumes investment from",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "c1",
+      "target": "pr2",
+      "verb": "enables",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "c3",
+      "target": "p1",
+      "verb": "enables",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "c4",
+      "target": "pr4",
+      "verb": "enables",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "p1",
+      "target": "pr1",
+      "verb": "delivers",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "p3",
+      "target": "pr4",
+      "verb": "delivers",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "pr1",
+      "target": "c3",
+      "verb": "realises value through",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "a1",
+      "target": "c3",
+      "verb": "enables",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "c1",
+      "target": "s1",
+      "verb": "under-invested relative to",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 55,
+      "type": "illustrative — welfare demand growth vs digital investment focus"
+    },
+    {
+      "source": "p4",
+      "target": "c6",
+      "verb": "realises",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "p5",
+      "target": "c7",
+      "verb": "realises",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "p6",
+      "target": "c1",
+      "verb": "realises",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "a7",
+      "target": "c4",
+      "verb": "supports",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "a8",
+      "target": "c1",
+      "verb": "supports",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "a9",
+      "target": "c6",
+      "verb": "supports",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 75
+    },
+    {
+      "source": "a10",
+      "target": "c2",
+      "verb": "supports",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 65
+    },
+    {
+      "source": "a10",
+      "target": "pr5",
+      "verb": "supports",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "a11",
+      "target": "c5",
+      "verb": "supports",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 70
+    },
+    {
+      "source": "a12",
+      "target": "c7",
+      "verb": "supports",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "org1",
+      "target": "org6",
+      "verb": "contains",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "org1",
+      "target": "org7",
+      "verb": "contains",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "org1",
+      "target": "org8",
+      "verb": "contains",
+      "criticality": "Low",
+      "status": "Active",
+      "strength": 60,
+      "type": "trading subsidiary"
+    },
+    {
+      "source": "org6",
+      "target": "c6",
+      "verb": "owns",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "org7",
+      "target": "c7",
+      "verb": "owns",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "org2",
+      "target": "a7",
+      "verb": "owns",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "org3",
+      "target": "a8",
+      "verb": "owns",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "org6",
+      "target": "a9",
+      "verb": "owns",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "org8",
+      "target": "a10",
+      "verb": "owns",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "org7",
+      "target": "a12",
+      "verb": "owns",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "org6",
+      "target": "dt4",
+      "verb": "owns",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "org7",
+      "target": "dt5",
+      "verb": "owns",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "org6",
+      "target": "p4",
+      "verb": "performs",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "org7",
+      "target": "p5",
+      "verb": "performs",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "org3",
+      "target": "p6",
+      "verb": "performs",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "dt4",
+      "target": "c6",
+      "verb": "belongs to",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "dt5",
+      "target": "c7",
+      "verb": "belongs to",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "a7",
+      "target": "st5",
+      "verb": "runs on",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "a12",
+      "target": "st5",
+      "verb": "runs on",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "a8",
+      "target": "st2",
+      "verb": "runs on",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "a10",
+      "target": "st1",
+      "verb": "runs on",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 75
+    },
+    {
+      "source": "a11",
+      "target": "st2",
+      "verb": "runs on",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 70
+    },
+    {
+      "source": "a7",
+      "target": "dt3",
+      "verb": "stores",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "a8",
+      "target": "dt2",
+      "verb": "stores",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "a9",
+      "target": "dt4",
+      "verb": "stores",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "a12",
+      "target": "dt5",
+      "verb": "stores",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "st5",
+      "target": "h2",
+      "verb": "runs on",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "i3",
+      "target": "a7",
+      "verb": "implements",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80,
+      "type": "database platform migration"
+    },
+    {
+      "source": "i3",
+      "target": "a12",
+      "verb": "implements",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80,
+      "type": "database platform migration"
+    },
+    {
+      "source": "i3",
+      "target": "o3",
+      "verb": "delivers",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 75
+    },
+    {
+      "source": "d2",
+      "target": "i3",
+      "verb": "justifies",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "d2",
+      "target": "i3",
+      "verb": "approves investment in",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "d2",
+      "target": "st5",
+      "verb": "governs",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "risk4",
+      "target": "a7",
+      "verb": "affects",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 75
+    },
+    {
+      "source": "risk4",
+      "target": "a12",
+      "verb": "affects",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 75
+    },
+    {
+      "source": "risk4",
+      "target": "i3",
+      "verb": "affects",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 65,
+      "type": "programme is the mitigation"
+    },
+    {
+      "source": "ctrl4",
+      "target": "risk4",
+      "verb": "mitigates",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "ctrl4",
+      "target": "st5",
+      "verb": "constrains",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 70
+    },
+    {
+      "source": "org2",
+      "target": "risk4",
+      "verb": "owns",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 70
+    },
+    {
+      "source": "org2",
+      "target": "ctrl4",
+      "verb": "owns",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "org1",
+      "target": "i3",
+      "verb": "funds",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "org6",
+      "target": "c6",
+      "verb": "invests in",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "org7",
+      "target": "c7",
+      "verb": "invests in",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "a7",
+      "target": "c4",
+      "verb": "enables",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "a8",
+      "target": "c1",
+      "verb": "enables",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "a9",
+      "target": "c6",
+      "verb": "enables",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 75
+    },
+    {
+      "source": "a10",
+      "target": "c2",
+      "verb": "enables",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 65
+    },
+    {
+      "source": "a11",
+      "target": "c5",
+      "verb": "enables",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 70
+    },
+    {
+      "source": "a12",
+      "target": "c7",
+      "verb": "enables",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "c6",
+      "target": "p4",
+      "verb": "enables",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "c7",
+      "target": "p5",
+      "verb": "enables",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "c1",
+      "target": "p6",
+      "verb": "enables",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "pr5",
+      "target": "c2",
+      "verb": "realises value through",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 70
+    },
+    {
+      "source": "pr6",
+      "target": "c5",
+      "verb": "realises value through",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 70
+    },
+    {
+      "source": "j1",
+      "target": "js1",
+      "verb": "contains",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "j1",
+      "target": "js2",
+      "verb": "contains",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "j1",
+      "target": "js3",
+      "verb": "contains",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "j1",
+      "target": "js4",
+      "verb": "contains",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "js1",
+      "target": "js2",
+      "verb": "precedes",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "js2",
+      "target": "js3",
+      "verb": "precedes",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "js3",
+      "target": "js4",
+      "verb": "precedes",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "j2",
+      "target": "js5",
+      "verb": "contains",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "j2",
+      "target": "js6",
+      "verb": "contains",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "j2",
+      "target": "js7",
+      "verb": "contains",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "js5",
+      "target": "js6",
+      "verb": "precedes",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "js6",
+      "target": "js7",
+      "verb": "precedes",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "j3",
+      "target": "js8",
+      "verb": "contains",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "j3",
+      "target": "js9",
+      "verb": "contains",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "j3",
+      "target": "js10",
+      "verb": "contains",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "js8",
+      "target": "js9",
+      "verb": "precedes",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "js9",
+      "target": "js10",
+      "verb": "precedes",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "vs1",
+      "target": "vss1",
+      "verb": "contains",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "vs1",
+      "target": "vss2",
+      "verb": "contains",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "vs1",
+      "target": "vss3",
+      "verb": "contains",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "vs1",
+      "target": "vss4",
+      "verb": "contains",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "c3a",
+      "target": "vss1",
+      "verb": "enables",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "c3b",
+      "target": "vss2",
+      "verb": "enables",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "a4",
+      "target": "vss2",
+      "verb": "supports",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "c7",
+      "target": "vss3",
+      "verb": "enables",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "a12",
+      "target": "vss3",
+      "verb": "supports",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "c3c",
+      "target": "vss4",
+      "verb": "enables",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 75
+    },
+    {
+      "source": "a1",
+      "target": "vss4",
+      "verb": "supports",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 75
+    },
+    {
+      "source": "vs1",
+      "target": "s1",
+      "verb": "contributes to",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "c1",
+      "target": "js1",
+      "verb": "enables",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "c1",
+      "target": "js2",
+      "verb": "enables",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "c1",
+      "target": "js3",
+      "verb": "enables",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 95
+    },
+    {
+      "source": "c1",
+      "target": "js4",
+      "verb": "enables",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 95
+    },
+    {
+      "source": "c4",
+      "target": "js5",
+      "verb": "enables",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "c4",
+      "target": "js6",
+      "verb": "enables",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "c4",
+      "target": "js7",
+      "verb": "enables",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "c3",
+      "target": "js8",
+      "verb": "enables",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "c3",
+      "target": "js9",
+      "verb": "enables",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "c3",
+      "target": "js10",
+      "verb": "enables",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 95
+    },
+    {
+      "source": "p2",
+      "target": "js2",
+      "verb": "supports",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "p2",
+      "target": "js3",
+      "verb": "supports",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 95
+    },
+    {
+      "source": "p2",
+      "target": "js4",
+      "verb": "supports",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "p3",
+      "target": "js6",
+      "verb": "supports",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "p3",
+      "target": "js7",
+      "verb": "supports",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "p1",
+      "target": "js9",
+      "verb": "supports",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "p1",
+      "target": "js10",
+      "verb": "supports",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "a8",
+      "target": "p2",
+      "verb": "supports",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "a7",
+      "target": "p3",
+      "verb": "supports",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "a1",
+      "target": "p1",
+      "verb": "supports",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "a2",
+      "target": "p1",
+      "verb": "supports",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 75
+    },
+    {
+      "source": "a4",
+      "target": "p1",
+      "verb": "supports",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "js1",
+      "target": "a2",
+      "verb": "relates to",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 70,
+      "type": "public information and service discovery"
+    },
+    {
+      "source": "js5",
+      "target": "a2",
+      "verb": "relates to",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 70,
+      "type": "membership information and discovery"
+    },
+    {
+      "source": "js8",
+      "target": "a2",
+      "verb": "relates to",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 80,
+      "type": "campaign discovery"
+    },
+    {
+      "source": "js8",
+      "target": "a5",
+      "verb": "relates to",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 75,
+      "type": "campaign engagement measurement"
+    },
+    {
+      "source": "js9",
+      "target": "a1",
+      "verb": "relates to",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 80,
+      "type": "supporter capture"
+    },
+    {
+      "source": "js10",
+      "target": "a4",
+      "verb": "relates to",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 95,
+      "type": "donation payment"
+    },
+    {
+      "source": "a13",
+      "target": "p2",
+      "verb": "supports",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 75,
+      "type": "case intake and triage support"
+    },
+    {
+      "source": "a13",
+      "target": "p2",
+      "verb": "augments",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 70,
+      "type": "human-in-the-loop initial assessment"
+    },
+    {
+      "source": "a13",
+      "target": "c1",
+      "verb": "supports",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 70
+    },
+    {
+      "source": "a13",
+      "target": "js3",
+      "verb": "augments",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 70,
+      "type": "caseworker decision support"
+    },
+    {
+      "source": "a13",
+      "target": "aim1",
+      "verb": "uses",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90,
+      "type": "case assessment and triage"
+    },
+    {
+      "source": "a13",
+      "target": "dt2",
+      "verb": "consumes",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90,
+      "type": "beneficiary case information"
+    },
+    {
+      "source": "a13",
+      "target": "st2",
+      "verb": "runs on",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 85,
+      "type": "model hosting"
+    },
+    {
+      "source": "a14",
+      "target": "p1",
+      "verb": "supports",
+      "criticality": "High",
+      "status": "Planned",
+      "strength": 70,
+      "type": "supporter enquiry and donation guidance"
+    },
+    {
+      "source": "a14",
+      "target": "js8",
+      "verb": "augments",
+      "criticality": "High",
+      "status": "Planned",
+      "strength": 75,
+      "type": "campaign discovery and supporter guidance"
+    },
+    {
+      "source": "a14",
+      "target": "js9",
+      "verb": "augments",
+      "criticality": "High",
+      "status": "Planned",
+      "strength": 75,
+      "type": "donation guidance and form assistance"
+    },
+    {
+      "source": "a14",
+      "target": "c3",
+      "verb": "supports",
+      "criticality": "High",
+      "status": "Planned",
+      "strength": 70
+    },
+    {
+      "source": "a14",
+      "target": "aim2",
+      "verb": "uses",
+      "criticality": "High",
+      "status": "Planned",
+      "strength": 85,
+      "type": "supporter conversation and guidance"
+    },
+    {
+      "source": "a14",
+      "target": "dt1",
+      "verb": "consumes",
+      "criticality": "High",
+      "status": "Planned",
+      "strength": 75,
+      "type": "supporter and donation context"
+    },
+    {
+      "source": "a14",
+      "target": "st2",
+      "verb": "runs on",
+      "criticality": "High",
+      "status": "Planned",
+      "strength": 80,
+      "type": "model hosting"
+    },
+    {
+      "source": "a15",
+      "target": "p3",
+      "verb": "supports",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80,
+      "type": "renewal reminders and member assistance"
+    },
+    {
+      "source": "a15",
+      "target": "p3",
+      "verb": "automates",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 65,
+      "type": "partial automation — routine renewal communications"
+    },
+    {
+      "source": "a15",
+      "target": "c4",
+      "verb": "supports",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 70
+    },
+    {
+      "source": "a15",
+      "target": "js6",
+      "verb": "augments",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 75,
+      "type": "member self-service and renewal assistance"
+    },
+    {
+      "source": "a15",
+      "target": "aim3",
+      "verb": "uses",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 85,
+      "type": "renewal propensity and timing"
+    },
+    {
+      "source": "a15",
+      "target": "dt3",
+      "verb": "consumes",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85,
+      "type": "membership record and renewal context"
+    },
+    {
+      "source": "f1",
+      "target": "fs1",
+      "verb": "contains",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "f1",
+      "target": "fs2",
+      "verb": "contains",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "f1",
+      "target": "fs3",
+      "verb": "contains",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "f1",
+      "target": "fs4",
+      "verb": "contains",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "f1",
+      "target": "fs5",
+      "verb": "contains",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "fs1",
+      "target": "fs2",
+      "verb": "precedes",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "fs2",
+      "target": "fs3",
+      "verb": "precedes",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "fs3",
+      "target": "fs4",
+      "verb": "precedes",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "fs4",
+      "target": "fs5",
+      "verb": "precedes",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "a2",
+      "target": "fs1",
+      "verb": "supports",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 80
+    },
+    {
+      "source": "a1",
+      "target": "fs2",
+      "verb": "supports",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "a8",
+      "target": "fs3",
+      "verb": "supports",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "a8",
+      "target": "fs4",
+      "verb": "supports",
+      "criticality": "Critical",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "a1",
+      "target": "fs5",
+      "verb": "supports",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 75
+    },
+    {
+      "source": "f2",
+      "target": "fs6",
+      "verb": "contains",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "f2",
+      "target": "fs7",
+      "verb": "contains",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "f2",
+      "target": "fs8",
+      "verb": "contains",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "fs6",
+      "target": "fs7",
+      "verb": "precedes",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "fs7",
+      "target": "fs8",
+      "verb": "precedes",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 100
+    },
+    {
+      "source": "st5",
+      "target": "fs6",
+      "verb": "supports",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 90
+    },
+    {
+      "source": "h2",
+      "target": "fs7",
+      "verb": "supports",
+      "criticality": "High",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "a3",
+      "target": "fs8",
+      "verb": "supports",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 85
+    },
+    {
+      "source": "a15",
+      "target": "st1",
+      "verb": "runs on",
+      "criticality": "Medium",
+      "status": "Active",
+      "strength": 75,
+      "type": "model hosting"
+    },
+    {
+      "source": "i6",
+      "target": "a13",
+      "verb": "implements",
+      "criticality": "Critical",
+      "status": "Shelved",
+      "strength": 85,
+      "type": "AI-assisted grant triage pilot"
+    },
+    {
+      "source": "i6",
+      "target": "aim1",
+      "verb": "implements",
+      "criticality": "Critical",
+      "status": "Shelved",
+      "strength": 80,
+      "type": "case assessment model"
+    },
+    {
+      "source": "i6",
+      "target": "c1",
+      "verb": "transforms",
+      "criticality": "High",
+      "status": "Shelved",
+      "strength": 70
+    },
+    {
+      "source": "i6",
+      "target": "p2",
+      "verb": "implements",
+      "criticality": "High",
+      "status": "Shelved",
+      "strength": 75
+    },
+    {
+      "source": "i7",
+      "target": "a14",
+      "verb": "implements",
+      "criticality": "High",
+      "status": "Shelved",
+      "strength": 80,
+      "type": "AI-assisted campaign dashboard and supporter assistant"
+    },
+    {
+      "source": "i7",
+      "target": "aim2",
+      "verb": "implements",
+      "criticality": "High",
+      "status": "Shelved",
+      "strength": 75,
+      "type": "supporter conversation model"
+    },
+    {
+      "source": "i4",
+      "target": "a15",
+      "verb": "implements",
+      "criticality": "High",
+      "status": "Shelved",
+      "strength": 65,
+      "type": "AI-assisted membership pricing and renewal support"
+    },
+    {
+      "source": "i4",
+      "target": "aim3",
+      "verb": "implements",
+      "criticality": "Medium",
+      "status": "Shelved",
+      "strength": 60,
+      "type": "renewal prediction model"
+    }
+  ]
+}
