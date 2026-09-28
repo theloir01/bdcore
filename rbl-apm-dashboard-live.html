@@ -234,7 +234,7 @@ const ROLE_VIEWS = {
   apm: new Set([
     "portfolio", "capboard", "profile", "techradar",
     "blocked", "decisionlog", "dependencies", "dataflow", "redundancy",
-    "health", "renewals", "fieldreview", "ownership", "businessunits",
+    "health", "renewals", "fieldreview", "ownership", "businessunits", "residency",
     "ai", "obsolescence", "cloudmigration", "initiatives",
     "journeytrace", "maturity", "ontology", "help",
   ]),
@@ -426,6 +426,14 @@ const GUIDE_SECTIONS = [
         tips: [
           "Set the Organisation field on a record from Ontology Manager or the Modelling Canvas to have it appear under the right business unit here.",
           "An \"Unassigned\" group collects anything with no Organisation set — a natural checklist for what still needs one.",
+        ] },
+      { key: "residency", label: "Data Residency & Compliance",
+        description: "Where does each application and data asset actually sit, traced through the real HOSTED_AT/RUNS_ON graph rather than assumed — and which regulatory frameworks are commonly associated with that jurisdiction, plus every AI model's own tagged regulatory relevance.",
+        tips: [
+          "The framework list per jurisdiction is a starting-point heuristic, not a legal determination — confirm actual applicability with your DPO or legal counsel before relying on it.",
+          "\"Cross-Border Data Flows\" is the one section that isn't a heuristic — it's read directly off real Interface relationships between applications resolved to different residency zones.",
+          "The EU AI Act isn't in the jurisdiction map on purpose: applicability turns on a model's risk classification and where its output is used, not simply where it's hosted — so it's tracked per AI model via Regulatory Relevance instead.",
+          "\"Residency Unknown\" is a real governance gap, the same as an unowned record elsewhere in Data Trust — set an application's Location from Ontology Manager to resolve it.",
         ] },
     ],
   },
@@ -1678,6 +1686,41 @@ function aiTimeQuadrant({ exposure, entrenchment }) {
   if (!highExp && !highEntrench) return "Modernise Conventionally";
   return "Safe for Now";
 }
+// Data Residency & Compliance: maps a Location's country/zone to the
+// frameworks commonly associated with that jurisdiction. Deliberately a
+// small, hand-maintained, openly-shown table — NOT a legal determination.
+// It's a starting point for "what should we even be asking about," not a
+// substitute for a DPO or counsel confirming actual applicability, which
+// depends on facts this graph doesn't (and shouldn't try to) hold, like
+// whether the data is actually personal data. Matched against BOTH country
+// and data_residency_zone (datasets are inconsistent about which they set),
+// deduped, so a Location only needs one of the two fields populated.
+const RESIDENCY_FRAMEWORK_HINTS = {
+  "United Kingdom": ["UK GDPR", "Data Protection Act 2018"],
+  "UK": ["UK GDPR", "Data Protection Act 2018"],
+  "Ireland": ["EU GDPR"], "Germany": ["EU GDPR"], "France": ["EU GDPR"], "Netherlands": ["EU GDPR"],
+  "Spain": ["EU GDPR"], "Italy": ["EU GDPR"], "Belgium": ["EU GDPR"], "Luxembourg": ["EU GDPR"],
+  "EU": ["EU GDPR"], "EEA": ["EU GDPR"],
+  "United States": ["US state privacy laws (e.g. CCPA/CPRA)"],
+  "US": ["US state privacy laws (e.g. CCPA/CPRA)"],
+  "Singapore": ["Singapore PDPA"],
+  "APAC": ["Local APAC data protection regimes — varies by country (e.g. Singapore PDPA, Australia Privacy Act)"],
+  "Australia": ["Australia Privacy Act"],
+  "Canada": ["PIPEDA"],
+};
+function residencyFrameworksFor(loc) {
+  if (!loc) return [];
+  const hints = new Set();
+  [loc.country, loc.data_residency_zone].forEach((key) => {
+    (RESIDENCY_FRAMEWORK_HINTS[key] || []).forEach((f) => hints.add(f));
+  });
+  return [...hints];
+}
+function residencyZoneLabel(loc) {
+  if (!loc) return "Residency Unknown";
+  return loc.data_residency_zone || loc.country || loc.name || "Residency Unknown";
+}
+
 // a process's AI readiness comes from the quality of the DATA belonging to the
 // same CAPABILITY the process realises, found by traversing two real edges
 // (Process -REALISES-> Capability <-BELONGS_TO- Data), not a hardcoded lookup.
@@ -2488,6 +2531,11 @@ function APMDashboardLive() {
   const [dataFlowLoading, setDataFlowLoading] = useState(false);
   const [dataFlowError, setDataFlowError] = useState("");
   const [dataFlowFocusId, setDataFlowFocusId] = useState(null);
+  const [residencyApps, setResidencyApps] = useState([]);
+  const [residencyFlows, setResidencyFlows] = useState([]);
+  const [residencyAIModels, setResidencyAIModels] = useState([]);
+  const [residencyLoading, setResidencyLoading] = useState(false);
+  const [residencyError, setResidencyError] = useState("");
   const [organisationOptions, setOrganisationOptions] = useState([]); // [{id, name}] — every ref-type attribute today points at Organisation
   const [businessUnitRows, setBusinessUnitRows] = useState([]);
   const [businessUnitsLoading, setBusinessUnitsLoading] = useState(false);
@@ -3125,6 +3173,9 @@ function APMDashboardLive() {
     if (view === "ownership") loadOwnershipCoverage();
   }, [view]);
   useEffect(() => {
+    if (view === "residency") loadResidencyData();
+  }, [view]);
+  useEffect(() => {
     if (view === "auditlog") loadAuditLog();
   }, [view]);
   useEffect(() => {
@@ -3233,6 +3284,50 @@ function APMDashboardLive() {
       setOwnershipStats({});
     } finally {
       setOwnershipLoading(false);
+    }
+  };
+
+  // Same HOSTED_AT/RUNS_ON->HOSTED_AT chain the Application Profile's
+  // Locations field already uses (appLocationRows in fetchData) — but this
+  // returns the full Location properties (data_residency_zone, country), not
+  // just names, since this page needs the zone itself, not a display string.
+  // Cross-border flows deliberately check only DIRECT HOSTED_AT on each side
+  // (not the tech chain) — a simplification worth knowing about, not a bug:
+  // an app one hop further from its hosting location than usual won't show
+  // up in the flow-crossing check, only in the zone rollup above it.
+  const loadResidencyData = async () => {
+    setResidencyLoading(true);
+    try {
+      const apiUrl = deriveQueryApiUrl(uri, dbName);
+      const authHeader = "Basic " + btoa(`${username}:${password}`);
+      const appRows = await runCypher(apiUrl, authHeader,
+        `MATCH (a:Instance:Application)
+         OPTIONAL MATCH (a)-[:HOSTED_AT]->(directLoc:Instance:Location)
+         OPTIONAL MATCH (a)-[:RUNS_ON]->(:Instance)-[:HOSTED_AT]->(techLoc:Instance:Location)
+         WITH a, collect(DISTINCT properties(directLoc)) + collect(DISTINCT properties(techLoc)) AS locs
+         RETURN properties(a) AS app, [l IN locs WHERE l IS NOT NULL] AS locations
+         ORDER BY a.name`
+      );
+      const flowRows = await runCypher(apiUrl, authHeader,
+        `MATCH (provider:Instance:Application)-[:PROVIDES]->(i:Instance:Interface)<-[:USES]-(consumer:Instance:Application)
+         OPTIONAL MATCH (provider)-[:HOSTED_AT]->(pLoc:Instance:Location)
+         OPTIONAL MATCH (consumer)-[:HOSTED_AT]->(cLoc:Instance:Location)
+         RETURN provider.name AS providerName, properties(pLoc) AS providerLoc,
+                consumer.name AS consumerName, properties(cLoc) AS consumerLoc,
+                i.name AS interfaceName`
+      );
+      const aiModelRows = await runCypher(apiUrl, authHeader,
+        `MATCH (m:Instance:AIModel) RETURN properties(m) AS model ORDER BY m.name`
+      );
+      setResidencyApps(appRows.map((r) => ({ ...r.app, locations: r.locations || [] })));
+      setResidencyFlows(flowRows);
+      setResidencyAIModels(aiModelRows.map((r) => r.model));
+      setResidencyError("");
+    } catch (e) {
+      setResidencyError(`Couldn't load residency data: ${e.message}`);
+      setResidencyApps([]); setResidencyFlows([]); setResidencyAIModels([]);
+    } finally {
+      setResidencyLoading(false);
     }
   };
 
@@ -4717,6 +4812,7 @@ function APMDashboardLive() {
     ["fieldreview", "Field Review", "fieldreview"],
     ["ownership", "Ownership Coverage", "ownership"],
     ["businessunits", "Business Units", "businessunits"],
+    ["residency", "Data Residency & Compliance", "residency"],
   ];
   const AI_NAV_ITEMS = [
     ["ai", "Portfolio AI Transformation", "ai"],
@@ -4742,7 +4838,7 @@ function APMDashboardLive() {
   // top level or are reached as a sub-tab, so no group needs opening for them.
   const VIEW_GROUP = {
     blocked: "costrisk", decisionlog: "costrisk", dependencies: "costrisk", dataflow: "costrisk", redundancy: "costrisk",
-    health: "datatrust", renewals: "datatrust", fieldreview: "datatrust", ownership: "datatrust", businessunits: "datatrust",
+    health: "datatrust", renewals: "datatrust", fieldreview: "datatrust", ownership: "datatrust", businessunits: "datatrust", residency: "datatrust",
     ai: "ai",
     obsolescence: "modernisation", cloudmigration: "modernisation", initiatives: "modernisation",
     journeytrace: "journeys", maturity: "journeys",
@@ -4815,6 +4911,7 @@ function APMDashboardLive() {
     auditlog: <svg {...ICON_COMMON}><rect x="3" y="3" width="14" height="18" rx="2" /><line x1="6.5" y1="7.5" x2="13.5" y2="7.5" /><line x1="6.5" y1="11" x2="13.5" y2="11" /><line x1="6.5" y1="14.5" x2="10.5" y2="14.5" /><circle cx="17.5" cy="17.5" r="4.2" /><line x1="17.5" y1="15.3" x2="17.5" y2="17.5" /><line x1="17.5" y1="17.5" x2="19" y2="18.5" /></svg>,
     dataload: <svg {...ICON_COMMON}><path d="M12 3v12" /><polyline points="7.5,10.5 12,15 16.5,10.5" /><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" /></svg>,
     admin: <svg {...ICON_COMMON}><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /><circle cx="12" cy="15.5" r="1.3" fill="currentColor" stroke="none" /></svg>,
+    residency: <svg {...ICON_COMMON}><circle cx="12" cy="12" r="9" /><ellipse cx="12" cy="12" rx="4" ry="9" /><line x1="3" y1="12" x2="21" y2="12" /><path d="M5 7.5c1.8 1.2 4.3 2 7 2s5.2-.8 7-2M5 16.5c1.8-1.2 4.3-2 7-2s5.2.8 7 2" /></svg>,
     initiatives: <svg {...ICON_COMMON}><rect x="3" y="5" width="11" height="3.2" rx="1" /><rect x="8" y="11" width="13" height="3.2" rx="1" /><rect x="5" y="17" width="9" height="3.2" rx="1" /></svg>,
     dataflow: <svg {...ICON_COMMON}><rect x="2" y="9" width="6" height="6" rx="1.2" /><rect x="16" y="2" width="6" height="6" rx="1.2" /><rect x="16" y="16" width="6" height="6" rx="1.2" /><path d="M8 11l7.5 -6M8 13l7.5 6" /></svg>,
     valuedelivered: <svg {...ICON_COMMON}><path d="M3 19h18" /><path d="M4 15.5 L9 10 L13 13.5 L20 6" /><path d="M15 6h5v5" /></svg>,
@@ -6398,6 +6495,7 @@ function APMDashboardLive() {
     redundancy: "Redundancy", ai: "Portfolio AI Transformation",
     obsolescence: "Tech Obsolescence", cloudmigration: "Cloud Migration", techradar: "Tech Radar",
     fieldreview: "Field Review", ontology: "Ontology Manager", ownership: "Ownership Coverage", renewals: "Renewals & Reviews", auditlog: "Audit Log", dataload: "Load Demo Dataset",
+    residency: "Data Residency & Compliance",
     initiatives: "Initiatives Roadmap", dataflow: "Data Flow", businessunits: "Business Units",
     valuedelivered: "Value Delivered",
     journeytrace: "Journey Trace", maturity: "Capability Maturity", decisionlog: "Decision Log",
@@ -8923,6 +9021,185 @@ function APMDashboardLive() {
                           </div>
                         );
                       })}
+                    </div>
+                  </>
+                )}
+              </div>
+            );
+          })()}
+          {view === "residency" && (() => {
+            const cardStyle = { background: COLORS.card, border: `1px solid ${COLORS.border}`,
+              boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", padding: "16px 18px", borderRadius: 18 };
+            const frameworkChip = (f, key) => (
+              <span key={key || f} style={{ background: `${COLORS.info}18`, color: COLORS.info, padding: "2px 9px",
+                borderRadius: 8, fontSize: 10.5, fontWeight: 700, marginRight: 4, marginBottom: 4, display: "inline-block" }}>
+                {f}
+              </span>
+            );
+
+            const appsWithZone = residencyApps.map((app) => {
+              const zoneLabels = [...new Set(app.locations.map(residencyZoneLabel))];
+              const zone = zoneLabels.length === 0 ? "Residency Unknown" : zoneLabels.length > 1 ? "Multiple Zones" : zoneLabels[0];
+              const frameworks = [...new Set(app.locations.flatMap(residencyFrameworksFor))];
+              return { ...app, zone, frameworks };
+            });
+            const byZone = {};
+            appsWithZone.forEach((app) => {
+              if (!byZone[app.zone]) byZone[app.zone] = { zone: app.zone, apps: [], frameworks: new Set() };
+              byZone[app.zone].apps.push(app);
+              app.frameworks.forEach((f) => byZone[app.zone].frameworks.add(f));
+            });
+            const zoneGroups = Object.values(byZone).sort((a, b) => {
+              if (a.zone === "Residency Unknown") return 1;
+              if (b.zone === "Residency Unknown") return -1;
+              return b.apps.length - a.apps.length;
+            });
+            const unresolvedApps = appsWithZone.filter((a) => a.zone === "Residency Unknown");
+            const crossBorderFlows = residencyFlows.filter((f) => {
+              const pZone = residencyZoneLabel(f.providerLoc);
+              const cZone = residencyZoneLabel(f.consumerLoc);
+              return pZone !== "Residency Unknown" && cZone !== "Residency Unknown" && pZone !== cZone;
+            });
+            const riskColor = (level) => level === "Critical" || level === "High" ? COLORS.risk
+              : level === "Medium" ? COLORS.warning : level === "Low" ? COLORS.accent : COLORS.inkSecondary;
+
+            return (
+              <div>
+                <div className="ds-card" style={{ ...cardStyle, marginBottom: 20, maxWidth: 900 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 6 }}>What is this page?</div>
+                  <div style={{ fontSize: 13, color: COLORS.inkSecondary, lineHeight: 1.6 }}>
+                    Where every application actually sits, traced through the real hosting graph — and which cross-border
+                    data flows carry data between jurisdictions — plus the frameworks commonly associated with each
+                    jurisdiction, and each AI model's own tagged regulatory relevance.
+                  </div>
+                  <div style={{ fontSize: 12, color: COLORS.inkSecondary, marginTop: 10, lineHeight: 1.6 }}>
+                    <b>One honest limitation:</b> the framework list per jurisdiction is a starting-point heuristic,
+                    not a legal determination — confirm actual applicability with your DPO or legal counsel. The EU AI
+                    Act isn't in that map on purpose: applicability turns on a model's risk classification and where
+                    its output is used, not simply where it's hosted, so it's tracked per AI model below instead.
+                  </div>
+                </div>
+
+                {residencyError && <div style={{ fontSize: 13, color: COLORS.risk, marginBottom: 16 }}>{residencyError}</div>}
+                {residencyLoading ? (
+                  <div style={{ fontSize: 13, color: COLORS.inkSecondary }}>Loading…</div>
+                ) : (
+                  <>
+                    <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(zoneGroups.length || 1, 4)}, 1fr)`, gap: 16, marginBottom: 24 }}>
+                      {zoneGroups.map((g) => (
+                        <div key={g.zone} className="ds-card" style={{ ...cardStyle,
+                          border: g.zone === "Residency Unknown" ? `1px solid ${COLORS.riskMuted}` : cardStyle.border }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                            <span style={{ color: g.zone === "Residency Unknown" ? COLORS.risk : CONCEPT_TYPE_STYLE.Location.color }}>{ICONS.residency}</span>
+                            <div style={{ fontSize: 14, fontWeight: 700, color: g.zone === "Residency Unknown" ? COLORS.risk : COLORS.ink }}>{g.zone}</div>
+                          </div>
+                          <div style={{ fontSize: 22, fontWeight: 600 }}>{g.apps.length}</div>
+                          <div style={{ fontSize: 11.5, color: COLORS.inkSecondary, marginBottom: 8 }}>application{g.apps.length === 1 ? "" : "s"}</div>
+                          {[...g.frameworks].length > 0 && <div>{[...g.frameworks].map((f) => frameworkChip(f))}</div>}
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 18, overflow: "hidden", marginBottom: 24 }}>
+                      <div style={{ padding: "16px 18px 4px", fontSize: 15, fontWeight: 600 }}>Applications by Residency Zone</div>
+                      <SortableTable
+                        rowKey={(a) => a.id}
+                        defaultSort={{ key: "zone", dir: "asc" }}
+                        emptyMessage="No applications found."
+                        columns={[
+                          { key: "name", label: "Application", render: (a) => (
+                              <span onClick={() => { setProfileAppId(a.id); setView("profile"); }}
+                                style={{ cursor: "pointer", fontWeight: 600, color: COLORS.ink }}>{a.name}</span>
+                            ) },
+                          { key: "zone", label: "Zone", chip: true, render: (a) => (
+                              <span style={{ background: a.zone === "Residency Unknown" ? `${COLORS.risk}18` : `${CONCEPT_TYPE_STYLE.Location.color}18`,
+                                color: a.zone === "Residency Unknown" ? COLORS.risk : CONCEPT_TYPE_STYLE.Location.color,
+                                padding: "2px 9px", borderRadius: 8, fontSize: 11, fontWeight: 700 }}>{a.zone}</span>
+                            ) },
+                          { key: "locations", label: "Location(s)", sortValue: (a) => a.locations.length,
+                            render: (a) => a.locations.length === 0 ? "—" : a.locations.map((l) => l.name).join(", ") },
+                          { key: "frameworks", label: "Frameworks", sortValue: (a) => a.frameworks.length,
+                            render: (a) => a.frameworks.length === 0 ? "—" : a.frameworks.map((f, i) => frameworkChip(f, i)) },
+                          { key: "criticality", label: "Criticality", chip: true },
+                        ]}
+                        rows={appsWithZone}
+                      />
+                    </div>
+
+                    <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 18, overflow: "hidden", marginBottom: 24 }}>
+                      <div style={{ padding: "16px 18px 4px" }}>
+                        <div style={{ fontSize: 15, fontWeight: 600 }}>Cross-Border Data Flows</div>
+                        <div style={{ fontSize: 12, color: COLORS.inkSecondary, marginTop: 4, marginBottom: 8 }}>
+                          Not a heuristic — read directly off real Interface relationships where the provider and
+                          consumer application resolve to different residency zones.
+                        </div>
+                      </div>
+                      {crossBorderFlows.length === 0 ? (
+                        <div style={{ padding: "0 18px 16px", fontSize: 12.5, color: COLORS.inkSecondary }}>
+                          No cross-zone data flows detected among the interfaces currently in the graph.
+                        </div>
+                      ) : (
+                        <SortableTable
+                          rowKey={(f) => `${f.providerName}-${f.interfaceName}-${f.consumerName}`}
+                          emptyMessage="No cross-border flows."
+                          columns={[
+                            { key: "providerName", label: "Provider", render: (f) => (
+                                <span>{f.providerName} <span style={{ color: COLORS.risk, fontWeight: 700, fontSize: 11 }}>({residencyZoneLabel(f.providerLoc)})</span></span>
+                              ) },
+                            { key: "interfaceName", label: "Interface" },
+                            { key: "consumerName", label: "Consumer", render: (f) => (
+                                <span>{f.consumerName} <span style={{ color: COLORS.risk, fontWeight: 700, fontSize: 11 }}>({residencyZoneLabel(f.consumerLoc)})</span></span>
+                              ) },
+                          ]}
+                          rows={crossBorderFlows}
+                        />
+                      )}
+                    </div>
+
+                    {unresolvedApps.length > 0 && (
+                      <div className="ds-card" style={{ background: "#FBE0D8", border: `1px solid ${COLORS.riskMuted}`, borderRadius: 14, padding: "14px 18px", marginBottom: 24 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: COLORS.risk }}>
+                          {unresolvedApps.length} application{unresolvedApps.length === 1 ? "" : "s"} with residency unknown
+                        </div>
+                        <div style={{ fontSize: 12, color: COLORS.risk, marginTop: 3, marginBottom: 10 }}>
+                          No Location resolves via Hosted At or Runs On — same kind of gap as an unowned record. Set a
+                          Location from Ontology Manager to close it.
+                        </div>
+                        <button onClick={() => { setOmSelectedType("Application"); loadOmInstances("Application"); setView("ontology"); }}
+                          style={{ padding: "6px 12px", background: "#fff", color: COLORS.risk,
+                            border: `1px solid ${COLORS.riskMuted}`, borderRadius: 8, fontSize: 11.5, cursor: "pointer" }}>
+                          Review Applications in Ontology Manager →
+                        </button>
+                      </div>
+                    )}
+
+                    <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 18, overflow: "hidden" }}>
+                      <div style={{ padding: "16px 18px 4px" }}>
+                        <div style={{ fontSize: 15, fontWeight: 600 }}>AI Model Regulatory Relevance</div>
+                        <div style={{ fontSize: 12, color: COLORS.inkSecondary, marginTop: 4, marginBottom: 8 }}>
+                          Tagged directly against each model, not derived from location — this is where the EU AI Act
+                          (and any sector-specific regime) belongs, since applicability depends on the model's own risk
+                          classification and use case.
+                        </div>
+                      </div>
+                      <SortableTable
+                        rowKey={(m) => m.id}
+                        emptyMessage="No AI models in the graph yet."
+                        columns={[
+                          { key: "name", label: "Model" },
+                          { key: "risk_level", label: "Risk Level", chip: true, render: (m) => (
+                              <span style={{ background: `${riskColor(m.risk_level)}18`, color: riskColor(m.risk_level),
+                                padding: "2px 9px", borderRadius: 8, fontSize: 11, fontWeight: 700 }}>{m.risk_level || "—"}</span>
+                            ) },
+                          { key: "human_oversight", label: "Human Oversight", chip: true },
+                          { key: "explainability", label: "Explainability", chip: true },
+                          { key: "regulatory_relevance", label: "Regulatory Relevance",
+                            sortValue: (m) => (m.regulatory_relevance || []).length,
+                            render: (m) => !m.regulatory_relevance || m.regulatory_relevance.length === 0 ? "—"
+                              : m.regulatory_relevance.map((f, i) => frameworkChip(f, i)) },
+                        ]}
+                        rows={residencyAIModels}
+                      />
                     </div>
                   </>
                 )}
