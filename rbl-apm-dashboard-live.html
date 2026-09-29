@@ -447,6 +447,7 @@ const GUIDE_SECTIONS = [
           "The \"Recommended for AI innovation\" panel is a ranked top 3, not an opinion — genuinely high on both business Importance and the readiness rollup, the same bar as the Applications sub-tab's Accelerate quadrant, one level up. Each entry's Why and How are read straight off that capability's own dimensions, tools, initiatives, and gaps.",
           "None of the four dimension scores are computed from scratch — each rolls up attributes already elsewhere in this tool (capability maturity, process AI readiness, data quality, application AI readiness), normalised onto one 0-100 scale. A dash means no signal exists yet, not a zero.",
           "Click a capability card to open \"What happens if we transform this with AI?\" — initiatives already targeting it (check for overlap before starting a new one), AI models already usable via its applications or data, what's missing, and the applications/processes/data it would touch.",
+          "The PACE filter (\"Show only capabilities with a PACE-ready process\") is a sharper, task-level screen underneath the capability-wide readiness rollup — Predictable, Abundant, Context-light, Easy to check, scored per process. A capability's readiness and its best process's PACE score can disagree on purpose; open a capability's drill-in for the per-process breakdown.",
           "\"By Application\" is the original per-application Readiness vs. Relevance decision framework (Accelerate/Selective/Prepare/Deprioritize) — still there, still the place to set or review an individual application's own AI Readiness and Relevance from Ontology Manager. It has its own ranked \"Recommended — Accelerate\" panel too, same why/how treatment, one level down.",
         ] },
     ],
@@ -1826,6 +1827,52 @@ function aiTimeQuadrant({ exposure, entrenchment }) {
   if (!highExp && !highEntrench) return "Modernise Conventionally";
   return "Safe for Now";
 }
+// Normalises 1-5 CMMI maturity strings onto a 0-100 scale — module-level
+// since both the capability AI-readiness rollup and PACE (below) need it.
+const AI_MATURITY_SCALE = {
+  "1 - Initial": 20, "2 - Managed": 40, "3 - Defined": 60, "4 - Quantitative": 80, "5 - Optimizing": 100,
+};
+
+// AI PACE (Predictable, Abundant, Context-light, Easy to check — the
+// adoption-screening framework popularised by Jeff Nelson): a sharper,
+// task-level filter than the capability-wide readiness rollup above.
+// Readiness asks "is this capability generally AI-ready"; PACE asks "is this
+// SPECIFIC process a safe candidate" — the two can disagree, and that
+// disagreement is the point (a low-readiness capability can still contain
+// one PACE-strong process worth starting with, and vice versa).
+//
+// Predictable and Abundant come from the process's own fields — a process
+// already partially/fully automated has a proven, rule-based pattern
+// (Predictable), and how often it runs is a direct proxy for how much
+// volume there is to learn from or apply automation to (Abundant).
+//
+// Context-light and Easy-to-check aren't things a process record states
+// about itself — they're really properties of how well the CAPABILITY
+// around it has externalised its own knowledge, so they're read from the
+// realising capability's own maturity dimensions: People Maturity (has the
+// tacit knowledge been formalised, or does it still live in someone's
+// head?) and Metrics Maturity (is there already a defined, measured way to
+// tell right from wrong, or would checking AI's output require inventing
+// one first?).
+//
+// A dimension with no underlying signal stays null, same convention as the
+// readiness rollup — "not yet assessed" is a different claim from "fails
+// this test," and collapsing them would misrepresent a data gap as a risk.
+const PACE_AUTOMATION_LEVEL_SCORE = { Full: 100, Partial: 55, Manual: 20 };
+const PACE_FREQUENCY_SCORE = { Daily: 100, Weekly: 65, Monthly: 35 };
+const PACE_PASS_THRESHOLD = 60;
+function computePACE(process, capability) {
+  const dims = {
+    predictable: PACE_AUTOMATION_LEVEL_SCORE[process.automation_level] ?? null,
+    abundant: PACE_FREQUENCY_SCORE[process.frequency] ?? null,
+    contextLight: capability ? (AI_MATURITY_SCALE[capability.maturity.people] ?? null) : null,
+    easyToCheck: capability ? (AI_MATURITY_SCALE[capability.maturity.metrics] ?? null) : null,
+  };
+  const assessed = Object.values(dims).filter((v) => v != null);
+  const passCount = assessed.filter((v) => v >= PACE_PASS_THRESHOLD).length;
+  const score = assessed.length ? assessed.reduce((s, v) => s + v, 0) / assessed.length : null;
+  return { dims, score, passCount, assessedCount: assessed.length };
+}
 // Data Residency & Compliance: maps a Location's country/zone to the
 // frameworks commonly associated with that jurisdiction. Deliberately a
 // small, hand-maintained, openly-shown table — NOT a legal determination.
@@ -2325,6 +2372,41 @@ function AITransformModal({ cap, onClose, onOpenOntology }) {
               </div>
             </div>
           </div>
+
+          {cap.processes.length > 0 && (
+            <div style={{ ...panelStyle, marginBottom: 22 }}>
+              {panelHead("Process AI candidates — PACE screen", cap.paceStrongCount || null)}
+              <div style={{ fontSize: 11.5, color: COLORS.inkSecondary, marginBottom: 12, lineHeight: 1.5 }}>
+                Predictable · Abundant · Context-light · Easy to check — each dot below is one dimension passing
+                (≥60). Four filled dots means this specific process, not just the capability, is a safe place to start.
+              </div>
+              {cap.processes.map((p) => {
+                const dimOrder = [["predictable", "Predictable"], ["abundant", "Abundant"], ["contextLight", "Context-light"], ["easyToCheck", "Easy to check"]];
+                return (
+                  <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+                    padding: "8px 0", borderTop: `1px solid ${COLORS.border}` }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 12.5, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</div>
+                      <div style={{ fontSize: 11, color: COLORS.inkSecondary, marginTop: 1 }}>
+                        {p.pace.assessedCount === 0 ? "No PACE signal yet" : `${p.pace.passCount} of ${p.pace.assessedCount} assessed dimension${p.pace.assessedCount === 1 ? "" : "s"} pass`}
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                      {dimOrder.map(([key, label]) => {
+                        const v = p.pace.dims[key];
+                        const color = v == null ? COLORS.border : v >= PACE_PASS_THRESHOLD ? COLORS.accent : COLORS.risk;
+                        return (
+                          <span key={key} title={`${label}: ${v == null ? "not assessed" : v >= PACE_PASS_THRESHOLD ? "pass" : "fail"}`}
+                            style={{ width: 10, height: 10, borderRadius: "50%", background: color, display: "inline-block",
+                              border: v == null ? `1px solid ${COLORS.inkSecondary}` : "none" }} />
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
           <div style={{ display: "flex", justifyContent: "flex-end" }}>
             <span onClick={onOpenOntology} style={{ fontSize: 12.5, color: COLORS.accent, fontWeight: 600, cursor: "pointer" }}>
@@ -4219,6 +4301,7 @@ function APMDashboardLive() {
   // (the original AI Pathfinder chart) that now sits one level down, feeding
   // the Technology dimension of the capability rollup above it.
   const [aiSubTab, setAiSubTab] = useState("capability");
+  const [paceFilterOnly, setPaceFilterOnly] = useState(false);
   const [aiTransformLoading, setAiTransformLoading] = useState(false);
   const [aiTransformError, setAiTransformError] = useState("");
   // capId -> { processes, appIds, dataAssets, ownerOrgName }
@@ -4287,16 +4370,14 @@ function APMDashboardLive() {
     }
   };
 
-  // Normalises assorted enum scales (1-5 CMMI maturity strings, 3-level
-  // Low/Medium/High, 5-level process readiness, 3-level data quality) onto one
-  // comparable 0-100 scale per dimension, so People/Process/Data/Technology
-  // can sit side by side even though none of these attributes were designed
-  // to share a scale. A dimension with no underlying signal stays null —
-  // "not yet assessed" is a different claim from "assessed as poor," and
-  // collapsing them to the same score would misrepresent real gaps as scores.
-  const AI_MATURITY_SCALE = {
-    "1 - Initial": 20, "2 - Managed": 40, "3 - Defined": 60, "4 - Quantitative": 80, "5 - Optimizing": 100,
-  };
+  // Normalises assorted enum scales (3-level Low/Medium/High, 5-level process
+  // readiness, 3-level data quality) onto one comparable 0-100 scale per
+  // dimension, so People/Process/Data/Technology can sit side by side even
+  // though none of these attributes were designed to share a scale.
+  // AI_MATURITY_SCALE (1-5 CMMI strings) is module-level — PACE needs it too.
+  // A dimension with no underlying signal stays null — "not yet assessed" is
+  // a different claim from "assessed as poor," and collapsing them to the
+  // same score would misrepresent real gaps as scores.
   const AI_PROCESS_READINESS_SCALE = { Blocked: 0, Emerging: 25, Ready: 50, Pilot: 75, Operational: 100 };
   const AI_LEVEL3_SCALE = { Low: 33, Medium: 66, High: 100 };
   const AI_DATA_QUALITY_SCALE = { Poor: 33, Adequate: 66, High: 100 };
@@ -4347,11 +4428,18 @@ function APMDashboardLive() {
       ];
       const tools = [...new Map(toolsRaw.map((m) => [m.id, m])).values()];
 
+      // PACE is computed per process (against this capability's own maturity —
+      // see computePACE) rather than once per capability, since the whole
+      // point is that two processes realising the same capability can score
+      // very differently on it.
+      const processesWithPace = detail.processes.filter(Boolean).map((p) => ({ ...p, pace: computePACE(p, cap) }));
+      const paceStrongCount = processesWithPace.filter((p) => p.pace.passCount === 4).length;
+
       return {
         id: cap.id, name: cap.capability, importance: cap.importance, count: cap.count,
         maturity: cap.maturity, ownerOrgName: detail.ownerOrgName,
         dims, readinessScore, relevanceScore,
-        apps: capApps, processes: detail.processes.filter(Boolean), dataAssets, initiatives, tools, gaps,
+        apps: capApps, processes: processesWithPace, paceStrongCount, dataAssets, initiatives, tools, gaps,
       };
     });
   }, [capCoverage, aiCapDetail, aiCapInitiatives, apps, aiModelsByAppId, aiModelsByDataId]);
@@ -8318,40 +8406,81 @@ function APMDashboardLive() {
                   </div>
                 )}
 
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`,
+                  boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18,
+                  padding: "18px 22px", marginBottom: 24 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 6 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 600 }}>PACE — a sharper filter, one level down</div>
+                    <label style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, fontWeight: 600,
+                      color: paceFilterOnly ? COLORS.accent : COLORS.inkSecondary, cursor: "pointer" }}>
+                      <input type="checkbox" checked={paceFilterOnly} onChange={(e) => setPaceFilterOnly(e.target.checked)} />
+                      Show only capabilities with a PACE-ready process
+                    </label>
+                  </div>
+                  <div style={{ fontSize: 13, color: COLORS.inkSecondary, lineHeight: 1.6 }}>
+                    Readiness above asks whether a <i>capability</i> is generally AI-ready. PACE asks something
+                    narrower and sharper: is this <i>specific process</i> a safe AI candidate — <b>P</b>redictable
+                    (already at least partly automated), <b>A</b>bundant (runs often enough to be worth it),{" "}
+                    <b>C</b>ontext-light (the capability's own People Maturity says the knowledge is documented, not
+                    tacit), and <b>E</b>asy to check (the capability's own Metrics Maturity means there's already a
+                    defined way to tell right from wrong). The two scores can disagree — a low-readiness capability
+                    can still hide one PACE-strong process worth starting with, and a high-readiness one can turn out
+                    to have none. Per-process detail is on each capability's own drill-in.
+                  </div>
+                </div>
+
                 {aiTransformLoading ? (
                   <div style={{ fontSize: 13, color: COLORS.inkSecondary }}>Loading…</div>
-                ) : sortedCapabilityAIProfiles.length === 0 ? (
-                  <div style={{ fontSize: 13, color: COLORS.inkSecondary }}>No capabilities found in the graph yet.</div>
-                ) : (
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(270px, 1fr))", gap: 16 }}>
-                    {sortedCapabilityAIProfiles.map((cap) => (
-                      <div key={cap.id} onClick={() => setAiTransformModalCapId(cap.id)} className="ds-card"
-                        style={{ cursor: "pointer", background: COLORS.card, border: `1px solid ${COLORS.border}`,
-                          boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 16, padding: 18 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 12 }}>
-                          <div style={{ fontSize: 14, fontWeight: 600 }}>{cap.name}</div>
-                          {cap.importance && (
-                            <div style={{ flexShrink: 0, textAlign: "right" }} title="Business Importance — a general rating, not an AI score. See 'How is this scored?' above.">
-                              <div style={{ fontSize: 9, fontWeight: 700, color: COLORS.inkSecondary, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 2 }}>
-                                Importance
+                ) : (() => {
+                  const paceFiltered = paceFilterOnly
+                    ? sortedCapabilityAIProfiles.filter((c) => c.paceStrongCount > 0)
+                    : sortedCapabilityAIProfiles;
+                  if (paceFiltered.length === 0) {
+                    return (
+                      <div style={{ fontSize: 13, color: COLORS.inkSecondary }}>
+                        {paceFilterOnly
+                          ? "No capability currently has a process that's Predictable, Abundant, Context-light, and Easy to check all at once — turn the filter off to see every capability, or open one to see where its processes fall short."
+                          : "No capabilities found in the graph yet."}
+                      </div>
+                    );
+                  }
+                  return (
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(270px, 1fr))", gap: 16 }}>
+                      {paceFiltered.map((cap) => (
+                        <div key={cap.id} onClick={() => setAiTransformModalCapId(cap.id)} className="ds-card"
+                          style={{ cursor: "pointer", background: COLORS.card, border: `1px solid ${COLORS.border}`,
+                            boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 16, padding: 18 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 12 }}>
+                            <div style={{ fontSize: 14, fontWeight: 600 }}>{cap.name}</div>
+                            {cap.importance && (
+                              <div style={{ flexShrink: 0, textAlign: "right" }} title="Business Importance — a general rating, not an AI score. See 'How is this scored?' above.">
+                                <div style={{ fontSize: 9, fontWeight: 700, color: COLORS.inkSecondary, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 2 }}>
+                                  Importance
+                                </div>
+                                <span style={{ fontSize: 10.5, fontWeight: 700, color: "#fff",
+                                  background: IMPORTANCE_BADGE[cap.importance] || COLORS.inkSecondary, padding: "2px 8px", borderRadius: 8 }}>
+                                  {cap.importance}
+                                </span>
                               </div>
-                              <span style={{ fontSize: 10.5, fontWeight: 700, color: "#fff",
-                                background: IMPORTANCE_BADGE[cap.importance] || COLORS.inkSecondary, padding: "2px 8px", borderRadius: 8 }}>
-                                {cap.importance}
-                              </span>
+                            )}
+                          </div>
+                          {Object.keys(DIM_LABEL).map((key) => miniBar(key, cap.dims[key]))}
+                          <div style={{ display: "flex", gap: 10, marginTop: 10, fontSize: 11, color: COLORS.inkSecondary, flexWrap: "wrap" }}>
+                            {cap.gaps.length > 0 && <span>{cap.gaps.length} gap{cap.gaps.length === 1 ? "" : "s"} to close</span>}
+                            {cap.initiatives.length > 0 && <span>{cap.initiatives.length} initiative{cap.initiatives.length === 1 ? "" : "s"} in motion</span>}
+                            {cap.tools.length > 0 && <span>{cap.tools.length} tool{cap.tools.length === 1 ? "" : "s"} available</span>}
+                          </div>
+                          {cap.paceStrongCount > 0 && (
+                            <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${COLORS.border}`,
+                              fontSize: 11, fontWeight: 700, color: COLORS.accent }}>
+                              ⚡ {cap.paceStrongCount} PACE-ready process{cap.paceStrongCount === 1 ? "" : "es"}
                             </div>
                           )}
                         </div>
-                        {Object.keys(DIM_LABEL).map((key) => miniBar(key, cap.dims[key]))}
-                        <div style={{ display: "flex", gap: 10, marginTop: 10, fontSize: 11, color: COLORS.inkSecondary, flexWrap: "wrap" }}>
-                          {cap.gaps.length > 0 && <span>{cap.gaps.length} gap{cap.gaps.length === 1 ? "" : "s"} to close</span>}
-                          {cap.initiatives.length > 0 && <span>{cap.initiatives.length} initiative{cap.initiatives.length === 1 ? "" : "s"} in motion</span>}
-                          {cap.tools.length > 0 && <span>{cap.tools.length} tool{cap.tools.length === 1 ? "" : "s"} available</span>}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
             );
 
