@@ -198,15 +198,34 @@ const filterChipStyle = {
 };
 const filterChipCloseStyle = { cursor: "pointer", color: COLORS.inkSecondary, fontSize: 10 };
 
-// White-label config — persisted in localStorage like the Neo4j credentials.
-// Only `primary`/`accent` actually re-theme the app (they map onto
-// Customer identity — name and logo only. Set from the Load Demo Dataset
-// admin page (not a separate branding settings screen) so identity swaps
-// together with the customer's data, and persisted as a BrandConfig node in
-// Neo4j (not localStorage) so it's shared across whoever connects to this
-// graph rather than stuck on one browser. Falls back to this generic default
-// before any customer name has ever been set.
-const DEFAULT_BRAND = { name: "Your Organisation", logo: null };
+// Customer identity — name, logo, and accent color scheme. Set from the Load
+// Demo Dataset admin page (not a separate branding settings screen) so
+// identity swaps together with the customer's data, and persisted as a
+// BrandConfig node in Neo4j (not localStorage) so it's shared across whoever
+// connects to this graph rather than stuck on one browser. Falls back to this
+// generic default before any customer name has ever been set.
+const DEFAULT_BRAND = { name: "Your Organisation", logo: null, accentKey: "emerald" };
+
+// Curated accent color schemes — deliberately NOT a free color picker. This
+// app leans on color for meaning (risk=red, warning=amber, info=blue) and for
+// distinguishing ~20 concept types by hue; letting an admin pick an arbitrary
+// hex risks a customer's "brand color" landing on or near one of those and
+// quietly breaking that meaning, or just being too light/desaturated to read
+// as an accent against the fixed paper/card/border colors. Every preset here
+// is pre-checked to sit clearly away from risk/warning/info in hue, and dark
+// and saturated enough that white text stays legible on top of it. `ink`
+// (body text) and the semantic/concept-type colors are never themeable at
+// all — only the accent, which is what actually reads as "brand" day to day
+// (nav highlights, buttons, badges) without touching readability or meaning.
+const ACCENT_PRESETS = {
+  emerald: { label: "Emerald", accent: "#0EA968", accentBright: "#22D3A6", accentMuted: "#6FD3A8", glow: "rgba(14,169,104,0.35)" },
+  ocean: { label: "Ocean", accent: "#2563EB", accentBright: "#60A5FA", accentMuted: "#93C5FD", glow: "rgba(37,99,235,0.35)" },
+  indigo: { label: "Indigo", accent: "#4F46E5", accentBright: "#818CF8", accentMuted: "#A5B4FC", glow: "rgba(79,70,229,0.35)" },
+  violet: { label: "Violet", accent: "#7C3AED", accentBright: "#A78BFA", accentMuted: "#C4B5FD", glow: "rgba(124,58,237,0.35)" },
+  teal: { label: "Teal", accent: "#0D9488", accentBright: "#2DD4BF", accentMuted: "#5EEAD4", glow: "rgba(13,148,136,0.35)" },
+  cyan: { label: "Cyan", accent: "#0891B2", accentBright: "#22D3EE", accentMuted: "#67E8F9", glow: "rgba(8,145,178,0.35)" },
+};
+function accentPresetFor(key) { return ACCENT_PRESETS[key] || ACCENT_PRESETS.emerald; }
 
 // Simple client-side role gate — NOT real access control. There is no
 // backend server: the browser already holds full Neo4j credentials
@@ -523,7 +542,9 @@ const GUIDE_SECTIONS = [
         description: "Admin-only, under Admin in the sidebar: swaps the entire instance layer — every Application, Capability, Initiative, and every other real record — for a different customer's demo data, in one upload. The schema itself doesn't change, so every view keeps working against the new data untouched.",
         tips: [
           "Upload a JSON file shaped like { dataset_name, nodes: [...], relationships: [...] } — download the template from this page for the exact shape and a worked example.",
-          "Set the customer name and logo shown across the site here too, so the whole demo — not just the underlying data — matches whichever customer you're presenting. Leave the name blank to keep the current one.",
+          "Set the customer name, logo, and accent color scheme shown across the site here too, so the whole demo — not just the underlying data — matches whichever customer you're presenting. Leave the name blank to keep the current one.",
+          "\"Save Branding\" applies the name/logo/color scheme immediately, without touching instance data — no destructive confirmation needed. They're also bundled automatically into a full data replace if you do one, so you don't have to set them twice.",
+          "Color scheme is a fixed set of pre-checked accent colors, not a free color picker — deliberately, so a customer's brand color can't collide with the fixed risk/warning/info colors or the ~20 concept-type colors used elsewhere in the app.",
           "This is destructive: every existing instance record is permanently deleted first, then replaced. Workspaces, Canvases, and the Audit Log itself are not touched.",
           "The file is validated and previewed — counts by concept type, and any errors — before anything is deleted, so a malformed file is caught before it costs you the current dataset.",
           "You'll be asked to type DELETE to confirm before the swap runs — there's no undo from inside the app once it starts.",
@@ -2638,6 +2659,30 @@ function APMDashboardLive() {
   // since which customer's data this graph holds isn't known yet.
   const [brand, setBrand] = useState(DEFAULT_BRAND);
   useEffect(() => { document.title = `${brand.name} — Application Portfolio`; }, [brand.name]);
+
+  // Applies the chosen accent preset to the pervasive COLORS.accent* fields
+  // on every render — a deliberate exception to "side effects belong in
+  // useEffect" (same reasoning the old branding code used): COLORS is a
+  // plain module-level object read by hundreds of inline styles throughout
+  // this file, not React state, so this has to run synchronously before any
+  // JSX below evaluates, or this render would use last render's color.
+  // COLORS.ink and every semantic/concept-type color are deliberately never
+  // touched here — see the ACCENT_PRESETS comment for why.
+  const activeAccentPreset = accentPresetFor(brand.accentKey);
+  COLORS.accent = activeAccentPreset.accent;
+  COLORS.accentMuted = activeAccentPreset.accentMuted;
+  COLORS.gradientAccent = `linear-gradient(135deg, ${activeAccentPreset.accent} 0%, ${activeAccentPreset.accentBright} 100%)`;
+  // The CSS custom properties in :root drive things React inline styles
+  // don't reach — the hero gradient, .ds-btn-primary, .ds-icon-chip, focus
+  // outlines, the pulse-glow animation. A real DOM effect, not a render-time
+  // mutation, since these live outside anything React renders.
+  useEffect(() => {
+    const root = document.documentElement.style;
+    root.setProperty("--accent", activeAccentPreset.accent);
+    root.setProperty("--accent-bright", activeAccentPreset.accentBright);
+    root.setProperty("--glow-accent", activeAccentPreset.glow);
+  }, [brand.accentKey]);
+
   const [showEnumManager, setShowEnumManager] = useState(false);
   const [enumManagerAttrName, setEnumManagerAttrName] = useState(null);
   const [enumManagerDraft, setEnumManagerDraft] = useState([]);
@@ -2740,13 +2785,20 @@ function APMDashboardLive() {
   const [datasetBusy, setDatasetBusy] = useState(false);
   const [datasetStatus, setDatasetStatus] = useState("");
   const datasetFileInputRef = useRef(null);
-  // Customer identity, set alongside the data swap. Blank customer name means
-  // "leave the current name as-is" (see runLoadDataset); logo uses null for
-  // that same "unspecified" meaning and "" as the explicit "clear it" signal
-  // from the Remove link, so those two states aren't conflated.
+  // Customer identity — name, logo, color scheme. Editable independently of
+  // a full data replace (see saveBrandingOnly) and also bundled into it (see
+  // runLoadDataset), so changing just the accent color doesn't require going
+  // through a destructive "type DELETE" confirmation. Blank customer name
+  // means "leave the current name as-is"; logo uses null for that same
+  // "unspecified" meaning and "" as the explicit "clear it" signal from the
+  // Remove link, so those two states aren't conflated; accentKey uses the
+  // same null-means-unspecified convention.
   const [datasetCustomerName, setDatasetCustomerName] = useState("");
   const [datasetLogoDataUri, setDatasetLogoDataUri] = useState(null);
   const datasetLogoInputRef = useRef(null);
+  const [datasetAccentKey, setDatasetAccentKey] = useState(null);
+  const [brandSaveStatus, setBrandSaveStatus] = useState("");
+  const [brandSaveBusy, setBrandSaveBusy] = useState(false);
   const [initiatives, setInitiatives] = useState([]);
   const [initiativesLoading, setInitiativesLoading] = useState(false);
   const [initiativesError, setInitiativesError] = useState("");
@@ -3168,14 +3220,15 @@ function APMDashboardLive() {
       }));
       // Customer identity for this graph — set from the Load Demo Dataset
       // page, not per-browser, so switching who's connected doesn't also
-      // switch which customer's name/logo shows.
+      // switch which customer's name/logo/color scheme shows.
       const brandRows = await runCypher(apiUrl, authHeader,
-        `OPTIONAL MATCH (b:BrandConfig {id: 'main'}) RETURN b.name AS name, b.logo AS logo`
+        `OPTIONAL MATCH (b:BrandConfig {id: 'main'}) RETURN b.name AS name, b.logo AS logo, b.accentKey AS accentKey`
       );
       const brandRow = brandRows[0];
       setBrand({
         name: (brandRow && brandRow.name) || DEFAULT_BRAND.name,
         logo: (brandRow && brandRow.logo) || null,
+        accentKey: (brandRow && brandRow.accentKey) || DEFAULT_BRAND.accentKey,
       });
       let finalWorkspaces = workspaceRows;
       let finalCanvases = canvasSummaryRows;
@@ -4083,14 +4136,50 @@ function APMDashboardLive() {
     reader.readAsText(file);
   };
 
+  // Shared by the non-destructive "Save Branding" button and the destructive
+  // data-replace flow — both resolve the same three "blank/null means keep
+  // the current value" fields, so the logic only lives once.
+  const resolvePendingBrand = () => ({
+    name: datasetCustomerName.trim() || brand.name,
+    logo: datasetLogoDataUri === "" ? null : (datasetLogoDataUri || brand.logo),
+    accentKey: datasetAccentKey || brand.accentKey || DEFAULT_BRAND.accentKey,
+  });
+
+  const saveBrandingOnly = async () => {
+    setBrandSaveBusy(true);
+    setBrandSaveStatus("");
+    try {
+      const apiUrl = deriveQueryApiUrl(uri, dbName);
+      const authHeader = "Basic " + btoa(`${username}:${password}`);
+      const pendingBrand = resolvePendingBrand();
+      await runCypher(apiUrl, authHeader,
+        `MERGE (b:BrandConfig {id: 'main'}) SET b.name = $name, b.logo = $logo, b.accentKey = $accentKey`,
+        pendingBrand
+      );
+      setBrand(pendingBrand);
+      setDatasetCustomerName("");
+      setDatasetLogoDataUri(null);
+      setDatasetAccentKey(null);
+      setBrandSaveStatus(`Saved — now showing as "${pendingBrand.name}".`);
+    } catch (e) {
+      setBrandSaveStatus(`Couldn't save: ${e.message}`);
+    } finally {
+      setBrandSaveBusy(false);
+    }
+  };
+
   const confirmAndLoadDataset = async () => {
     if (!datasetPreview || datasetPreview.errors.length) return;
     const label = datasetPreview.datasetName || datasetFileName || "this dataset";
     const logoChanging = datasetLogoDataUri !== null;
     const logoPhrase = datasetLogoDataUri === "" ? "removed" : "updated";
-    const nameNote = datasetCustomerName.trim()
-      ? ` The site's customer name will also change to "${datasetCustomerName.trim()}"${logoChanging ? ` and the logo will be ${logoPhrase}` : ""}.`
-      : (logoChanging ? ` The site's logo will also be ${logoPhrase}.` : "");
+    const colorChanging = datasetAccentKey !== null && datasetAccentKey !== brand.accentKey;
+    const identityChanges = [
+      datasetCustomerName.trim() ? `the customer name will change to "${datasetCustomerName.trim()}"` : null,
+      logoChanging ? `the logo will be ${logoPhrase}` : null,
+      colorChanging ? `the color scheme will change to ${accentPresetFor(datasetAccentKey).label}` : null,
+    ].filter(Boolean);
+    const nameNote = identityChanges.length ? ` Also, ${identityChanges.join(", ")}.` : "";
     const typed = await askPrompt(
       `This permanently deletes every instance record currently in the graph — every Application, Capability, Initiative, Risk, and everything else with real data — and replaces it with ${label}` +
       ` (${datasetPreview.nodes.length} nodes, ${datasetPreview.relationships.length} relationships). The schema itself, Workspaces, Canvases, and the Audit Log are not affected.${nameNote} This cannot be undone from here.` +
@@ -4132,27 +4221,26 @@ function APMDashboardLive() {
         );
       }
 
-      // Customer identity travels with the data swap. Blank name = keep the
-      // current one; datasetLogoDataUri is null (untouched — keep current),
-      // "" (explicit Remove — clear it), or a new data URI.
-      const nameToSave = datasetCustomerName.trim() || brand.name;
-      const logoToSave = datasetLogoDataUri === "" ? null : (datasetLogoDataUri || brand.logo);
+      // Customer identity travels with the data swap — same resolution the
+      // standalone "Save Branding" button uses (see resolvePendingBrand).
+      const pendingBrand = resolvePendingBrand();
       await runCypher(apiUrl, authHeader,
-        `MERGE (b:BrandConfig {id: 'main'}) SET b.name = $name, b.logo = $logo`,
-        { name: nameToSave, logo: logoToSave }
+        `MERGE (b:BrandConfig {id: 'main'}) SET b.name = $name, b.logo = $logo, b.accentKey = $accentKey`,
+        pendingBrand
       );
-      setBrand({ name: nameToSave, logo: logoToSave });
+      setBrand(pendingBrand);
 
       await logAudit({
         action: "loaded", entityType: "Dataset", entityName: datasetName || datasetFileName,
-        summary: `${nodes.length} instance nodes, ${relationships.length} relationships loaded for "${nameToSave}" — previous instance data wiped`,
+        summary: `${nodes.length} instance nodes, ${relationships.length} relationships loaded for "${pendingBrand.name}" — previous instance data wiped`,
       });
 
-      setDatasetStatus(`Done. Loaded ${nodes.length} nodes and ${relationships.length} relationships for "${nameToSave}".`);
+      setDatasetStatus(`Done. Loaded ${nodes.length} nodes and ${relationships.length} relationships for "${pendingBrand.name}".`);
       setDatasetPreview(null);
       setDatasetFileName("");
       setDatasetCustomerName("");
       setDatasetLogoDataUri(null);
+      setDatasetAccentKey(null);
       handleRefresh();
     } catch (e) {
       setDatasetStatus(`Load failed partway through: ${e.message}. The graph may be in a mixed state — check Ontology Manager before continuing.`);
@@ -9564,9 +9652,11 @@ function APMDashboardLive() {
                   borderRadius: 16, padding: 22, marginBottom: 22, maxWidth: 820 }}>
                   <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 4 }}>Customer identity</div>
                   <div style={{ fontSize: 12, color: COLORS.inkSecondary, marginBottom: 14, lineHeight: 1.5 }}>
-                    Shown across the site wherever the customer's name or logo appears — set here rather than as a
-                    separate settings screen, so it swaps together with the data instead of drifting out of sync
-                    with it. Applied when you confirm the replace below.
+                    Shown across the site wherever the customer's name, logo, or accent color appears — set here
+                    rather than as a separate settings screen, so it swaps together with the data instead of
+                    drifting out of sync with it. "Save Branding" below applies these three on their own, right
+                    away — you don't need to upload a dataset or go through the destructive replace just to change
+                    a logo. They're also bundled into a data replace automatically if you do one.
                   </div>
 
                   <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 4 }}>Customer name</label>
@@ -9604,6 +9694,37 @@ function APMDashboardLive() {
                       <span onClick={() => setDatasetLogoDataUri("")} style={{ fontSize: 11.5, color: COLORS.risk, cursor: "pointer" }}>Remove</span>
                     )}
                   </div>
+
+                  <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginTop: 18, marginBottom: 4 }}>Color scheme</label>
+                  <div style={{ fontSize: 11.5, color: COLORS.inkSecondary, marginBottom: 10, maxWidth: 560, lineHeight: 1.5 }}>
+                    A fixed set of pre-checked accent colors, not a free color picker — this app leans on color for
+                    meaning (red for risk, amber for warning) and to tell ~20 concept types apart, so an arbitrary
+                    brand color could quietly clash with that. Every option here is pre-checked to sit clear of
+                    those and stay readable. Applies to nav highlights, buttons, and badges — not body text.
+                  </div>
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                    {Object.entries(ACCENT_PRESETS).map(([key, preset]) => {
+                      const active = (datasetAccentKey || brand.accentKey || DEFAULT_BRAND.accentKey) === key;
+                      return (
+                        <button key={key} onClick={() => setDatasetAccentKey(key)} title={preset.label}
+                          style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "6px 4px 4px",
+                            background: "transparent", border: `2px solid ${active ? preset.accent : "transparent"}`,
+                            borderRadius: 10, cursor: "pointer", width: 56 }}>
+                          <span style={{ width: 28, height: 28, borderRadius: "50%",
+                            background: `linear-gradient(135deg, ${preset.accent} 0%, ${preset.accentBright} 100%)`,
+                            boxShadow: active ? `0 0 0 2px #fff, 0 0 0 3.5px ${preset.accent}` : "none" }} />
+                          <span style={{ fontSize: 9.5, fontWeight: 600, color: active ? preset.accent : COLORS.inkSecondary }}>{preset.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <button onClick={saveBrandingOnly} disabled={brandSaveBusy}
+                    style={{ marginTop: 20, padding: "8px 16px", background: COLORS.ink, color: "#fff", border: "none",
+                      borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: brandSaveBusy ? "default" : "pointer", opacity: brandSaveBusy ? 0.6 : 1 }}>
+                    {brandSaveBusy ? "Saving…" : "Save Branding"}
+                  </button>
+                  {brandSaveStatus && <div style={{ fontSize: 12, color: COLORS.inkSecondary, marginTop: 10 }}>{brandSaveStatus}</div>}
                 </div>
 
                 <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)",
