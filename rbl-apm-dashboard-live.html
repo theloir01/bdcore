@@ -549,6 +549,15 @@ const GUIDE_SECTIONS = [
           "The file is validated and previewed — counts by concept type, and any errors — before anything is deleted, so a malformed file is caught before it costs you the current dataset.",
           "You'll be asked to type DELETE to confirm before the swap runs — there's no undo from inside the app once it starts.",
         ] },
+      { key: "agentwatch", label: "Agent Watch",
+        description: "Admin-only, under Admin in the sidebar: a small autonomous watcher that re-checks the same gap list as the landing page's Action Center on an interval, and writes a finding whenever something genuinely changes — new, worsened, or resolved.",
+        tips: [
+          "It reuses the existing Action Center computation as its sensor rather than a second detection engine — nothing here is a new kind of analysis.",
+          "\"Autonomous\" means it runs on its own once connected, without a human re-checking the dashboard — not that it's a 24/7 server process. It only runs while this app is open in a connected browser tab.",
+          "Use \"Scan Now\" to check immediately rather than waiting for the next automatic interval.",
+          "Click a finding's category to jump straight to the view it came from.",
+          "Unlike Workspaces and the Audit Log, findings here are wiped by a Load Demo Dataset data swap — old findings about a previous customer's gaps would be meaningless clutter once the underlying data they were about is gone.",
+        ] },
     ],
   },
 ];
@@ -1894,6 +1903,15 @@ function computePACE(process, capability) {
   const score = assessed.length ? assessed.reduce((s, v) => s + v, 0) / assessed.length : null;
   return { dims, score, passCount, assessedCount: assessed.length };
 }
+
+// Agent Watch: how often the client-side watcher re-pulls the graph while
+// this tab is open and connected. NOT a server-side cron — this app has no
+// backend of its own, so "autonomous" here means "runs on its own schedule
+// without a human clicking anything, for as long as this page stays open,"
+// not "runs 24/7 whether or not anyone has it open." Said plainly in the
+// page's own copy rather than left implicit.
+const AGENT_SCAN_INTERVAL_MS = 10 * 60 * 1000;
+
 // Data Residency & Compliance: maps a Location's country/zone to the
 // frameworks commonly associated with that jurisdiction. Deliberately a
 // small, hand-maintained, openly-shown table — NOT a legal determination.
@@ -2779,6 +2797,12 @@ function APMDashboardLive() {
   const [auditLog, setAuditLog] = useState([]);
   const [auditLogLoading, setAuditLogLoading] = useState(false);
   const [auditLogError, setAuditLogError] = useState("");
+  const [agentFindings, setAgentFindings] = useState([]);
+  const [agentFindingsLoading, setAgentFindingsLoading] = useState(false);
+  const [agentFindingsError, setAgentFindingsError] = useState("");
+  const [agentLastRun, setAgentLastRun] = useState(null);
+  const [agentScanBusy, setAgentScanBusy] = useState(false);
+  const agentScanRunningRef = useRef(false);
   const [datasetFileName, setDatasetFileName] = useState("");
   const [datasetPreview, setDatasetPreview] = useState(null); // parsed + validated upload, or null
   const [datasetParseError, setDatasetParseError] = useState("");
@@ -3455,6 +3479,9 @@ function APMDashboardLive() {
     if (view === "auditlog") loadAuditLog();
   }, [view]);
   useEffect(() => {
+    if (view === "agentwatch") loadAgentFindings();
+  }, [view]);
+  useEffect(() => {
     if (view === "ai") loadAITransformData();
   }, [view]);
   // Defends against landing on a view outside the current role's access by
@@ -3625,6 +3652,25 @@ function APMDashboardLive() {
       setAuditLog([]);
     } finally {
       setAuditLogLoading(false);
+    }
+  };
+
+  // Newest-first, capped at 300 — same reasoning as the audit log's own cap.
+  const loadAgentFindings = async () => {
+    setAgentFindingsLoading(true);
+    try {
+      const apiUrl = deriveQueryApiUrl(uri, dbName);
+      const authHeader = "Basic " + btoa(`${username}:${password}`);
+      const rows = await runCypher(apiUrl, authHeader,
+        `MATCH (f:AgentFinding) RETURN properties(f) AS props ORDER BY f.timestamp DESC LIMIT 300`
+      );
+      setAgentFindings(rows.map((r) => ({ ...r.props, entities: (() => { try { return JSON.parse(r.props.entities || "[]"); } catch (e) { return []; } })() })));
+      setAgentFindingsError("");
+    } catch (e) {
+      setAgentFindingsError(`Couldn't load agent findings: ${e.message}`);
+      setAgentFindings([]);
+    } finally {
+      setAgentFindingsLoading(false);
     }
   };
 
@@ -4202,6 +4248,10 @@ function APMDashboardLive() {
       const { nodesByType, relationships, nodes, datasetName } = datasetPreview;
 
       await runCypher(apiUrl, authHeader, `MATCH (n:Instance) DETACH DELETE n`);
+      // Agent Watch findings/state aren't :Instance (so a wipe wouldn't
+      // otherwise touch them) but they're about to become meaningless —
+      // they describe gaps in data that no longer exists.
+      await runCypher(apiUrl, authHeader, `MATCH (n) WHERE n:AgentFinding OR n:AgentWatchState DETACH DELETE n`);
 
       setDatasetStatus("Creating instance nodes…");
       for (const conceptType of Object.keys(nodesByType)) {
@@ -4991,6 +5041,112 @@ function APMDashboardLive() {
   }, [criticalNoDR, atRiskTech, totalAppsExposed, totalTcoExposed, rankedBlockedDecisions, totalBlockedCost, blockingAppIds,
       redundancyGroups, redundancyWaste, fieldReviews, apps, pathfinderApps, healthStats, capabilityRealization, decisions]);
 
+  // Agent Watch: the "small autonomous agent" — reuses actionItems (the same
+  // computed gap list the landing page's Action Center already shows) rather
+  // than inventing a second detection engine. What makes this agentic rather
+  // than just another dashboard is what it does with that list: it diffs the
+  // current one against the last one it persisted to Neo4j and writes an
+  // AgentFinding only for what actually CHANGED — a category that newly
+  // appeared, specific entities newly caught by an existing category, or
+  // entities that dropped out (resolved) — instead of re-announcing the same
+  // static gaps forever. That diff-and-persist step is the actual "closes
+  // the loop autonomously" behavior; actionItems itself is just the sensor.
+  // Both AgentFinding and AgentWatchState are deliberately un-labelled
+  // :Instance — same reasoning as AuditLogEntry/Workspace/Canvas — so they
+  // survive a Load Demo Dataset wipe of real ontology data untouched (though
+  // that wipe does separately clear them — see runLoadDataset — since old
+  // findings about a previous customer's gaps would be meaningless clutter
+  // once the underlying data they were about is gone).
+  const runAgentScan = async () => {
+    if (agentScanRunningRef.current) return;
+    agentScanRunningRef.current = true;
+    setAgentScanBusy(true);
+    try {
+      const apiUrl = deriveQueryApiUrl(uri, dbName);
+      const authHeader = "Basic " + btoa(`${username}:${password}`);
+
+      const currentFingerprint = {};
+      actionItems.forEach((item) => {
+        currentFingerprint[item.view] = { title: item.title, severity: item.severity, entities: [...new Set(item.entities)] };
+      });
+
+      const snapRows = await runCypher(apiUrl, authHeader,
+        `OPTIONAL MATCH (s:AgentWatchState {id: 'main'}) RETURN s.data AS data`
+      );
+      let lastFingerprint = {};
+      try { lastFingerprint = JSON.parse((snapRows[0] && snapRows[0].data) || "{}"); } catch (e) { lastFingerprint = {}; }
+
+      const findings = [];
+      const categories = new Set([...Object.keys(currentFingerprint), ...Object.keys(lastFingerprint)]);
+      categories.forEach((cat) => {
+        const cur = currentFingerprint[cat];
+        const prev = lastFingerprint[cat];
+        const curSet = new Set(cur ? cur.entities : []);
+        const prevSet = new Set(prev ? prev.entities : []);
+        const newEntities = [...curSet].filter((e) => !prevSet.has(e));
+        const resolvedEntities = [...prevSet].filter((e) => !curSet.has(e));
+        const listPreview = (arr) => `${arr.slice(0, 6).join(", ")}${arr.length > 6 ? "…" : ""}`;
+
+        if (cur && !prev) {
+          findings.push({ kind: "new", severity: cur.severity, category: cat, title: cur.title,
+            message: `New watch category triggered: ${cur.title}.`, entities: cur.entities });
+        } else if (cur && newEntities.length > 0) {
+          findings.push({ kind: "worsened", severity: cur.severity, category: cat, title: cur.title,
+            message: `${newEntities.length} newly flagged under "${cur.title}": ${listPreview(newEntities)}`, entities: newEntities });
+        }
+        if (prev && !cur) {
+          findings.push({ kind: "resolved", severity: "resolved", category: cat, title: prev.title,
+            message: `Fully resolved — "${prev.title}" no longer applies.`, entities: prev.entities });
+        } else if (resolvedEntities.length > 0) {
+          findings.push({ kind: "resolved", severity: "resolved", category: cat, title: (cur || prev).title,
+            message: `${resolvedEntities.length} resolved under "${(cur || prev).title}": ${listPreview(resolvedEntities)}`, entities: resolvedEntities });
+        }
+      });
+
+      if (findings.length > 0) {
+        await runCypher(apiUrl, authHeader,
+          `UNWIND $rows AS row CREATE (f:AgentFinding) SET f = row`,
+          { rows: findings.map((f) => ({
+              id: newCanvasId("finding"), timestamp: new Date().toISOString(),
+              kind: f.kind, severity: f.severity, category: f.category, title: f.title,
+              message: f.message, entities: JSON.stringify(f.entities),
+            })) }
+        );
+      }
+      await runCypher(apiUrl, authHeader,
+        `MERGE (s:AgentWatchState {id: 'main'}) SET s.data = $data, s.timestamp = $timestamp`,
+        { data: JSON.stringify(currentFingerprint), timestamp: new Date().toISOString() }
+      );
+
+      setAgentLastRun(new Date());
+      if (view === "agentwatch") loadAgentFindings();
+    } catch (e) {
+      console.warn("Agent Watch scan failed:", e.message);
+    } finally {
+      setAgentScanBusy(false);
+      agentScanRunningRef.current = false;
+    }
+  };
+
+  // Two separate effects rather than one, on purpose: the interval's only
+  // job is to periodically pull fresh data (handleRefresh, same function the
+  // manual refresh elsewhere uses), and it's keyed on `status` alone so it
+  // doesn't need to reason about staleness. The actual diff-and-persist step
+  // is keyed on `lastFetched` instead of `actionItems` directly — lastFetched
+  // only changes once a full fetchData cycle has completely finished, so the
+  // scan always diffs a fully-loaded state. Keying on actionItems itself
+  // would fire mid-load, while individual pieces of data were still arriving
+  // across several renders, and produce false "resolved" findings for
+  // categories whose data just hadn't landed yet.
+  useEffect(() => {
+    if (status !== "connected") return;
+    const interval = setInterval(() => { handleRefresh(); }, AGENT_SCAN_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [status]);
+  useEffect(() => {
+    if (status === "connected" && lastFetched) runAgentScan();
+  }, [lastFetched, status]);
+
   const radarData = useMemo(() => {
     const softwareTechs = technologies.filter((t) => t.type === "SoftwareTechnology");
     const categories = [...new Set(softwareTechs.map((t) => t.techCategory))];
@@ -5163,8 +5319,9 @@ function APMDashboardLive() {
   const EXECUTIVE_KEYS = new Set(["brief", "valuedelivered"]);
   const ADMIN_NAV_ITEMS = [
     ["dataload", "Load Demo Dataset", "dataload"],
+    ["agentwatch", "Agent Watch", "agentwatch"],
   ];
-  const ADMIN_KEYS = new Set(["dataload"]);
+  const ADMIN_KEYS = new Set(["dataload", "agentwatch"]);
   // Standalone top-level sidebar items (their own row, no parent group to
   // expand) — jumping to one of these via goToView (e.g. Help's "Open →")
   // must NOT force the "APM" section open, since they live outside it.
@@ -5229,6 +5386,7 @@ function APMDashboardLive() {
     dataload: <svg {...ICON_COMMON}><path d="M12 3v12" /><polyline points="7.5,10.5 12,15 16.5,10.5" /><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" /></svg>,
     admin: <svg {...ICON_COMMON}><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /><circle cx="12" cy="15.5" r="1.3" fill="currentColor" stroke="none" /></svg>,
     residency: <svg {...ICON_COMMON}><circle cx="12" cy="12" r="9" /><ellipse cx="12" cy="12" rx="4" ry="9" /><line x1="3" y1="12" x2="21" y2="12" /><path d="M5 7.5c1.8 1.2 4.3 2 7 2s5.2-.8 7-2M5 16.5c1.8-1.2 4.3-2 7-2s5.2.8 7 2" /></svg>,
+    agentwatch: <svg {...ICON_COMMON}><path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12z" /><circle cx="12" cy="12" r="3" /><circle cx="12" cy="12" r="0.6" fill="currentColor" stroke="none" /></svg>,
     initiatives: <svg {...ICON_COMMON}><rect x="3" y="5" width="11" height="3.2" rx="1" /><rect x="8" y="11" width="13" height="3.2" rx="1" /><rect x="5" y="17" width="9" height="3.2" rx="1" /></svg>,
     dataflow: <svg {...ICON_COMMON}><rect x="2" y="9" width="6" height="6" rx="1.2" /><rect x="16" y="2" width="6" height="6" rx="1.2" /><rect x="16" y="16" width="6" height="6" rx="1.2" /><path d="M8 11l7.5 -6M8 13l7.5 6" /></svg>,
     valuedelivered: <svg {...ICON_COMMON}><path d="M3 19h18" /><path d="M4 15.5 L9 10 L13 13.5 L20 6" /><path d="M15 6h5v5" /></svg>,
@@ -6812,7 +6970,7 @@ function APMDashboardLive() {
     redundancy: "Redundancy", ai: "Portfolio AI Transformation",
     obsolescence: "Tech Obsolescence", cloudmigration: "Cloud Migration", techradar: "Tech Radar",
     fieldreview: "Field Review", ontology: "Ontology Manager", ownership: "Ownership Coverage", renewals: "Renewals & Reviews", auditlog: "Audit Log", dataload: "Load Demo Dataset",
-    residency: "Data Residency & Compliance",
+    residency: "Data Residency & Compliance", agentwatch: "Agent Watch",
     initiatives: "Initiatives Roadmap", dataflow: "Data Flow", businessunits: "Business Units",
     valuedelivered: "Value Delivered",
     journeytrace: "Journey Trace", maturity: "Capability Maturity", decisionlog: "Decision Log",
@@ -9622,6 +9780,78 @@ function APMDashboardLive() {
                       { key: "summary", label: "Details", render: (e) => <span style={{ color: COLORS.inkSecondary }}>{e.summary || "—"}</span> },
                     ]}
                     rows={auditLog}
+                  />
+                </div>
+              </div>
+            );
+          })()}
+          {view === "agentwatch" && (() => {
+            const KIND_STYLE = {
+              new: COLORS.risk, worsened: COLORS.warning, resolved: COLORS.accent,
+            };
+            const KIND_LABEL = { new: "New", worsened: "Worsened", resolved: "Resolved" };
+            const SEVERITY_STYLE = {
+              critical: COLORS.risk, high: COLORS.warning, medium: COLORS.info, resolved: COLORS.accent,
+            };
+            return (
+              <div>
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)",
+                  borderRadius: 16, padding: 22, marginBottom: 22, maxWidth: 820 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 6 }}>What is this page?</div>
+                  <div style={{ fontSize: 13, color: COLORS.inkSecondary, lineHeight: 1.6 }}>
+                    Agent Watch periodically re-checks the same gap list the landing page's Action Center already
+                    computes — critical apps with no DR, EOL technology exposure, blocked decisions, redundancy,
+                    flagged fields, unscored AI candidates, ownership gaps, unrealized capabilities, proposed
+                    decisions — and compares it against what it saw last time. Only genuine changes (a new gap
+                    appearing, an existing one getting worse, or one clearing entirely) are written here as a
+                    finding, so this feed is a record of drift over time, not a duplicate of the Action Center.
+                  </div>
+                  <div style={{ fontSize: 12, color: COLORS.inkSecondary, marginTop: 10, lineHeight: 1.6 }}>
+                    <b>One honest limitation:</b> this is a client-side watcher, not a server-side agent — it only
+                    runs while this app is open in a connected browser tab, on a {Math.round(AGENT_SCAN_INTERVAL_MS / 60000)}-minute
+                    interval. Close the tab and it stops; there's no 24/7 process watching the graph in the
+                    background. Use "Scan Now" below to run a check on demand.
+                  </div>
+                </div>
+
+                {agentFindingsError && <div style={{ fontSize: 12.5, color: COLORS.risk, marginBottom: 14 }}>{agentFindingsError}</div>}
+
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)",
+                  borderRadius: 16, padding: "16px 20px", marginBottom: 22, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+                  <div style={{ fontSize: 12.5, color: COLORS.inkSecondary }}>
+                    {agentScanBusy ? "Scanning…" : agentLastRun ? `Last scan: ${agentLastRun.toLocaleString()}` : "No scan run yet this session."}
+                  </div>
+                  <button onClick={runAgentScan} disabled={agentScanBusy}
+                    style={{ padding: "7px 16px", background: COLORS.accent, color: "#fff", border: "none",
+                      borderRadius: 8, fontSize: 12.5, fontWeight: 600, cursor: agentScanBusy ? "default" : "pointer", opacity: agentScanBusy ? 0.6 : 1 }}>
+                    {agentScanBusy ? "Scanning…" : "▶ Scan Now"}
+                  </button>
+                </div>
+
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18, overflow: "hidden" }}>
+                  <div style={{ padding: "16px 18px 4px", fontSize: 15, fontWeight: 600 }}>
+                    {agentFindingsLoading ? "Loading…" : `${agentFindings.length} finding${agentFindings.length === 1 ? "" : "s"}${agentFindings.length === 300 ? " (most recent 300)" : ""}`}
+                  </div>
+                  <SortableTable
+                    rowKey={(f) => f.id}
+                    defaultSort={{ key: "timestamp", dir: "desc" }}
+                    emptyMessage={agentFindingsLoading ? "Loading…" : "No findings yet — run a scan, or wait for the next automatic check."}
+                    columns={[
+                      { key: "timestamp", label: "When", render: (f) => new Date(f.timestamp).toLocaleString() },
+                      { key: "kind", label: "Change", chip: true, render: (f) => (
+                          <span style={{ background: `${KIND_STYLE[f.kind] || COLORS.inkSecondary}18`, color: KIND_STYLE[f.kind] || COLORS.inkSecondary,
+                            padding: "2px 9px", borderRadius: 8, fontSize: 11, fontWeight: 700 }}>{KIND_LABEL[f.kind] || f.kind}</span>
+                        ) },
+                      { key: "severity", label: "Severity", chip: true, render: (f) => (
+                          <span style={{ background: `${SEVERITY_STYLE[f.severity] || COLORS.inkSecondary}18`, color: SEVERITY_STYLE[f.severity] || COLORS.inkSecondary,
+                            padding: "2px 9px", borderRadius: 8, fontSize: 11, fontWeight: 700, textTransform: "capitalize" }}>{f.severity}</span>
+                        ) },
+                      { key: "title", label: "Category", render: (f) => (
+                          <span onClick={() => goToView(f.category)} style={{ color: COLORS.accent, cursor: "pointer", fontWeight: 600 }}>{f.title} →</span>
+                        ) },
+                      { key: "message", label: "Details", render: (f) => <span style={{ color: COLORS.inkSecondary }}>{f.message}</span> },
+                    ]}
+                    rows={agentFindings}
                   />
                 </div>
               </div>
