@@ -9892,14 +9892,21 @@ function APMDashboardLive() {
             return (
               <div>
                 <div style={{ textAlign: "center", padding: "48px 20px 8px", maxWidth: 680, margin: "0 auto" }}>
-                  <div style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 11.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase",
-                    color: COLORS.inkSecondary, marginBottom: 18, padding: "5px 13px", background: COLORS.card,
-                    border: `1px solid ${COLORS.border}`, borderRadius: 999 }}>
-                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: COLORS.accent, flexShrink: 0 }} />
-                    {brand.name}
-                  </div>
-                  {brand.logo && (
-                    <img src={brand.logo} alt={brand.name} style={{ height: 36, maxWidth: 200, objectFit: "contain", marginBottom: 16 }} />
+                  {/* A logo already says who this is — showing the "• BRAND"
+                      text pill right next to it too was redundant, and the
+                      two (one inline-flex, one inline img) fought over the
+                      same line at real viewport widths. One deliberate mark:
+                      the logo when there is one, the pill as the fallback
+                      identity when there isn't. */}
+                  {brand.logo ? (
+                    <img src={brand.logo} alt={brand.name} style={{ display: "block", height: 44, maxWidth: 220, objectFit: "contain", margin: "0 auto 20px" }} />
+                  ) : (
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 11.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase",
+                      color: COLORS.inkSecondary, marginBottom: 18, padding: "5px 13px", background: COLORS.card,
+                      border: `1px solid ${COLORS.border}`, borderRadius: 999 }}>
+                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: COLORS.accent, flexShrink: 0 }} />
+                      {brand.name}
+                    </div>
                   )}
                   <h1 style={{ fontSize: 38, fontWeight: 700, margin: "0 0 14px 0", letterSpacing: "-0.02em", lineHeight: 1.15,
                     color: COLORS.ink, fontFamily: "var(--font-display)" }}>
