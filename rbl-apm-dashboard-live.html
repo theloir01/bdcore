@@ -530,6 +530,142 @@ const GUIDE_SECTIONS = [
     ],
   },
 ];
+
+// Help › By Persona — who actually opens this tool and what they'd use it
+// for, day to day. Each persona's "views" list reuses real, navigable view
+// keys (the same ones GUIDE_SECTIONS uses) rather than inventing anything —
+// the "why" text is persona-specific framing of a real feature, not a new
+// description. Deliberately doesn't link straight to "profile": it needs a
+// selected application first, so those bullets route through Portfolio
+// Overview instead and describe the click-through, rather than land on an
+// "Application not found" empty state.
+const PERSONAS = [
+  {
+    key: "executive", label: "Executive / Sponsor",
+    summary: "Wants the one number that matters, and the two or three things at risk of it going wrong — not a tour of the ontology.",
+    dayToDay: "Walks into a portfolio review needing a defensible £ figure for what transformation is worth, which decisions are stuck and costing money by staying stuck, and whether the estate is getting healthier quarter over quarter — without managing any of it hands-on.",
+    views: [
+      { key: "brief", why: "The one number to lead with — £ value at stake this year, rolled up from figures computed elsewhere in the tool, not a separate estimate." },
+      { key: "valuedelivered", why: "Whether that number is actually trending down over time — the before/after case for spend already committed." },
+      { key: "blocked", why: "Which initiatives are stuck because a system can't bend to accommodate them, and what waiting is costing." },
+      { key: "redundancy", why: "Where money is still being spent on something already decided to be replaced." },
+      { key: "health", why: "Whether the numbers above are trustworthy, or built on an unconfirmed record — the honesty check underneath everything else here." },
+    ],
+  },
+  {
+    key: "transformation", label: "Transformation Lead",
+    summary: "Owns the 'where are we going and how do we get there' story — strategy through to the initiatives meant to deliver it — and needs real traceability, not slideware.",
+    dayToDay: "Translating strategy into a funded initiative portfolio, defending capability investment decisions, and answering 'what happens if we put AI into this capability' with something more concrete than an opinion.",
+    views: [
+      { key: "ai", why: "The core view for this role — People/Process/Data/Technology readiness per capability, a ranked shortlist, and 'what happens if we transform this' drill-ins grounded in real initiatives and AI models already in the graph." },
+      { key: "maturity", why: "Where each capability sits today across six CMMI-style dimensions — the baseline any transformation case has to argue against." },
+      { key: "initiatives", why: "Every initiative plotted against reality — dates and progress read straight from the graph, not a separately maintained roadmap slide." },
+      { key: "decisionlog", why: "The architectural and investment decisions already made, with rationale and consequences, so a new initiative doesn't quietly contradict one." },
+      { key: "valuedelivered", why: "Whether the programme is actually moving the needle, not just running." },
+    ],
+  },
+  {
+    key: "programme", label: "Programme Manager",
+    summary: "Sequences and delivers the initiatives the Transformation Lead scoped — the problem is dependency and blockage, not strategy.",
+    dayToDay: "Keeping a multi-initiative programme moving: knowing what's blocked and why, what has to finish before something else can start, and what's coming due that could derail a plan.",
+    views: [
+      { key: "initiatives", why: "The full programme timeline with real progress — \"must precede\" dependencies between initiatives are visible here, not buried in a plan only you maintain." },
+      { key: "blocked", why: "Every initiative currently stuck on a system that can't accommodate it, with why — the list you'd otherwise chase down desk by desk." },
+      { key: "dependencies", why: "Before committing to a sequencing call, see what actually depends on what." },
+      { key: "renewals", why: "Contract/licence renewals and stale records coming due across the portfolio — the things that quietly become someone's emergency if nobody's watching." },
+    ],
+  },
+  {
+    key: "project", label: "Project Manager",
+    summary: "Delivering one initiative, not managing the portfolio — the job is knowing exactly what's in scope and what breaks if the sequencing is wrong.",
+    dayToDay: "Scoping a single cutover or migration: which applications, technologies, and teams are actually touched, what the blast radius of a go-live is, and what's still an open gap before calling it done.",
+    views: [
+      { key: "portfolio", why: "Open any application from here to reach its Profile — owner, dependencies, risks, and a one-click Blast Radius view of what breaks if it goes offline." },
+      { key: "dependencies", why: "The dependency chain for exactly what's in your project's scope, not the whole estate." },
+      { key: "ownership", why: "An unowned record in your project's scope is a real risk — this flags every one, across every concept type, not just Applications." },
+    ],
+  },
+  {
+    key: "ea", label: "Enterprise Architect",
+    summary: "Owns the whole ontology and the whole estate — the day-to-day is breadth, consistency, and keeping the model itself trustworthy.",
+    dayToDay: "Maintaining the capability model, catching data that doesn't add up before someone builds a decision on it, tracking technology risk across the whole portfolio, and keeping the ontology's own schema and instance data clean.",
+    views: [
+      { key: "portfolio", why: "The whole application estate, filterable and sortable — the actual working view most days." },
+      { key: "capboard", why: "The capability map itself — what the organisation can do, independent of who does it or what system supports it." },
+      { key: "fieldreview", why: "Values that don't logically agree with each other — a Critical system on Bronze support, that kind of thing — worth a two-minute look wherever it's flagged." },
+      { key: "obsolescence", why: "Which applications are exposed to ageing infrastructure, traced transitively through the real dependency graph, not a manually maintained list." },
+      { key: "businessunits", why: "Cross-unit comparison of cost, criticality, and portfolio share." },
+      { key: "ontology", why: "Direct CRUD across all concept types, including schema-level attribute and enum management — the place to fix or extend the model itself." },
+    ],
+  },
+  {
+    key: "solution", label: "Solution Architect — Application & Integration",
+    summary: "Designs how specific systems talk to each other — the world here is interfaces, dependencies, and \"what happens if I change this one thing.\"",
+    dayToDay: "Designing an integration, understanding what a specific application actually connects to before changing it, and tracing a business process down to the systems and interfaces that actually carry it.",
+    views: [
+      { key: "dependencies", why: "The full dependency graph for a specific application or technology, direction and all." },
+      { key: "dataflow", why: "Provider → Interface → Consumer, with protocol, frequency, and the data riding on each connection — a live integration map, not a diagram someone drew once." },
+      { key: "journeytrace", why: "Walk a customer or business journey down through its stages to the capabilities, processes, applications, and technology that actually deliver it, and see exactly where the chain breaks." },
+      { key: "portfolio", why: "Open any application from here to reach Blast Radius — what breaks if this specific system goes offline." },
+    ],
+  },
+  {
+    key: "data", label: "Data Architect",
+    summary: "Cares about where data lives, who owns it, what depends on it, and what it would take to prove that to an auditor.",
+    dayToDay: "Impact analysis before touching a data store, chasing down unowned data assets, mapping cross-application data flow, and — where data physically sits and what that exposes the organisation to.",
+    views: [
+      { key: "residency", why: "Where every application and data asset sits, cross-border flows flagged from real relationships, and the compliance frameworks commonly associated with each jurisdiction." },
+      { key: "dataflow", why: "Asset-level lineage across applications — provider, consumer, and the data itself, read off real Interface relationships." },
+      { key: "dependencies", why: "What breaks if a specific data store is touched — the question that eats the most time before any migration." },
+      { key: "ownership", why: "Every unowned Data record — same governance hygiene check as everything else in the graph." },
+      { key: "ai", why: "Which data assets are already feeding an AI model, and their quality — increasingly your problem too, not just the data scientist's." },
+    ],
+    honestGap: "Worth knowing what this isn't: no column-level lineage, no automated data-quality profiling, no physical schema modelling. This is the architecture-and-governance layer underneath a data estate, not a replacement for a dedicated catalog or lineage tool.",
+  },
+  {
+    key: "infra", label: "Technology / Infrastructure Architect",
+    summary: "The world here is the SoftwareTechnology and HardwareTechnology layer underneath every application — lifecycle, support status, and what's quietly become a single point of failure.",
+    dayToDay: "Planning a platform refresh or cloud migration, knowing what's approaching end-of-life before it becomes an incident, and defending the sequencing of a migration wave.",
+    views: [
+      { key: "techradar", why: "The technology landscape by category and lifecycle status." },
+      { key: "obsolescence", why: "Exposure traced transitively — an app depending on obsolete tech counts even if it's not running on it directly." },
+      { key: "cloudmigration", why: "Migration sequencing, not just a destination — Wave 1 is the foundation that has to move first, derived automatically from the dependency graph." },
+      { key: "redundancy", why: "Duplicate technology footprints wasting spend." },
+    ],
+  },
+  {
+    key: "ai", label: "AI / Analytics Lead",
+    summary: "Accountable for where AI actually gets deployed, whether it's governed properly, and whether it's touching data that's actually ready for it.",
+    dayToDay: "Prioritising which capabilities are genuinely ready for AI investment versus which just sound exciting, keeping model governance defensible, and knowing exactly what data and applications a given AI model touches.",
+    views: [
+      { key: "ai", why: "The primary view — readiness scored across People/Process/Data/Technology per capability, a ranked shortlist, and per-application Readiness vs. Relevance." },
+      { key: "residency", why: "Every AI model's own regulatory relevance tags (EU AI Act, GDPR, sector-specific) alongside risk level, human oversight, and explainability — tracked per model, not derived from where it's hosted." },
+      { key: "ontology", why: "Where AI model instances themselves get maintained — risk level, approval status, explainability, all real fields." },
+    ],
+  },
+  {
+    key: "grc", label: "Governance, Risk & Security Lead",
+    summary: "Needs to know what's exposed, who's accountable for it, and whether the record of who-changed-what would survive an audit.",
+    dayToDay: "Confirming ownership coverage across the estate, checking data residency and compliance exposure, and producing a clean change history when asked.",
+    views: [
+      { key: "ownership", why: "Unowned records across every concept type — Risk and Control included, not just Applications." },
+      { key: "residency", why: "Jurisdiction exposure and cross-border flows, plus AI model regulatory tagging." },
+      { key: "auditlog", why: "Every create/edit/delete/verify/import against real ontology data, with who and when — the record a governance review actually asks for." },
+      { key: "fieldreview", why: "Inconsistencies worth a second look before they become a finding." },
+    ],
+  },
+  {
+    key: "admin", label: "Platform Admin",
+    summary: "Runs BDCore itself — the schema, the demo data, who can do what.",
+    dayToDay: "Standing up a new customer demo, keeping the ontology's schema and enum options correct, and being the one who can see the full audit trail.",
+    views: [
+      { key: "dataload", why: "Swap the entire instance layer for a different customer's data in one action — under Admin in the sidebar." },
+      { key: "ontology", why: "Full schema and instance management, including custom attributes and enum options." },
+      { key: "auditlog", why: "The complete governance trail." },
+    ],
+  },
+];
+
 const CANVAS_VERBS = [
   "accepts", "affects", "approves investment in", "belongs to", "constrains",
   "consumes investment from", "contains", "contributes to", "delivers", "depends on",
@@ -2489,7 +2625,7 @@ function APMDashboardLive() {
   const [contextMenu, setContextMenu] = useState(null); // { x, y, kind, id }
   const [omSelectedType, setOmSelectedType] = useState("Application");
   const [omTypePickerOpen, setOmTypePickerOpen] = useState(false);
-  const [helpTab, setHelpTab] = useState("guide"); // "guide" | "glossary"
+  const [helpTab, setHelpTab] = useState("guide"); // "guide" | "glossary" | "personas"
   const [helpSearch, setHelpSearch] = useState("");
   // Which chapter's content the Help content pane shows — "All" shows every
   // chapter stacked (the old always-scroll behavior), anything else shows
@@ -2497,6 +2633,7 @@ function APMDashboardLive() {
   // on screen at once. Each tab remembers its own selection.
   const [helpGuideChapter, setHelpGuideChapter] = useState("Executive Overview");
   const [helpGlossaryChapter, setHelpGlossaryChapter] = useState("Strategic");
+  const [helpPersona, setHelpPersona] = useState("All");
   const [omInstances, setOmInstances] = useState([]);
   const [omLoading, setOmLoading] = useState(false);
   const [omEditingId, setOmEditingId] = useState(null); // real id, or "new"
@@ -10166,6 +10303,12 @@ function APMDashboardLive() {
             const guideSectionsToShow = isSearching
               ? guideSectionsMatched
               : guideSectionsMatched.filter((s) => helpGuideChapter === "All" || s.title === helpGuideChapter);
+            const personaMatches = (p) => !q || p.label.toLowerCase().includes(q) || p.summary.toLowerCase().includes(q) ||
+              p.dayToDay.toLowerCase().includes(q) || p.views.some((v) => v.why.toLowerCase().includes(q) || (VIEW_TITLES[v.key] || "").toLowerCase().includes(q));
+            const personasMatched = PERSONAS.filter(personaMatches);
+            const personasToShow = isSearching
+              ? personasMatched
+              : personasMatched.filter((p) => helpPersona === "All" || p.label === helpPersona);
             const cardStyle = { background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: "20px 24px" };
             const tabStyle = (key) => ({ padding: "9px 16px", fontSize: 13, fontWeight: 600, borderRadius: 9,
               cursor: "pointer", border: `1px solid ${helpTab === key ? COLORS.ink : COLORS.border}`,
@@ -10191,10 +10334,13 @@ function APMDashboardLive() {
                 <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
                   <button onClick={() => setHelpTab("guide")} style={tabStyle("guide")}>Site Guide</button>
                   <button onClick={() => setHelpTab("glossary")} style={tabStyle("glossary")}>Concept Glossary</button>
+                  <button onClick={() => setHelpTab("personas")} style={tabStyle("personas")}>By Persona</button>
                 </div>
 
                 <input value={helpSearch} onChange={(e) => setHelpSearch(e.target.value)}
-                  placeholder={helpTab === "guide" ? "Search the guide — e.g. \"renewal\" or \"palette\"…" : "Search concepts — e.g. \"Application\" or \"retire\"…"}
+                  placeholder={helpTab === "guide" ? "Search the guide — e.g. \"renewal\" or \"palette\"…"
+                    : helpTab === "glossary" ? "Search concepts — e.g. \"Application\" or \"retire\"…"
+                    : "Search roles — e.g. \"data\" or \"programme\"…"}
                   style={{ width: "100%", maxWidth: 420, padding: "9px 12px", fontSize: 13, border: `1px solid ${COLORS.border}`,
                     borderRadius: 9, marginBottom: 22, background: COLORS.card }} />
 
@@ -10342,6 +10488,61 @@ function APMDashboardLive() {
                     </div>
                   </div>
                 ))}
+                    </div>
+                  </div>
+                )}
+
+                {helpTab === "personas" && (
+                  <div style={{ display: "flex", gap: 28 }}>
+                    <Rail chapters={PERSONAS.map((p) => p.label)} active={helpPersona} onSelect={setHelpPersona} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      {!isSearching && (
+                        <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginBottom: 24, maxWidth: 780, lineHeight: 1.6 }}>
+                          Who actually opens this tool, and what they'd use it for day to day — a way in if "here's every
+                          view" is less useful than "here's what matters to someone in my seat." Every view linked below
+                          is real and one click away; none of this is aspirational.
+                        </div>
+                      )}
+                      {personasToShow.length === 0 ? (
+                        <div style={{ fontSize: 13, color: COLORS.inkSecondary }}>No roles match "{helpSearch}".</div>
+                      ) : personasToShow.map((p) => (
+                        <div key={p.key} className="ds-card" style={{ ...cardStyle, marginBottom: 14 }}>
+                          <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>{p.label}</div>
+                          <div style={{ fontSize: 13, color: COLORS.ink, lineHeight: 1.6, marginBottom: 10, maxWidth: 820, fontStyle: "italic" }}>
+                            {p.summary}
+                          </div>
+                          <div style={{ fontSize: 13, color: COLORS.inkSecondary, lineHeight: 1.6, marginBottom: 16, maxWidth: 820 }}>
+                            {p.dayToDay}
+                          </div>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.inkSecondary, textTransform: "uppercase",
+                            letterSpacing: "0.05em", marginBottom: 10 }}>
+                            Views that matter most
+                          </div>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: p.honestGap ? 14 : 0 }}>
+                            {p.views.map((v, i) => (
+                              <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 12px",
+                                background: COLORS.paper, borderRadius: 10 }}>
+                                <span style={{ width: 26, height: 26, borderRadius: 7, background: COLORS.ink, flexShrink: 0,
+                                  display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>
+                                  {React.cloneElement(ICONS[v.key] || ICONS.help, { width: 14, height: 14 })}
+                                </span>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <span onClick={() => goToView(v.key)}
+                                    style={{ fontSize: 12.5, fontWeight: 700, color: COLORS.accent, cursor: "pointer" }}>
+                                    {VIEW_TITLES[v.key] || v.key} →
+                                  </span>
+                                  <div style={{ fontSize: 12, color: COLORS.inkSecondary, lineHeight: 1.5, marginTop: 2 }}>{v.why}</div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                          {p.honestGap && (
+                            <div style={{ fontSize: 12, color: COLORS.inkSecondary, lineHeight: 1.6, borderTop: `1px solid ${COLORS.border}`, paddingTop: 12 }}>
+                              {p.honestGap}
+                            </div>
+                          )}
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
