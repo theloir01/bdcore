@@ -562,6 +562,7 @@ const PERSONAS = [
       { key: "initiatives", why: "Every initiative plotted against reality — dates and progress read straight from the graph, not a separately maintained roadmap slide." },
       { key: "decisionlog", why: "The architectural and investment decisions already made, with rationale and consequences, so a new initiative doesn't quietly contradict one." },
       { key: "valuedelivered", why: "Whether the programme is actually moving the needle, not just running." },
+      { key: "workspaces", why: "Where a transformation story actually gets built — sketch the target-state capability model with stakeholders in a workshop, pull in real existing structure with \"Add From Graph,\" and push it to the graph once it's agreed, rather than losing it in a slide deck." },
     ],
   },
   {
@@ -596,6 +597,7 @@ const PERSONAS = [
       { key: "obsolescence", why: "Which applications are exposed to ageing infrastructure, traced transitively through the real dependency graph, not a manually maintained list." },
       { key: "businessunits", why: "Cross-unit comparison of cost, criticality, and portfolio share." },
       { key: "ontology", why: "Direct CRUD across all concept types, including schema-level attribute and enum management — the place to fix or extend the model itself." },
+      { key: "workspaces", why: "The shared modelling surface — a canvas lives on the graph itself, so anyone connected can open it, build on what's there, and pick it up again later. Not live multiplayer editing, but a real shared artifact rather than a diagram stuck on one person's laptop." },
     ],
   },
   {
@@ -607,6 +609,7 @@ const PERSONAS = [
       { key: "dataflow", why: "Provider → Interface → Consumer, with protocol, frequency, and the data riding on each connection — a live integration map, not a diagram someone drew once." },
       { key: "journeytrace", why: "Walk a customer or business journey down through its stages to the capabilities, processes, applications, and technology that actually deliver it, and see exactly where the chain breaks." },
       { key: "portfolio", why: "Open any application from here to reach Blast Radius — what breaks if this specific system goes offline." },
+      { key: "workspaces", why: "Sketch an integration design with the team before it's real — sticky notes and shapes stay purely visual until you explicitly convert and push them, so nothing half-formed lands in the graph by accident." },
     ],
   },
   {
@@ -619,6 +622,7 @@ const PERSONAS = [
       { key: "dependencies", why: "What breaks if a specific data store is touched — the question that eats the most time before any migration." },
       { key: "ownership", why: "Every unowned Data record — same governance hygiene check as everything else in the graph." },
       { key: "ai", why: "Which data assets are already feeding an AI model, and their quality — increasingly your problem too, not just the data scientist's." },
+      { key: "workspaces", why: "Sketch a data flow or target data architecture with stakeholders before it's formal — \"Add From Graph\" pulls in what already exists to build the picture around, rather than starting blank." },
     ],
     honestGap: "Worth knowing what this isn't: no column-level lineage, no automated data-quality profiling, no physical schema modelling. This is the architecture-and-governance layer underneath a data estate, not a replacement for a dedicated catalog or lineage tool.",
   },
