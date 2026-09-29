@@ -555,7 +555,7 @@ const GUIDE_SECTIONS = [
           "It reuses the existing Action Center computation as its sensor rather than a second detection engine — nothing here is a new kind of analysis.",
           "\"Autonomous\" means it runs on its own once connected, without a human re-checking the dashboard — not that it's a 24/7 server process. It only runs while this app is open in a connected browser tab.",
           "Use \"Scan Now\" to check immediately rather than waiting for the next automatic interval.",
-          "Click a finding's category to jump straight to the view it came from.",
+          "Click a finding's category to jump straight to the view it came from, or click \"Fix This\" on a new/worsened finding to resolve it directly through a short pop-out — no navigation needed.",
           "Unlike Workspaces and the Audit Log, findings here are wiped by a Load Demo Dataset data swap — old findings about a previous customer's gaps would be meaningless clutter once the underlying data they were about is gone.",
         ] },
     ],
@@ -2650,6 +2650,397 @@ function LoginScreen({ brand, onLogin }) {
   );
 }
 
+// -----------------------------------------------------------------------
+// Fix It wizard — turns a flagged item into an actual graph write, through
+// a short, category-specific series of questions rather than a free-form AI
+// chat. Each flow resolves the clicked entity name back to its real record
+// (from data already loaded this session), asks only what that category
+// genuinely needs to know, and applies exactly one well-understood
+// mutation — the same kind of edit Ontology Manager or a Profile page would
+// make, just reached through a guided pop-out. Deliberately not a
+// general-purpose agent: there's no model interpreting the answers, so what
+// it can fix is bounded to these nine categories and their fixed questions.
+// -----------------------------------------------------------------------
+const FIELD_REVIEW_EXPECTED_SERVICE_TIER = { Critical: "Platinum", High: "Gold", Medium: "Silver", Low: "Bronze" };
+
+const FIX_FLOWS = {
+  brief: {
+    resolve: (name, ctx) => ctx.apps.find((a) => a.name === name) || null,
+    getSteps: (app) => [
+      { id: "strategy", type: "select",
+        prompt: `"${app.name}" is Critical with no disaster recovery coverage today. What DR strategy should protect it?`,
+        options: ["Backup & Restore", "Pilot Light", "Warm Standby", "Active-Active"] },
+    ],
+    apply: async (app, a, ctx) => {
+      const controlId = newCanvasId("control");
+      const controlName = `Disaster Recovery (${a.strategy}) — ${app.name}`;
+      await runCypher(ctx.apiUrl, ctx.authHeader, `CREATE (c:Instance:Control {id: $id, name: $name, stereotype: 'Disaster Recovery'})`,
+        { id: controlId, name: controlName });
+      await runCypher(ctx.apiUrl, ctx.authHeader,
+        `MATCH (c:Instance:Control {id: $cid}) MATCH (a:Instance:Application {id: $aid}) CREATE (c)-[:CONSTRAINS]->(a)`,
+        { cid: controlId, aid: app.id });
+      await ctx.logAudit({ action: "created", entityType: "Control", entityId: controlId, entityName: controlName,
+        summary: `Created and linked via Fix This to cover "${app.name}".` });
+      return `Created "${controlName}" and linked it to protect "${app.name}".`;
+    },
+  },
+  obsolescence: {
+    resolve: (name, ctx) => ctx.atRiskTech.find((t) => t.name === name) || null,
+    getSteps: (tech) => [
+      { id: "targetDate", type: "date",
+        prompt: `"${tech.name}" is ${tech.lifecycle}, exposing ${tech.exposedApps.length} application${tech.exposedApps.length === 1 ? "" : "s"} (${fmtGBP(tech.tcoAtRisk)} TCO at risk). Create a modernisation initiative to replace it — target date?` },
+      { id: "owner", type: "text", optional: true, placeholder: "e.g. Platform Engineering",
+        prompt: "Who should own this initiative? (optional)" },
+    ],
+    apply: async (tech, a, ctx) => {
+      const id = newCanvasId("initiative");
+      const name = `Replace ${tech.name}`;
+      await runCypher(ctx.apiUrl, ctx.authHeader,
+        `CREATE (i:Instance:Initiative {id: $id, name: $name, status: 'Proposed', stereotype: 'Modernisation',
+          description: $description, target_date: $targetDate, owner: $owner, start_date: $startDate, progress: 0})`,
+        { id, name, description: `Auto-created via Fix This — "${tech.name}" is ${tech.lifecycle} and exposes ${tech.exposedApps.length} application${tech.exposedApps.length === 1 ? "" : "s"}.`,
+          targetDate: a.targetDate || null, owner: a.owner || null, startDate: new Date().toISOString().slice(0, 10) });
+      await ctx.logAudit({ action: "created", entityType: "Initiative", entityId: id, entityName: name,
+        summary: `Modernisation initiative created via Fix This to retire "${tech.name}".` });
+      return `Created initiative "${name}", targeted for ${a.targetDate}.`;
+    },
+  },
+  blocked: {
+    resolve: (name, ctx) => ctx.blockedDecisions.find((d) => d.name === name) || null,
+    getSteps: (bd) => [
+      { id: "resolution", type: "select",
+        prompt: `"${bd.appName}" is blocking "${bd.name}" from moving forward. How should this be resolved?`,
+        options: ["Dependency resolved — clear the block", "Not resolved yet — just add a note"] },
+      { id: "note", type: "text", optional: true, placeholder: "What changed, or what's still needed",
+        prompt: "Add a short note for the record (optional)." },
+    ],
+    apply: async (bd, a, ctx) => {
+      const cleared = a.resolution.startsWith("Dependency resolved");
+      if (cleared) {
+        await runCypher(ctx.apiUrl, ctx.authHeader,
+          `MATCH (app:Instance:Application {id: $appId})-[r:BLOCKS]->(i:Instance:Initiative {id: $initId}) DELETE r`,
+          { appId: bd.appId, initId: bd.id });
+      }
+      await ctx.logAudit({ action: "updated", entityType: "Initiative", entityId: bd.id, entityName: bd.name,
+        summary: `${cleared ? `Block from "${bd.appName}" cleared` : "Note added, block still open"} via Fix This${a.note ? `: ${a.note}` : "."}` });
+      return cleared ? `Cleared the block — "${bd.appName}" no longer blocks "${bd.name}".` : `Noted. The block from "${bd.appName}" is still open.`;
+    },
+  },
+  redundancy: {
+    resolve: (name, ctx) => ctx.apps.find((a) => a.name === name) || null,
+    getSteps: (app) => [
+      { id: "confirm", type: "select", prompt: `Retire "${app.name}" to resolve this redundancy overlap?`,
+        options: ["Yes, mark for retirement", "No, cancel"] },
+    ],
+    apply: async (app, a, ctx) => {
+      if (!a.confirm.startsWith("Yes")) return `No changes made to "${app.name}".`;
+      await runCypher(ctx.apiUrl, ctx.authHeader,
+        `MATCH (n:Instance:Application {id: $id}) SET n.status = 'Retiring', n.retiring_date = $date`,
+        { id: app.id, date: new Date().toISOString().slice(0, 10) });
+      await ctx.logAudit({ action: "updated", entityType: "Application", entityId: app.id, entityName: app.name,
+        summary: `Marked Retiring via Fix This to resolve a redundancy overlap.` });
+      return `Marked "${app.name}" as Retiring.`;
+    },
+  },
+  fieldreview: {
+    resolve: (name, ctx) => {
+      const svc = ctx.fieldReviews.serviceLevel.flagged.find((f) => f.name === name);
+      if (svc) return { kind: "serviceLevel", app: ctx.apps.find((a) => a.id === svc.id), flagged: svc };
+      const crit = ctx.fieldReviews.criticality.flagged.find((f) => f.name === name);
+      if (crit) return { kind: "criticality", app: ctx.apps.find((a) => a.id === crit.id), flagged: crit };
+      const md = ctx.fieldReviews.marketDifferentiation.flagged.find((f) => f.name === name);
+      if (md) return { kind: "marketDifferentiation", cap: ctx.capCoverage.find((c) => c.capability === name), flagged: md };
+      return null;
+    },
+    getSteps: (r) => {
+      if (r.kind === "serviceLevel") {
+        const expected = FIELD_REVIEW_EXPECTED_SERVICE_TIER[r.app.criticality];
+        return [{ id: "action", type: "select", prompt: `${r.flagged.reason} Update Service Level to ${expected}?`,
+          options: [`Yes, set to ${expected}`, "No, leave as is"] }];
+      }
+      if (r.kind === "criticality") {
+        return [{ id: "newValue", type: "select", prompt: `${r.flagged.reason} What should Criticality actually be?`,
+          options: ["Critical", "High", "Medium", "Low"] }];
+      }
+      return [{ id: "action", type: "select", prompt: `${r.flagged.reason} How should this be resolved?`,
+        options: ["Raise Importance to match the differentiation claim", "Lower Market Differentiation to match current Importance"] }];
+    },
+    apply: async (r, a, ctx) => {
+      if (r.kind === "serviceLevel") {
+        if (!a.action.startsWith("Yes")) return `No changes made to "${r.app.name}".`;
+        const expected = FIELD_REVIEW_EXPECTED_SERVICE_TIER[r.app.criticality];
+        await runCypher(ctx.apiUrl, ctx.authHeader, `MATCH (n:Instance:Application {id: $id}) SET n.service_level = $v`,
+          { id: r.app.id, v: expected });
+        await ctx.logAudit({ action: "updated", entityType: "Application", entityId: r.app.id, entityName: r.app.name,
+          summary: `Service Level set to ${expected} via Fix This.` });
+        return `Set Service Level to ${expected} on "${r.app.name}".`;
+      }
+      if (r.kind === "criticality") {
+        await runCypher(ctx.apiUrl, ctx.authHeader, `MATCH (n:Instance:Application {id: $id}) SET n.criticality = $v`,
+          { id: r.app.id, v: a.newValue });
+        await ctx.logAudit({ action: "updated", entityType: "Application", entityId: r.app.id, entityName: r.app.name,
+          summary: `Criticality set to ${a.newValue} via Fix This.` });
+        return `Set Criticality to ${a.newValue} on "${r.app.name}".`;
+      }
+      const raise = a.action.startsWith("Raise");
+      await runCypher(ctx.apiUrl, ctx.authHeader,
+        `MATCH (n:Instance:Capability {id: $id}) SET n.${raise ? "importance" : "market_differentiation"} = $v`,
+        { id: r.cap.id, v: raise ? "High" : "Medium" });
+      await ctx.logAudit({ action: "updated", entityType: "Capability", entityId: r.cap.id, entityName: r.cap.capability,
+        summary: `${raise ? "Importance raised to High" : "Market Differentiation lowered to Medium"} via Fix This.` });
+      return raise ? `Raised Importance to High on "${r.cap.capability}".` : `Lowered Market Differentiation to Medium on "${r.cap.capability}".`;
+    },
+  },
+  ai: {
+    resolve: (name, ctx) => ctx.apps.find((a) => a.name === name) || null,
+    getSteps: (app) => [
+      { id: "aiReadiness", type: "select", prompt: `Rate "${app.name}"'s AI Readiness (feasibility).`, options: ["Low", "Medium", "High"] },
+      { id: "aiRelevance", type: "select", prompt: `Rate its AI Relevance (payoff).`, options: ["Low", "Medium", "High"] },
+    ],
+    apply: async (app, a, ctx) => {
+      await runCypher(ctx.apiUrl, ctx.authHeader,
+        `MATCH (n:Instance:Application {id: $id}) SET n.ai_readiness = $r, n.ai_relevance = $v`,
+        { id: app.id, r: a.aiReadiness, v: a.aiRelevance });
+      await ctx.logAudit({ action: "updated", entityType: "Application", entityId: app.id, entityName: app.name,
+        summary: `AI Readiness set to ${a.aiReadiness}, AI Relevance set to ${a.aiRelevance} via Fix This.` });
+      return `Set AI Readiness to ${a.aiReadiness} and AI Relevance to ${a.aiRelevance} on "${app.name}".`;
+    },
+  },
+  health: {
+    resolve: (name, ctx) => ctx.apps.find((a) => a.name === name) || null,
+    getSteps: (app) => {
+      const steps = [];
+      if (!app.owner) steps.push({ id: "owner", type: "text", placeholder: "e.g. Jane Doe, Platform Team", prompt: `Who owns "${app.name}"?` });
+      if (!app.vendor || app.vendor === "Undisclosed") steps.push({ id: "vendor", type: "text", placeholder: "e.g. SAP, in-house", prompt: `Who's the vendor for "${app.name}"?` });
+      return steps;
+    },
+    apply: async (app, a, ctx) => {
+      const props = {};
+      if (a.owner) props.owner = a.owner;
+      if (a.vendor) props.vendor = a.vendor;
+      if (Object.keys(props).length === 0) return `No changes made to "${app.name}".`;
+      await runCypher(ctx.apiUrl, ctx.authHeader, `MATCH (n:Instance:Application {id: $id}) SET n += $props`, { id: app.id, props });
+      await ctx.logAudit({ action: "updated", entityType: "Application", entityId: app.id, entityName: app.name,
+        summary: `${Object.keys(props).join(" and ")} set via Fix This.` });
+      return `Updated ${Object.keys(props).join(" and ")} on "${app.name}".`;
+    },
+  },
+  capboard: {
+    resolve: (name, ctx) => {
+      const cap = ctx.capCoverage.find((c) => c.capability === name);
+      if (!cap) return null;
+      const realizingProcs = ctx.processes.filter((p) => p.capabilityName === name);
+      return { cap, realizingProcs };
+    },
+    getSteps: (r, ctx) => {
+      if (r.realizingProcs.length === 0) {
+        const options = ctx.processes.map((p) => p.name);
+        return [{ id: "processName", type: "select", disabled: options.length === 0,
+          prompt: `No process realises "${r.cap.capability}" yet. Which existing process should?`,
+          options, note: options.length === 0 ? "No processes exist yet — create one in Ontology Manager first." : null }];
+      }
+      const supportless = r.realizingProcs.filter((p) => !(p.supportingApps || []).length);
+      const proc = supportless[0] || r.realizingProcs[0];
+      const options = ctx.apps.map((a) => a.name);
+      return [{ id: "appName", type: "select", disabled: options.length === 0, procId: proc.id, procName: proc.name,
+        prompt: `"${proc.name}" realises "${r.cap.capability}" but no application supports it. Which application should?`, options }];
+    },
+    apply: async (r, a, ctx) => {
+      if (r.realizingProcs.length === 0) {
+        const proc = ctx.processes.find((p) => p.name === a.processName);
+        if (!proc) return `No changes made.`;
+        await runCypher(ctx.apiUrl, ctx.authHeader,
+          `MATCH (p:Instance:Process {id: $pid}) MATCH (c:Instance:Capability {id: $cid}) CREATE (p)-[:REALISES]->(c)`,
+          { pid: proc.id, cid: r.cap.id });
+        await ctx.logAudit({ action: "updated", entityType: "Capability", entityId: r.cap.id, entityName: r.cap.capability,
+          summary: `Linked to process "${proc.name}" via REALISES, via Fix This.` });
+        return `Linked "${proc.name}" to realise "${r.cap.capability}".`;
+      }
+      const app = ctx.apps.find((a2) => a2.name === a.appName);
+      const supportless = r.realizingProcs.filter((p) => !(p.supportingApps || []).length);
+      const proc = supportless[0] || r.realizingProcs[0];
+      if (!app || !proc) return `No changes made.`;
+      await runCypher(ctx.apiUrl, ctx.authHeader,
+        `MATCH (ap:Instance:Application {id: $aid}) MATCH (p:Instance:Process {id: $pid}) CREATE (ap)-[:SUPPORTS]->(p)`,
+        { aid: app.id, pid: proc.id });
+      await ctx.logAudit({ action: "updated", entityType: "Process", entityId: proc.id, entityName: proc.name,
+        summary: `Linked to application "${app.name}" via SUPPORTS, via Fix This.` });
+      return `Linked "${app.name}" to support "${proc.name}".`;
+    },
+  },
+  decisionlog: {
+    resolve: (name, ctx) => ctx.decisions.find((d) => d.name === name) || null,
+    getSteps: (d) => [
+      { id: "status", type: "select", prompt: `"${d.name}" is still Proposed. What's the resolution?`, options: ["Approved", "Rejected"] },
+    ],
+    apply: async (d, a, ctx) => {
+      await runCypher(ctx.apiUrl, ctx.authHeader, `MATCH (n:Instance:Decision {id: $id}) SET n.status = $status`,
+        { id: d.id, status: a.status });
+      await ctx.logAudit({ action: "updated", entityType: "Decision", entityId: d.id, entityName: d.name,
+        summary: `Status changed from Proposed to ${a.status} via Fix This.` });
+      return `Decision "${d.name}" marked ${a.status}.`;
+    },
+  },
+};
+
+function FixItWizard({ category, entities, ctx, onClose, onApplied }) {
+  const [selectedEntity, setSelectedEntity] = React.useState(entities.length === 1 ? entities[0] : null);
+  const [stepIndex, setStepIndex] = React.useState(0);
+  const [answers, setAnswers] = React.useState({});
+  const [textDraft, setTextDraft] = React.useState("");
+  const [applying, setApplying] = React.useState(false);
+  const [applyError, setApplyError] = React.useState("");
+  const [result, setResult] = React.useState(null);
+
+  const flow = FIX_FLOWS[category];
+  const resolved = React.useMemo(() => (flow && selectedEntity ? flow.resolve(selectedEntity, ctx) : null), [flow, selectedEntity, ctx]);
+  const steps = React.useMemo(() => (resolved ? flow.getSteps(resolved, ctx) : []), [resolved, flow, ctx]);
+  const currentStep = steps[stepIndex];
+
+  const pickEntity = (name) => { setSelectedEntity(name); setStepIndex(0); setAnswers({}); setResult(null); };
+  const answer = (value) => {
+    const next = { ...answers, [currentStep.id]: value };
+    setAnswers(next);
+    setTextDraft("");
+    setStepIndex((i) => i + 1);
+  };
+  const applyFix = async () => {
+    setApplying(true);
+    setApplyError("");
+    try {
+      const summary = await flow.apply(resolved, answers, ctx);
+      setResult(summary);
+      onApplied();
+    } catch (e) {
+      setApplyError(`Couldn't apply this fix: ${e.message}`);
+    } finally {
+      setApplying(false);
+    }
+  };
+
+  const Bot = ({ children }) => (
+    <div style={{ marginBottom: 14 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.accent, marginBottom: 4 }}>Fix It</div>
+      <div style={{ fontSize: 13.5, lineHeight: 1.55, color: COLORS.ink }}>{children}</div>
+    </div>
+  );
+  const You = ({ children }) => (
+    <div style={{ marginBottom: 14 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.inkSecondary, marginBottom: 4 }}>You</div>
+      <div style={{ fontSize: 13.5, lineHeight: 1.55, color: COLORS.ink }}>{children}</div>
+    </div>
+  );
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(20,31,48,0.55)", zIndex: 400,
+      display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 18, width: "min(520px, 100%)",
+        maxHeight: "85vh", overflowY: "auto", padding: 24, boxShadow: "0 24px 60px rgba(10,14,26,0.38)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+          <div style={{ fontSize: 15, fontWeight: 700 }}>🔧 Fix This</div>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: COLORS.inkSecondary, lineHeight: 1 }}>×</button>
+        </div>
+
+        {!selectedEntity && (
+          <>
+            <Bot>A few of these are flagged — which one do you want to fix first?</Bot>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {entities.map((name) => (
+                <button key={name} onClick={() => pickEntity(name)}
+                  style={{ textAlign: "left", padding: "9px 12px", border: `1px solid ${COLORS.border}`, borderRadius: 9,
+                    background: COLORS.card, fontSize: 13, cursor: "pointer" }}>
+                  {name}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
+        {selectedEntity && !resolved && (
+          <>
+            <Bot>Couldn't find "{selectedEntity}" anymore — it likely changed or was removed already.</Bot>
+            <button onClick={onClose} style={{ padding: "8px 16px", background: COLORS.ink, color: "#fff", border: "none",
+              borderRadius: 8, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>Close</button>
+          </>
+        )}
+
+        {selectedEntity && resolved && (
+          <>
+            {steps.slice(0, stepIndex).map((s) => (
+              <React.Fragment key={s.id}>
+                <Bot>{s.prompt}</Bot>
+                <You>{answers[s.id]}</You>
+              </React.Fragment>
+            ))}
+
+            {!result && currentStep && (
+              <>
+                <Bot>{currentStep.prompt}</Bot>
+                {currentStep.note && <div style={{ fontSize: 12, color: COLORS.warning, marginTop: -8, marginBottom: 12 }}>{currentStep.note}</div>}
+                {currentStep.type === "select" && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {currentStep.options.map((opt) => (
+                      <button key={opt} disabled={currentStep.disabled} onClick={() => answer(opt)}
+                        style={{ textAlign: "left", padding: "9px 12px", border: `1px solid ${COLORS.border}`, borderRadius: 9,
+                          background: COLORS.card, fontSize: 13, cursor: currentStep.disabled ? "default" : "pointer",
+                          opacity: currentStep.disabled ? 0.5 : 1 }}>
+                        {opt}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {(currentStep.type === "text" || currentStep.type === "date") && (
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <input autoFocus type={currentStep.type === "date" ? "date" : "text"} value={textDraft}
+                      placeholder={currentStep.placeholder} onChange={(e) => setTextDraft(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter" && textDraft) answer(textDraft); }}
+                      style={{ flex: 1, padding: "8px 10px", border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 13 }} />
+                    <button onClick={() => answer(textDraft)} disabled={!textDraft && !currentStep.optional}
+                      style={{ padding: "8px 14px", background: COLORS.ink, color: "#fff", border: "none", borderRadius: 8,
+                        fontSize: 12.5, fontWeight: 600, cursor: "pointer", opacity: (!textDraft && !currentStep.optional) ? 0.5 : 1 }}>
+                      {textDraft ? "Next" : "Skip"}
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+
+            {!result && !currentStep && (
+              <>
+                <Bot>Ready to apply this fix?</Bot>
+                {applyError && <div style={{ fontSize: 12.5, color: COLORS.risk, marginBottom: 12 }}>{applyError}</div>}
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button onClick={onClose} style={{ padding: "8px 16px", background: "transparent", color: COLORS.ink,
+                    border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 12.5, cursor: "pointer" }}>Cancel</button>
+                  <button onClick={applyFix} disabled={applying}
+                    style={{ padding: "8px 16px", background: COLORS.accent, color: "#fff", border: "none", borderRadius: 8,
+                      fontSize: 12.5, fontWeight: 600, cursor: applying ? "default" : "pointer", opacity: applying ? 0.6 : 1 }}>
+                    {applying ? "Applying…" : "Apply Fix"}
+                  </button>
+                </div>
+              </>
+            )}
+
+            {result && (
+              <>
+                <Bot>✓ {result}</Bot>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button onClick={onClose} style={{ padding: "8px 16px", background: COLORS.ink, color: "#fff", border: "none",
+                    borderRadius: 8, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>Close</button>
+                  {entities.length > 1 && (
+                    <button onClick={() => pickEntity(null)} style={{ padding: "8px 16px", background: "transparent", color: COLORS.ink,
+                      border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 12.5, cursor: "pointer" }}>Fix another →</button>
+                  )}
+                </div>
+              </>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function APMDashboardLive() {
   // Who's using this device right now — persisted in localStorage exactly
   // like the Neo4j credentials, so returning to the page later skips
@@ -2945,6 +3336,7 @@ function APMDashboardLive() {
   const [selectedIds, setSelectedIds] = useState(new Set()); // Set of "kind:id" — multi-select across stickies/concepts/texts/shapes
   const [marquee, setMarquee] = useState(null); // { x1, y1, x2, y2 } in canvas space, while rubber-band-selecting
   const [escalateDialog, setEscalateDialog] = useState(null); // { item, canvasName, workspaceMode: 'existing'|'new', workspaceId, newWorkspaceName }
+  const [fixWizard, setFixWizard] = useState(null); // { category, entities, title } — opens the FixItWizard pop-out
   const [connectDrag, setConnectDrag] = useState(null); // { sourceId, x, y } — live drag from a connector handle
   const [resizeState, setResizeState] = useState(null); // { id, kind, startMouse, startSize }
   const [connectingFrom, setConnectingFrom] = useState(null);
@@ -7299,6 +7691,20 @@ function APMDashboardLive() {
 
       <ConfirmDialog dialog={confirmDialog} onResolve={resolveConfirmDialog} />
 
+      {fixWizard && (
+        <FixItWizard
+          category={fixWizard.category}
+          entities={fixWizard.entities}
+          ctx={{
+            apps, decisions, capCoverage, processes, atRiskTech, blockedDecisions, fieldReviews,
+            apiUrl: deriveQueryApiUrl(uri, dbName), authHeader: "Basic " + btoa(`${username}:${password}`),
+            logAudit,
+          }}
+          onClose={() => setFixWizard(null)}
+          onApplied={handleRefresh}
+        />
+      )}
+
       {status === "connected" && (
         <div style={{ width: sidebarCollapsed ? 68 : 240, flexShrink: 0,
           background: "#FFFFFF", borderRight: `1px solid ${COLORS.border}`,
@@ -9812,6 +10218,12 @@ function APMDashboardLive() {
                     interval. Close the tab and it stops; there's no 24/7 process watching the graph in the
                     background. Use "Scan Now" below to run a check on demand.
                   </div>
+                  <div style={{ fontSize: 12, color: COLORS.inkSecondary, marginTop: 10, lineHeight: 1.6 }}>
+                    Any new or worsened finding can be resolved on the spot with "🔧 Fix This" — a short, category-specific
+                    series of questions that ends in a real graph write (a Control created, a status changed, a field
+                    set), the same as making that edit in Ontology Manager. It's a guided form, not a free-form AI agent —
+                    the questions and the fix they lead to are fixed per category, not generated.
+                  </div>
                 </div>
 
                 {agentFindingsError && <div style={{ fontSize: 12.5, color: COLORS.risk, marginBottom: 14 }}>{agentFindingsError}</div>}
@@ -9850,6 +10262,16 @@ function APMDashboardLive() {
                           <span onClick={() => goToView(f.category)} style={{ color: COLORS.accent, cursor: "pointer", fontWeight: 600 }}>{f.title} →</span>
                         ) },
                       { key: "message", label: "Details", render: (f) => <span style={{ color: COLORS.inkSecondary }}>{f.message}</span> },
+                      { key: "fix", label: "", sortable: false, render: (f) => (
+                          f.kind !== "resolved" && FIX_FLOWS[f.category] && f.entities.length > 0 ? (
+                            <button onClick={() => setFixWizard({ category: f.category, entities: f.entities })}
+                              style={{ fontSize: 11, fontWeight: 600, padding: "5px 10px", borderRadius: 7,
+                                border: `1px solid ${COLORS.ink}33`, background: `${COLORS.ink}0A`, color: COLORS.ink,
+                                cursor: "pointer", whiteSpace: "nowrap" }}>
+                              🔧 Fix This
+                            </button>
+                          ) : null
+                        ) },
                     ]}
                     rows={agentFindings}
                   />
@@ -10378,13 +10800,24 @@ function APMDashboardLive() {
                         </div>
                         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6, flexShrink: 0 }}>
                           <span style={{ fontSize: 13, fontWeight: 700, color: COLORS.ink, whiteSpace: "nowrap" }}>Review →</span>
-                          <button onClick={(e) => { e.stopPropagation(); openEscalateDialog(item); }} disabled={canvasChatLoading}
-                            title="Name a new canvas, pick a workspace, and let the AI sketch a first pass at fixing this"
-                            style={{ fontSize: 11, fontWeight: 600, padding: "5px 10px", borderRadius: 7,
-                              border: `1px solid ${COLORS.accent}44`, background: `${COLORS.accent}0C`, color: COLORS.accent,
-                              cursor: canvasChatLoading ? "default" : "pointer", opacity: canvasChatLoading ? 0.6 : 1, whiteSpace: "nowrap" }}>
-                            {canvasChatLoading ? "Ideating…" : "✦ Ideate on Canvas"}
-                          </button>
+                          <div style={{ display: "flex", gap: 6 }}>
+                            {FIX_FLOWS[item.view] && item.entities.length > 0 && (
+                              <button onClick={(e) => { e.stopPropagation(); setFixWizard({ category: item.view, entities: item.entities }); }}
+                                title="Answer a few questions and make the actual data change directly — no canvas required"
+                                style={{ fontSize: 11, fontWeight: 600, padding: "5px 10px", borderRadius: 7,
+                                  border: `1px solid ${COLORS.ink}33`, background: `${COLORS.ink}0A`, color: COLORS.ink,
+                                  cursor: "pointer", whiteSpace: "nowrap" }}>
+                                🔧 Fix This
+                              </button>
+                            )}
+                            <button onClick={(e) => { e.stopPropagation(); openEscalateDialog(item); }} disabled={canvasChatLoading}
+                              title="Name a new canvas, pick a workspace, and let the AI sketch a first pass at fixing this"
+                              style={{ fontSize: 11, fontWeight: 600, padding: "5px 10px", borderRadius: 7,
+                                border: `1px solid ${COLORS.accent}44`, background: `${COLORS.accent}0C`, color: COLORS.accent,
+                                cursor: canvasChatLoading ? "default" : "pointer", opacity: canvasChatLoading ? 0.6 : 1, whiteSpace: "nowrap" }}>
+                              {canvasChatLoading ? "Ideating…" : "✦ Ideate on Canvas"}
+                            </button>
+                          </div>
                         </div>
                       </div>
                     ))}
