@@ -391,6 +391,7 @@ concept_types:
       - {name: Frequency, type: enum, options: ["Real-time", "Near Real-time", Hourly, Daily, Weekly, "On-Demand", "Ad-hoc"]}
       - {name: AuthMethod, type: enum, options: [OAuth2, "API Key", "Basic Auth", Certificate, None, Other]}
       - {name: DataClassification, type: enum, options: [Public, Internal, Confidential, Restricted]}
+      - {name: TransitionPhase, type: enum, options: ["Current State", "Phase 1", "Phase 2", "Phase 3", "Target State"], purpose: "which stage of a multi-year transformation programme this integration belongs to — paired with Status (Planned/Active/Deprecated/Retired) to show what's new, changed, or already in place at each phase"}
 
   - name: Risk
     category: GRC
