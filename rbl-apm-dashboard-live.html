@@ -517,7 +517,9 @@ const GUIDE_SECTIONS = [
       { key: "workspaces", label: "Workspaces",
         description: "Sketch freely or model real graph data on the same canvas — nothing touches your actual data until you explicitly push it.",
         tips: [
-          "A sticky note can be converted into a real, typed concept with attributes; shapes, arrows, and plain text stay purely visual and are never written to the graph, even after a push.",
+          "A sticky note can be converted into a real, typed concept with attributes; shapes, arrows, plain text, and reference images stay purely visual and are never written to the graph, even after a push.",
+          "The image icon in the toolbar drops in a reference image — a screenshot of a Miro board, a whiteboard photo, anything to trace or annotate over — resized to fit, sent to the back automatically so your own stickies and concepts land on top of it, and freely resizable afterwards. PNG, JPEG, GIF, WEBP, and SVG are all supported, up to 8MB.",
+          "Right-click a reference image to \"Lock in place\" once it's positioned, so it can't be dragged by accident while you're working over it — unlock the same way when you need to move it again.",
           "\"Add From Graph\" pulls in real existing instances to build a picture around, instead of starting from a blank canvas.",
           "Drag any item straight from the Concept or Shape palette onto the canvas to place it exactly where you drop it — or click it to place at the default spot, same as before.",
           "\"+ Import Palette\" builds a custom shape palette from your own icons — drop in a whole vendor .zip exactly as downloaded (AWS, Azure, Cisco, …; nested folders and duplicate sizes are sorted out automatically) or select individual .svg/.png files. The palette is saved to the graph, so everyone connected sees it too.",
@@ -719,6 +721,7 @@ const TOOLBAR_ICONS = {
   concept: <svg {...TOOLBAR_ICON_COMMON}><circle cx="12" cy="4.5" r="2.2" /><circle cx="5" cy="18" r="2.2" /><circle cx="19" cy="18" r="2.2" />
     <line x1="12" y1="6.7" x2="6.3" y2="16" /><line x1="12" y1="6.7" x2="17.7" y2="16" /></svg>,
   arrow: <svg {...TOOLBAR_ICON_COMMON}><line x1="5" y1="19" x2="19" y2="5" /><polyline points="9,5 19,5 19,15" /></svg>,
+  image: <svg {...TOOLBAR_ICON_COMMON}><rect x="3.5" y="4.5" width="17" height="15" rx="1.5" /><circle cx="8.5" cy="9.5" r="1.7" /><path d="M4.5 16.5l5-5 3.5 3.5 3-3 4 4" /></svg>,
   importGraph: <svg {...TOOLBAR_ICON_COMMON}><ellipse cx="12" cy="6" rx="8" ry="3" /><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6" />
     <path d="M12 15v5.5M9 18l3 2.5 3-2.5" /></svg>,
   save: <svg {...TOOLBAR_ICON_COMMON}><path d="M5 4h11l3 3v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z" /><rect x="7.5" y="4" width="6" height="4.5" /><rect x="6.5" y="13.5" width="11" height="6" /></svg>,
@@ -3143,6 +3146,7 @@ function APMDashboardLive() {
   const [conceptPickerPos, setConceptPickerPos] = useState(null); // {left, top} in screen px, or null for the default toolbar anchor
   const [canvasTexts, setCanvasTexts] = useState([]);
   const [editingTextId, setEditingTextId] = useState(null);
+  const [canvasImages, setCanvasImages] = useState([]); // [{ id, x, y, width, height, content (data URL), fileName, locked }]
   const [showImportPanel, setShowImportPanel] = useState(false);
   const [workspaces, setWorkspaces] = useState([]);
   const [canvasList, setCanvasList] = useState([]);
@@ -3328,6 +3332,7 @@ function APMDashboardLive() {
   const [importPaletteBusy, setImportPaletteBusy] = useState(false);
   const [importPaletteStatus, setImportPaletteStatus] = useState("");
   const importPaletteFileInputRef = useRef(null);
+  const canvasImageInputRef = useRef(null);
   const [canvasScale, setCanvasScale] = useState(1);
   const [stickies, setStickies] = useState([]);
   const [canvasConcepts, setCanvasConcepts] = useState([]);
@@ -5789,7 +5794,7 @@ function APMDashboardLive() {
   };
 
   // --- Modelling Canvas functions ---
-  const saveCanvas = useCallback(async (stickiesArg, conceptsArg, edgesArg, textsArg, canvasIdArg, shapesArg, shapeEdgesArg, arrowsArg) => {
+  const saveCanvas = useCallback(async (stickiesArg, conceptsArg, edgesArg, textsArg, canvasIdArg, shapesArg, shapeEdgesArg, arrowsArg, imagesArg) => {
     const targetId = canvasIdArg || activeCanvasId;
     if (!targetId) return;
     setCanvasStatus("Saving…");
@@ -5804,6 +5809,7 @@ function APMDashboardLive() {
         shapes: shapesArg !== undefined ? shapesArg : shapes,
         shapeEdges: shapeEdgesArg !== undefined ? shapeEdgesArg : shapeEdges,
         arrows: arrowsArg !== undefined ? arrowsArg : freeArrows,
+        images: imagesArg !== undefined ? imagesArg : canvasImages,
       });
       const now = new Date().toISOString();
       await runCypher(apiUrl, authHeader,
@@ -5816,7 +5822,7 @@ function APMDashboardLive() {
     } catch (e) {
       setCanvasStatus(`Save failed: ${e.message}`);
     }
-  }, [uri, username, password, stickies, canvasConcepts, canvasEdges, canvasTexts, activeCanvasId, shapes, shapeEdges, freeArrows]);
+  }, [uri, username, password, stickies, canvasConcepts, canvasEdges, canvasTexts, activeCanvasId, shapes, shapeEdges, freeArrows, canvasImages]);
 
   const loadCanvasData = useCallback(async (canvasId) => {
     setCanvasLoading(true);
@@ -5826,7 +5832,7 @@ function APMDashboardLive() {
       const authHeader = "Basic " + btoa(`${username}:${password}`);
       const rows = await runCypher(apiUrl, authHeader, `MATCH (c:Canvas {id: $id}) RETURN c.data AS data`, { id: canvasId });
       const raw = rows[0] && rows[0].data;
-      const parsed = raw ? JSON.parse(raw) : { stickies: [], concepts: [], edges: [], texts: [], shapes: [], shapeEdges: [] };
+      const parsed = raw ? JSON.parse(raw) : { stickies: [], concepts: [], edges: [], texts: [], shapes: [], shapeEdges: [], images: [] };
       setStickies(parsed.stickies || []);
       setCanvasConcepts(parsed.concepts || []);
       setCanvasEdges(parsed.edges || []);
@@ -5834,9 +5840,10 @@ function APMDashboardLive() {
       setShapes(parsed.shapes || []);
       setShapeEdges(parsed.shapeEdges || []);
       setFreeArrows(parsed.arrows || []);
+      setCanvasImages(parsed.images || []);
       setCanvasStatus("");
     } catch (e) {
-      setStickies([]); setCanvasConcepts([]); setCanvasEdges([]); setCanvasTexts([]); setShapes([]); setShapeEdges([]); setFreeArrows([]);
+      setStickies([]); setCanvasConcepts([]); setCanvasEdges([]); setCanvasTexts([]); setShapes([]); setShapeEdges([]); setFreeArrows([]); setCanvasImages([]);
       setCanvasStatus(`Failed to load canvas: ${e.message}`);
     } finally {
       setCanvasLoading(false);
@@ -5946,7 +5953,7 @@ function APMDashboardLive() {
       if (activeCanvasId === c.id) {
         const sibling = remaining.find((x) => x.workspaceId === c.workspaceId) || remaining[0];
         if (sibling) { setActiveCanvasId(sibling.id); loadCanvasData(sibling.id); }
-        else { setActiveCanvasId(null); setStickies([]); setCanvasConcepts([]); setCanvasEdges([]); setCanvasTexts([]); setShapes([]); setShapeEdges([]); setFreeArrows([]); }
+        else { setActiveCanvasId(null); setStickies([]); setCanvasConcepts([]); setCanvasEdges([]); setCanvasTexts([]); setShapes([]); setShapeEdges([]); setFreeArrows([]); setCanvasImages([]); }
       }
     } catch (e) {
       setCanvasStatus(`Couldn't delete canvas: ${e.message}`);
@@ -5968,7 +5975,7 @@ function APMDashboardLive() {
       setCanvasList((prev) => prev.filter((c) => !childIds.has(c.id)));
       setWorkspaces((prev) => prev.filter((w) => w.id !== ws.id));
       if (childIds.has(activeCanvasId)) {
-        setActiveCanvasId(null); setStickies([]); setCanvasConcepts([]); setCanvasEdges([]); setCanvasTexts([]); setShapes([]); setShapeEdges([]); setFreeArrows([]);
+        setActiveCanvasId(null); setStickies([]); setCanvasConcepts([]); setCanvasEdges([]); setCanvasTexts([]); setShapes([]); setShapeEdges([]); setFreeArrows([]); setCanvasImages([]);
       }
     } catch (e) {
       setCanvasStatus(`Couldn't delete workspace: ${e.message}`);
@@ -6329,6 +6336,7 @@ function APMDashboardLive() {
     ...canvasConcepts.map((c) => ({ x: c.x, y: c.y, w: c.width || CONCEPT_W, h: c.height || CONCEPT_H })),
     ...canvasTexts.map((t) => ({ x: t.x, y: t.y, w: t.width || 220, h: t.height || 80 })),
     ...shapes.map((s) => ({ x: s.x, y: s.y, w: s.width || 100, h: s.height || 90 })),
+    ...canvasImages.map((im) => ({ x: im.x, y: im.y, w: im.width || 240, h: im.height || 160 })),
   ];
   const canvasCenter = () => {
     const rect = canvasRef.current.getBoundingClientRect();
@@ -6361,6 +6369,57 @@ function APMDashboardLive() {
     };
     setCanvasTexts((prev) => [...prev, text]);
     setEditingTextId(text.id);
+  };
+
+  // A reference image (e.g. a screenshot of a Miro board) — purely visual,
+  // like shapes/arrows/plain text: never written to the graph, even after a
+  // Push. Scaled down to fit within IMAGE_MAX_DIM on its longer side so a
+  // full-resolution screenshot doesn't dwarf the canvas or the saved Canvas
+  // JSON blob; sent to the back of the stack on arrival, since the whole
+  // point is to trace/annotate over it with real stickies and concepts on
+  // top — "Bring to Front" is one right-click away if that's ever wrong.
+  const IMAGE_MAX_DIM = 420;
+  const addImage = (dataUrl, naturalW, naturalH, fileName) => {
+    const scale = Math.min(1, IMAGE_MAX_DIM / Math.max(naturalW, naturalH));
+    const width = Math.max(60, Math.round(naturalW * scale));
+    const height = Math.max(60, Math.round(naturalH * scale));
+    const center = canvasCenter();
+    const pos = findFreePosition(center.x - width / 2, center.y - height / 2, allCanvasItems(), width, height);
+    const allZ = getAllLayeredObjects().map((o) => o.zIndex);
+    const zIndex = (allZ.length ? Math.min(0, ...allZ) : 0) - 1;
+    setCanvasImages((prev) => [...prev, {
+      id: newCanvasId("image"), x: pos.x, y: pos.y, width, height, zIndex, content: dataUrl, fileName, locked: false,
+    }]);
+  };
+  const deleteImage = (id) => setCanvasImages((prev) => prev.filter((im) => im.id !== id));
+  const toggleImageLock = (id) => setCanvasImages((prev) => prev.map((im) => im.id === id ? { ...im, locked: !im.locked } : im));
+
+  const IMAGE_FILE_MAX_BYTES = 8 * 1024 * 1024;
+  const handleImageFileChange = (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/")) { setCanvasStatus("That file isn't an image — pick a PNG, JPEG, GIF, WEBP, or SVG."); return; }
+    if (file.size > IMAGE_FILE_MAX_BYTES) {
+      setCanvasStatus(`"${file.name}" is too large (${Math.round(file.size / 1024 / 1024)}MB) — keep reference images under 8MB, or compress the screenshot first.`);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = String(reader.result);
+      if (file.type === "image/svg+xml") {
+        // SVGs have no intrinsic pixel size the same way raster formats do —
+        // a sensible fixed default, same free-resize as everything else.
+        addImage(dataUrl, 320, 240, file.name);
+        return;
+      }
+      const img = new Image();
+      img.onload = () => addImage(dataUrl, img.naturalWidth || 320, img.naturalHeight || 240, file.name);
+      img.onerror = () => setCanvasStatus(`Couldn't read "${file.name}" as an image.`);
+      img.src = dataUrl;
+    };
+    reader.onerror = () => setCanvasStatus(`Couldn't read "${file.name}".`);
+    reader.readAsDataURL(file);
   };
 
   const SHAPE_W = 92, SHAPE_H = 76;
@@ -6848,6 +6907,7 @@ function APMDashboardLive() {
     ...canvasConcepts.map((o) => ({ kind: "concept", id: o.id, zIndex: o.zIndex || 0 })),
     ...canvasTexts.map((o) => ({ kind: "text", id: o.id, zIndex: o.zIndex || 0 })),
     ...shapes.map((o) => ({ kind: "shape", id: o.id, zIndex: o.zIndex || 0 })),
+    ...canvasImages.map((o) => ({ kind: "image", id: o.id, zIndex: o.zIndex || 0 })),
   ];
   const setObjectZIndex = (kind, id, z) => {
     const updater = (prev) => prev.map((o) => o.id === id ? { ...o, zIndex: z } : o);
@@ -6855,6 +6915,7 @@ function APMDashboardLive() {
     else if (kind === "concept") setCanvasConcepts(updater);
     else if (kind === "text") setCanvasTexts(updater);
     else if (kind === "shape") setShapes(updater);
+    else if (kind === "image") setCanvasImages(updater);
   };
   const bringToFront = (kind, id) => {
     const all = getAllLayeredObjects();
@@ -6892,6 +6953,7 @@ function APMDashboardLive() {
     if (kind === "sticky") deleteSticky(id);
     else if (kind === "text") deleteText(id);
     else if (kind === "shape") deleteShape(id);
+    else if (kind === "image") deleteImage(id);
     else if (kind === "concept") { const c = canvasConcepts.find((x) => x.id === id); deleteConcept(id, c && c.pushed); }
     closeContextMenu();
   };
@@ -6966,6 +7028,7 @@ function APMDashboardLive() {
     if (kind === "concept") return canvasConcepts.find((c) => c.id === id);
     if (kind === "text") return canvasTexts.find((t) => t.id === id);
     if (kind === "shape") return shapes.find((s) => s.id === id);
+    if (kind === "image") return canvasImages.find((im) => im.id === id);
     return null;
   };
   // Bulk counterpart to deleteSticky/deleteText/deleteConcept/deleteShape —
@@ -6974,7 +7037,7 @@ function APMDashboardLive() {
   // so a multi-select delete can't leave stale-closure gaps.
   const deleteSelected = async () => {
     if (selectedIds.size === 0) return;
-    const idsByKind = { sticky: new Set(), concept: new Set(), text: new Set(), shape: new Set() };
+    const idsByKind = { sticky: new Set(), concept: new Set(), text: new Set(), shape: new Set(), image: new Set() };
     selectedIds.forEach((key) => {
       const [kind, id] = key.split(":");
       if (idsByKind[kind]) idsByKind[kind].add(id);
@@ -6993,6 +7056,7 @@ function APMDashboardLive() {
       setShapes((prev) => prev.filter((s) => !idsByKind.shape.has(s.id)));
       setShapeEdges((prev) => prev.filter((e) => !idsByKind.shape.has(e.sourceId) && !idsByKind.shape.has(e.targetId)));
     }
+    if (idsByKind.image.size) setCanvasImages((prev) => prev.filter((im) => !idsByKind.image.has(im.id)));
     if (editingConceptId && idsByKind.concept.has(editingConceptId)) setEditingConceptId(null);
     if (editingTextId && idsByKind.text.has(editingTextId)) setEditingTextId(null);
     setSelectedIds(new Set());
@@ -7021,6 +7085,7 @@ function APMDashboardLive() {
   };
 
   const handleCanvasMouseDown = (e) => {
+    if (e.button !== 0) return; // right/middle-click is for the context menu, never a pan/marquee start
     if (contextMenu) setContextMenu(null);
     if (e.target !== canvasRef.current && !e.target.dataset.canvasBg) return;
     if (arrowDrawMode) { addArrowDraftPoint(screenToCanvas(e.clientX, e.clientY)); return; }
@@ -7039,7 +7104,15 @@ function APMDashboardLive() {
     setDragState({ type: "pan", startMouse: { x: e.clientX, y: e.clientY }, startOffset: canvasOffset });
   };
   const handleItemMouseDown = (e, kind, id) => {
+    if (e.button !== 0) return; // right/middle-click is for the context menu, never a drag start — was leaking a stale dragState into the next real drag
     e.stopPropagation();
+    // Locked images skip straight past the drag path — still selectable via
+    // shift-click, still reachable by right-click to unlock — so tracing or
+    // annotating over one doesn't risk nudging it out of place first.
+    if (kind === "image" && !e.shiftKey) {
+      const img = canvasImages.find((im) => im.id === id);
+      if (img && img.locked) return;
+    }
     const point = screenToCanvas(e.clientX, e.clientY);
     const key = `${kind}:${id}`;
     if (e.shiftKey) {
@@ -7119,6 +7192,7 @@ function APMDashboardLive() {
       else if (resizeState.kind === "concept") setCanvasConcepts((prev) => prev.map((c) => c.id === resizeState.id ? { ...c, width: newW, height: newH } : c));
       else if (resizeState.kind === "text") setCanvasTexts((prev) => prev.map((t) => t.id === resizeState.id ? { ...t, width: newW, height: newH } : t));
       else if (resizeState.kind === "shape") setShapes((prev) => prev.map((s) => s.id === resizeState.id ? { ...s, width: newW, height: newH } : s));
+      else if (resizeState.kind === "image") setCanvasImages((prev) => prev.map((im) => im.id === resizeState.id ? { ...im, width: newW, height: newH } : im));
       return;
     }
     if (marquee) {
@@ -7157,6 +7231,7 @@ function APMDashboardLive() {
       setCanvasConcepts((prev) => prev.map((c) => newPosByKey[`concept:${c.id}`] ? { ...c, ...newPosByKey[`concept:${c.id}`] } : c));
       setCanvasTexts((prev) => prev.map((t) => newPosByKey[`text:${t.id}`] ? { ...t, ...newPosByKey[`text:${t.id}`] } : t));
       setShapes((prev) => prev.map((s) => newPosByKey[`shape:${s.id}`] ? { ...s, ...newPosByKey[`shape:${s.id}`] } : s));
+      setCanvasImages((prev) => prev.map((im) => newPosByKey[`image:${im.id}`] ? { ...im, ...newPosByKey[`image:${im.id}`] } : im));
     }
   };
   const handleCanvasMouseUp = () => {
@@ -7172,6 +7247,7 @@ function APMDashboardLive() {
       canvasConcepts.forEach((c) => { if (intersects(c, CONCEPT_W, CONCEPT_H)) next.add(`concept:${c.id}`); });
       canvasTexts.forEach((t) => { if (intersects(t, 160, 60)) next.add(`text:${t.id}`); });
       shapes.forEach((s) => { if (intersects(s, SHAPE_W, SHAPE_H)) next.add(`shape:${s.id}`); });
+      canvasImages.forEach((im) => { if (!im.locked && intersects(im, 240, 160)) next.add(`image:${im.id}`); });
       setSelectedIds(next);
       setMarquee(null);
       setDragState(null);
@@ -11562,6 +11638,12 @@ function APMDashboardLive() {
                 background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: "6px 8px", width: "fit-content" }}>
                 <button onClick={addSticky} title="Sticky note" style={iconToolBtnStyle}>{TOOLBAR_ICONS.sticky}</button>
                 <button onClick={addText} title="Text" style={iconToolBtnStyle}>{TOOLBAR_ICONS.text}</button>
+                <button onClick={() => canvasImageInputRef.current && canvasImageInputRef.current.click()}
+                  title="Import a reference image — a screenshot of a Miro board, whiteboard photo, etc." style={iconToolBtnStyle}>
+                  {TOOLBAR_ICONS.image}
+                </button>
+                <input ref={canvasImageInputRef} type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml"
+                  style={{ display: "none" }} onChange={handleImageFileChange} />
 
                 <div style={{ width: 1, height: 26, background: COLORS.border, margin: "0 4px" }} />
 
@@ -11740,8 +11822,8 @@ function APMDashboardLive() {
                 <button onClick={() => autoOrganizeCanvas()} title="Organize — auto-arrange concepts into a tree" style={iconToolBtnStyle}>{TOOLBAR_ICONS.organize}</button>
                 <button onClick={async () => {
                     if (!(await askConfirm("Clear everything on the canvas? This only affects the canvas — nothing already pushed to Neo4j is touched.", { danger: true, confirmLabel: "Clear Canvas" }))) return;
-                    setStickies([]); setCanvasConcepts([]); setCanvasEdges([]); setCanvasTexts([]); setShapes([]); setShapeEdges([]); setFreeArrows([]);
-                    saveCanvas([], [], [], [], undefined, [], [], []);
+                    setStickies([]); setCanvasConcepts([]); setCanvasEdges([]); setCanvasTexts([]); setShapes([]); setShapeEdges([]); setFreeArrows([]); setCanvasImages([]);
+                    saveCanvas([], [], [], [], undefined, [], [], [], []);
                   }}
                   title="Clear Canvas" style={{ ...iconToolBtnStyle, color: COLORS.risk }}>{TOOLBAR_ICONS.trash}</button>
 
@@ -12149,6 +12231,34 @@ function APMDashboardLive() {
                       </div>
                     );
                   })}
+
+                  {canvasImages.map((im) => (
+                    <div key={im.id} onMouseDown={(e) => handleItemMouseDown(e, "image", im.id)} onContextMenu={(e) => openContextMenu(e, "image", im.id)}
+                      style={{ position: "absolute", left: im.x, top: im.y, width: im.width, height: im.height, zIndex: im.zIndex || 0,
+                        outline: selectedIds.has(`image:${im.id}`) ? `2px solid ${COLORS.accent}` : im.locked ? `1px dashed ${COLORS.inkSecondary}66` : "none",
+                        outlineOffset: 2, cursor: im.locked ? "default" : "grab" }}>
+                      <div style={{ width: "100%", height: "100%", borderRadius: 6, overflow: "hidden" }}>
+                        <img src={im.content} alt={im.fileName || "Reference image"} draggable={false}
+                          style={{ width: "100%", height: "100%", objectFit: "fill", display: "block", userSelect: "none" }} />
+                      </div>
+                      {im.locked && (
+                        <span title="Locked — right-click to unlock" style={{ position: "absolute", top: 4, left: 4, fontSize: 11,
+                          background: "rgba(10,14,26,0.55)", color: "#fff", borderRadius: 5, padding: "1px 5px" }}>🔒</span>
+                      )}
+                      {!im.locked && (
+                        <>
+                          <span onMouseDown={(e) => e.stopPropagation()} onClick={() => deleteImage(im.id)}
+                            style={{ position: "absolute", top: -2, right: -2, cursor: "pointer", fontSize: 11,
+                              color: "rgba(28,42,58,0.4)", background: "#F3F4F7", borderRadius: "50%", width: 16, height: 16,
+                              display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2 }}>✕</span>
+                          <div onMouseDown={(e) => handleResizeMouseDown(e, im.id, "image", im.width, im.height)}
+                            title="Drag to resize"
+                            style={{ position: "absolute", right: 2, bottom: 2, width: 12, height: 12, cursor: "nwse-resize",
+                              borderRight: "2px solid rgba(255,255,255,0.65)", borderBottom: "2px solid rgba(255,255,255,0.65)" }} />
+                        </>
+                      )}
+                    </div>
+                  ))}
                 </div>
               </div>
 
@@ -12166,6 +12276,14 @@ function APMDashboardLive() {
                             else setEditingTextId(contextMenu.id);
                             closeContextMenu();
                           }}>Edit</button>
+                        <div style={{ height: 1, background: COLORS.border, margin: "3px 0" }} />
+                      </>
+                    )}
+                    {contextMenu.kind === "image" && (
+                      <>
+                        <button style={menuItemStyle} onClick={() => { toggleImageLock(contextMenu.id); closeContextMenu(); }}>
+                          {(canvasImages.find((im) => im.id === contextMenu.id) || {}).locked ? "🔓 Unlock" : "🔒 Lock in place"}
+                        </button>
                         <div style={{ height: 1, background: COLORS.border, margin: "3px 0" }} />
                       </>
                     )}
