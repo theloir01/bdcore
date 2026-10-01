@@ -715,7 +715,7 @@
       "id": "iface3",
       "concept_type": "Interface",
       "name": "Prime Brokerage Client Reporting API",
-      "status": "Active",
+      "status": "Deprecated",
       "direction": "Outbound",
       "protocol": "REST API",
       "data_format": "JSON",
@@ -1840,6 +1840,32 @@
       "name": "Trading Infrastructure DR & Failover Plan",
       "status": "Implemented",
       "stereotype": "Corrective"
+    },
+    {
+      "id": "iface9",
+      "concept_type": "Interface",
+      "name": "Equity Research AI Copilot Content Ingestion Feed",
+      "status": "Planned",
+      "direction": "Outbound",
+      "protocol": "REST API",
+      "data_format": "JSON",
+      "frequency": "Near Real-time",
+      "auth_method": "OAuth2",
+      "data_classification": "Internal",
+      "transition_phase": "Phase 1"
+    },
+    {
+      "id": "iface10",
+      "concept_type": "Interface",
+      "name": "Prime Brokerage Next-Gen Client API",
+      "status": "Planned",
+      "direction": "Outbound",
+      "protocol": "REST API",
+      "data_format": "JSON",
+      "frequency": "Real-time",
+      "auth_method": "OAuth2",
+      "data_classification": "Confidential",
+      "transition_phase": "Phase 2"
     }
   ],
   "relationships": [
@@ -4309,6 +4335,38 @@
       "status": "Active",
       "strength": 70,
       "type": "ongoing coverage via portal"
+    },
+    {
+      "source": "a4",
+      "target": "iface9",
+      "verb": "provides",
+      "criticality": "Medium",
+      "status": "Planned",
+      "strength": 60
+    },
+    {
+      "source": "a11",
+      "target": "iface9",
+      "verb": "uses",
+      "criticality": "High",
+      "status": "Planned",
+      "strength": 70
+    },
+    {
+      "source": "a6",
+      "target": "iface10",
+      "verb": "provides",
+      "criticality": "High",
+      "status": "Planned",
+      "strength": 80
+    },
+    {
+      "source": "a10",
+      "target": "iface10",
+      "verb": "uses",
+      "criticality": "Medium",
+      "status": "Planned",
+      "strength": 70
     }
   ]
 }

@@ -1864,6 +1864,32 @@
       "name": "IT Disaster Recovery & Backup Policy",
       "status": "Implemented",
       "stereotype": "Corrective"
+    },
+    {
+      "id": "iface9",
+      "concept_type": "Interface",
+      "name": "Welfare Grant Triage Outcome Write-Back Feed",
+      "status": "Planned",
+      "direction": "Outbound",
+      "protocol": "REST API",
+      "data_format": "JSON",
+      "frequency": "Near Real-time",
+      "auth_method": "OAuth2",
+      "data_classification": "Restricted",
+      "transition_phase": "Phase 1"
+    },
+    {
+      "id": "iface10",
+      "concept_type": "Interface",
+      "name": "Poppy Appeal Supporter Assistant CRM Lookup Feed",
+      "status": "Planned",
+      "direction": "Outbound",
+      "protocol": "REST API",
+      "data_format": "JSON",
+      "frequency": "Near Real-time",
+      "auth_method": "OAuth2",
+      "data_classification": "Confidential",
+      "transition_phase": "Phase 2"
     }
   ],
   "relationships": [
@@ -4356,6 +4382,38 @@
       "status": "Shelved",
       "strength": 60,
       "type": "renewal prediction model"
+    },
+    {
+      "source": "a13",
+      "target": "iface9",
+      "verb": "provides",
+      "criticality": "High",
+      "status": "Planned",
+      "strength": 70
+    },
+    {
+      "source": "a8",
+      "target": "iface9",
+      "verb": "uses",
+      "criticality": "Medium",
+      "status": "Planned",
+      "strength": 65
+    },
+    {
+      "source": "a1",
+      "target": "iface10",
+      "verb": "provides",
+      "criticality": "Medium",
+      "status": "Planned",
+      "strength": 65
+    },
+    {
+      "source": "a14",
+      "target": "iface10",
+      "verb": "uses",
+      "criticality": "Medium",
+      "status": "Planned",
+      "strength": 65
     }
   ]
 }
