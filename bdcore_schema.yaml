@@ -284,6 +284,10 @@ concept_types:
       - {name: ServiceLevel, type: enum, options: [Platinum, Gold, Silver, Bronze], purpose: "committed support tier — basis for consistency review against Criticality"}
       - {name: RTO, type: string, purpose: "Recovery Time Objective — how long can this be down"}
       - {name: RPO, type: string, purpose: "Recovery Point Objective — how much data loss is tolerable"}
+      - {name: RTOHours, type: number, purpose: "RTO above as a structured number of hours — free text like '4 hours' can't be reliably compared against a test result, so this is the number blast-radius/DR-readiness checks actually use"}
+      - {name: DRLastTestedDate, type: date, purpose: "when this system's DR/failover plan was last actually tested — a plan that's never been tested, or not in over a year, is its own readiness gap distinct from having no plan at all"}
+      - {name: DRLastTestResult, type: enum, options: [Not Tested, Passed, Failed], purpose: "outcome of the last DR test — Failed is a readiness gap even though a plan and a control both exist"}
+      - {name: ActualRecoveryTimeHours, type: number, purpose: "the recovery time actually measured during DRLastTestedDate's test — compared against RTOHours to see whether the plan would actually meet the business's own recovery target, not just whether one exists"}
       - {name: PlannedDate, type: date, purpose: "lifecycle timeline stage dates — populate whichever stages have actually happened/are scheduled"}
       - {name: ActiveDate, type: date}
       - {name: SunsetDate, type: date}
