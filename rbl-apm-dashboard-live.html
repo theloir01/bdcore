@@ -409,7 +409,7 @@ const GUIDE_SECTIONS = [
           "Switch between Integrations, Applications, and Capabilities with the tabs at the top — each reuses that type's own real Status field (they're worded differently per type: e.g. Interface's Deprecated vs. Application's Retiring) as the \"what kind of change\" dimension alongside the shared Transition Phase field.",
           "Click any card to set its Transition Phase and Status — there's no automatic phase detection, this is architect-assigned like everything else in Ontology Manager.",
           "Each phase column is cumulative: it carries forward everything from earlier phases automatically, and drops anything already at that type's terminal status (Retired for Interfaces/Applications, Retiring for Capabilities, since Capability's Status enum has no fully-retired value) — so retired items stop cluttering later phases without anyone manually cleaning up a diagram.",
-          "\"New here\" on a card means this is the phase it was first introduced in; \"since [phase]\" means it's carried forward unchanged from an earlier one.",
+          "\"New here\" on a card means this is the phase it was first introduced in. Everything else just carried forward unchanged from an earlier phase — those start collapsed under \"N carried forward\" so a column doesn't bury what actually changed; click to expand.",
           "If you see \"No transition phases are defined yet,\" add a TransitionPhase picklist attribute to that type via Ontology Manager → Manage Attributes, or re-run load_schema.py — it's defined there by default now, for all three types.",
         ] },
       { key: "redundancy", label: "Redundancy",
@@ -3260,6 +3260,7 @@ function APMDashboardLive() {
   const [phaseEditBusy, setPhaseEditBusy] = useState(false);
   const [phaseEditError, setPhaseEditError] = useState("");
   const [phaseRoadmapType, setPhaseRoadmapType] = useState("Interface"); // "Interface" | "Application" | "Capability"
+  const [expandedRoadmapCols, setExpandedRoadmapCols] = useState(new Set()); // keys "<type>:<phase>" — carried-forward items collapsed by default
   const [residencyApps, setResidencyApps] = useState([]);
   const [residencyFlows, setResidencyFlows] = useState([]);
   const [residencyAIModels, setResidencyAIModels] = useState([]);
@@ -10000,25 +10001,30 @@ function APMDashboardLive() {
                 })
                 .map((f) => ({ ...f, introducedHere: phases.indexOf(f.transitionPhase) === idx })),
             }));
-            const ItemCard = ({ f }) => (
+            // Carried-forward cards (muted=true) shrink to a single line and fade
+            // back — the point is to let a phase column answer "what's different
+            // here?" at a glance, instead of re-showing everything that hasn't
+            // changed with equal visual weight. New/changed cards keep full detail.
+            const ItemCard = ({ f, muted }) => (
               <div key={f.id} onClick={() => setPhaseEditFlow({ entityType: phaseRoadmapType, id: f.id, name: f.primary, transitionPhase: f.transitionPhase || "", status: f.status || "" })}
                 style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`,
-                  borderLeft: `3px solid ${cfg.statusStyle[f.status] || COLORS.inkSecondary}`, borderRadius: 10, padding: "10px 12px",
-                  marginBottom: 8, cursor: "pointer", opacity: f.status === cfg.terminalStatus ? 0.6 : 1 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.ink, textDecoration: f.status === cfg.terminalStatus ? "line-through" : "none" }}>
+                  borderLeft: `3px solid ${cfg.statusStyle[f.status] || COLORS.inkSecondary}`, borderRadius: 10,
+                  padding: muted ? "6px 10px" : "10px 12px", marginBottom: 6, cursor: "pointer",
+                  opacity: f.status === cfg.terminalStatus ? 0.6 : (muted ? 0.55 : 1) }}>
+                <div style={{ fontSize: muted ? 11 : 12, fontWeight: 600, color: COLORS.ink, textDecoration: f.status === cfg.terminalStatus ? "line-through" : "none" }}>
                   {f.primary}
                 </div>
-                {f.secondary && <div style={{ fontSize: 10.5, color: COLORS.inkSecondary, marginTop: 2 }}>{f.secondary}</div>}
-                <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6 }}>
+                {!muted && f.secondary && <div style={{ fontSize: 10.5, color: COLORS.inkSecondary, marginTop: 2 }}>{f.secondary}</div>}
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: muted ? 3 : 6 }}>
                   <span style={{ fontSize: 10, fontWeight: 700, color: cfg.statusStyle[f.status] || COLORS.inkSecondary,
                     background: `${cfg.statusStyle[f.status] || COLORS.inkSecondary}18`, padding: "1px 7px", borderRadius: 6 }}>
                     {f.status || "Unspecified"}
                   </span>
-                  {!f.introducedHere && (
+                  {!f.introducedHere && !muted && (
                     <span style={{ fontSize: 10, color: COLORS.inkSecondary }}>since {f.transitionPhase}</span>
                   )}
                   {f.introducedHere && (
-                    <span style={{ fontSize: 10, color: COLORS.inkSecondary }}>new here</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: COLORS.accent }}>new here</span>
                   )}
                 </div>
               </div>
@@ -10035,7 +10041,9 @@ function APMDashboardLive() {
                     at that stage. Each phase column is cumulative — it shows everything introduced at or before
                     that phase, minus anything already at its terminal status — so you can see what's new, what's
                     carried forward unchanged, and what's dropped out, at every stage, without redrawing a diagram
-                    per phase.
+                    per phase. Anything carried forward unchanged from an earlier phase starts collapsed under
+                    "N carried forward" — click to expand it — so a column with a lot of history doesn't bury the
+                    one or two things that actually changed at that stage.
                   </div>
                   <div style={{ fontSize: 12, color: COLORS.inkSecondary, marginTop: 10, lineHeight: 1.6 }}>
                     <b>One honest limitation:</b> phase and status are set per record by whoever's doing the
@@ -10089,17 +10097,47 @@ function APMDashboardLive() {
                         <div style={{ fontSize: 11.5, color: COLORS.inkSecondary }}>Everything has a phase.</div>
                       ) : unassigned.map((f) => <ItemCard key={f.id} f={f} />)}
                     </div>
-                    {columns.map((col) => (
-                      <div key={col.phase} style={{ flex: "0 0 220px", minWidth: 220 }}>
-                        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase",
-                          color: COLORS.ink, marginBottom: 10 }}>
-                          {col.phase} ({col.items.length})
+                    {columns.map((col) => {
+                      const introduced = col.items.filter((f) => f.introducedHere);
+                      const carried = col.items.filter((f) => !f.introducedHere);
+                      const colKey = `${phaseRoadmapType}:${col.phase}`;
+                      const isExpanded = expandedRoadmapCols.has(colKey);
+                      const toggleExpanded = () => setExpandedRoadmapCols((prev) => {
+                        const next = new Set(prev);
+                        next.has(colKey) ? next.delete(colKey) : next.add(colKey);
+                        return next;
+                      });
+                      return (
+                        <div key={col.phase} style={{ flex: "0 0 220px", minWidth: 220 }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase",
+                            color: COLORS.ink, marginBottom: 10 }}>
+                            {col.phase} ({col.items.length})
+                          </div>
+                          {col.items.length === 0 ? (
+                            <div style={{ fontSize: 11.5, color: COLORS.inkSecondary }}>Nothing here yet.</div>
+                          ) : (
+                            <>
+                              {introduced.length === 0 && (
+                                <div style={{ fontSize: 11, color: COLORS.inkSecondary, marginBottom: 8 }}>Nothing new or changed here.</div>
+                              )}
+                              {introduced.map((f) => <ItemCard key={f.id} f={f} />)}
+                              {carried.length > 0 && (
+                                <>
+                                  <div onClick={toggleExpanded}
+                                    style={{ fontSize: 10.5, color: COLORS.inkSecondary, cursor: "pointer", userSelect: "none",
+                                      marginTop: introduced.length > 0 ? 6 : 0, marginBottom: isExpanded ? 6 : 0,
+                                      display: "flex", alignItems: "center", gap: 4 }}>
+                                    <span style={{ display: "inline-block", transform: isExpanded ? "rotate(90deg)" : "none", transition: "transform 0.15s ease" }}>▸</span>
+                                    {carried.length} carried forward, unchanged
+                                  </div>
+                                  {isExpanded && carried.map((f) => <ItemCard key={f.id} f={f} muted />)}
+                                </>
+                              )}
+                            </>
+                          )}
                         </div>
-                        {col.items.length === 0 ? (
-                          <div style={{ fontSize: 11.5, color: COLORS.inkSecondary }}>Nothing here yet.</div>
-                        ) : col.items.map((f) => <ItemCard key={f.id} f={f} />)}
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
 
