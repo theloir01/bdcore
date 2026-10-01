@@ -3230,6 +3230,11 @@ function APMDashboardLive() {
   const [datasetBusy, setDatasetBusy] = useState(false);
   const [datasetStatus, setDatasetStatus] = useState("");
   const datasetFileInputRef = useRef(null);
+  // Mirrors datasetBusy for the Agent Watch interval below, which reads it
+  // from inside a setInterval callback — a plain closure over datasetBusy
+  // would only ever see the value from whenever that effect last ran, not
+  // the live one, since the effect is deliberately keyed on `status` alone.
+  const datasetBusyRef = useRef(false);
   // Customer identity — name, logo, color scheme. Editable independently of
   // a full data replace (see saveBrandingOnly) and also bundled into it (see
   // runLoadDataset), so changing just the accent color doesn't require going
@@ -4710,6 +4715,7 @@ function APMDashboardLive() {
 
   const runLoadDataset = async () => {
     setDatasetBusy(true);
+    datasetBusyRef.current = true;
     setDatasetStatus("Wiping existing instance data…");
     try {
       const apiUrl = deriveQueryApiUrl(uri, dbName);
@@ -4765,6 +4771,7 @@ function APMDashboardLive() {
       setDatasetStatus(`Load failed partway through: ${e.message}. The graph may be in a mixed state — check Ontology Manager before continuing.`);
     } finally {
       setDatasetBusy(false);
+      datasetBusyRef.current = false;
     }
   };
 
@@ -5609,7 +5616,12 @@ function APMDashboardLive() {
   // categories whose data just hadn't landed yet.
   useEffect(() => {
     if (status !== "connected") return;
-    const interval = setInterval(() => { handleRefresh(); }, AGENT_SCAN_INTERVAL_MS);
+    // Skips this tick entirely rather than queuing it — a background refresh
+    // mid-Load-Demo-Dataset would race its own sequence of destructive
+    // writes (wipe, then recreate everything), reading and briefly
+    // rendering a half-wiped graph. The next periodic tick picks it up once
+    // datasetBusyRef clears, same as any other missed tick.
+    const interval = setInterval(() => { if (!datasetBusyRef.current) handleRefresh(); }, AGENT_SCAN_INTERVAL_MS);
     return () => clearInterval(interval);
   }, [status]);
   useEffect(() => {
