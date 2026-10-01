@@ -3234,6 +3234,13 @@ function APMDashboardLive() {
   const [convertingStickyId, setConvertingStickyId] = useState(null);
   const [convertingShapeId, setConvertingShapeId] = useState(null);
   const [conceptPickerPos, setConceptPickerPos] = useState(null); // {left, top} in screen px, or null for the default toolbar anchor
+  // { conceptId, kind: "sticky"|"shape", item: <the original sticky/shape>,
+  // shapeEdges?: <edges dropped during a shape conversion> } while a single
+  // undoable conversion is pending — cleared on undo or when its own Edit
+  // Concept panel closes. Deliberately a single slot, not a full history
+  // stack: the concrete thing asked for is "I converted this by mistake,
+  // let me revert it", not general multi-step undo across the whole canvas.
+  const [lastConversion, setLastConversion] = useState(null);
   const [canvasTexts, setCanvasTexts] = useState([]);
   const [editingTextId, setEditingTextId] = useState(null);
   const [canvasImages, setCanvasImages] = useState([]); // [{ id, x, y, width, height, content (data URL), fileName, locked }]
@@ -7652,6 +7659,7 @@ function APMDashboardLive() {
         setStickies((prev) => prev.filter((s) => s.id !== convertingStickyId));
         setCanvasConcepts((prev) => [...prev, concept]);
         setEditingConceptId(concept.id);
+        setLastConversion({ conceptId: concept.id, kind: "sticky", item: sticky });
       }
       setConvertingStickyId(null);
     } else if (convertingShapeId) {
@@ -7662,17 +7670,39 @@ function APMDashboardLive() {
         // Any shape-to-shape connections this icon had are purely visual
         // (free-label lines, never a governed verb) and have no concept-edge
         // equivalent to carry forward — dropped rather than guessed, same as
-        // a sticky's own conversion never invents relationships either.
+        // a sticky's own conversion never invents relationships either. Kept
+        // here (not just discarded) so an undo can restore them too.
+        const droppedEdges = shapeEdges.filter((e) => e.sourceId === convertingShapeId || e.targetId === convertingShapeId);
         setShapes((prev) => prev.filter((s) => s.id !== convertingShapeId));
         setShapeEdges((prev) => prev.filter((e) => e.sourceId !== convertingShapeId && e.targetId !== convertingShapeId));
         setCanvasConcepts((prev) => [...prev, concept]);
         setEditingConceptId(concept.id);
+        setLastConversion({ conceptId: concept.id, kind: "shape", item: shape, shapeEdges: droppedEdges });
       }
       setConvertingShapeId(null);
     } else {
       addConcept(conceptType);
     }
     setShowConceptPicker(false);
+  };
+  // Reverses exactly one conversion — the one whose Edit Concept panel is
+  // still open (see lastConversion's own comment on why this is a single
+  // slot, not a full undo stack). Restores the original sticky or shape
+  // (and, for a shape, any purely-visual connections it had) and removes
+  // the concept the conversion created, whether or not it's since been
+  // edited — "I converted this by mistake" means the conversion itself was
+  // wrong, not that the specific edits since are worth preserving.
+  const undoLastConversion = () => {
+    if (!lastConversion) return;
+    const { kind, item, shapeEdges: droppedEdges, conceptId } = lastConversion;
+    if (kind === "sticky") setStickies((prev) => [...prev, item]);
+    else {
+      setShapes((prev) => [...prev, item]);
+      if (droppedEdges && droppedEdges.length) setShapeEdges((prev) => [...prev, ...droppedEdges]);
+    }
+    setCanvasConcepts((prev) => prev.filter((c) => c.id !== conceptId));
+    setEditingConceptId(null);
+    setLastConversion(null);
   };
 
   const handleCanvasMouseDown = (e) => {
@@ -13637,14 +13667,36 @@ function APMDashboardLive() {
                   updateConcept({ attributes: { ...c.attributes, [key]: value } });
                 };
                 const availableAttrs = schemaAttributes[c.conceptType] || [];
+                // Clear of the Canvas Assistant panel when it's open (340px
+                // wide, or 36px collapsed to its toggle strip) instead of
+                // always claiming the viewport's actual right edge — this
+                // panel and the Assistant used to land on top of each other
+                // since neither knew the other existed.
+                const editPanelRight = view === "canvas" ? (canvasChatOpen ? 394 : 90) : 0;
+                const canUndoThis = lastConversion && lastConversion.conceptId === c.id;
                 return (
-                  <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: 340, background: COLORS.card,
+                  <div style={{ position: "fixed", top: 0, right: editPanelRight, bottom: 0, width: 340, background: COLORS.card,
                     borderLeft: `1px solid ${COLORS.border}`, boxShadow: "-12px 0 32px rgba(10,14,26,0.12)", padding: 22,
                     zIndex: 60, overflowY: "auto" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
                       <div style={{ fontSize: 14, fontWeight: 600 }}>Edit Concept</div>
-                      <span onClick={() => setEditingConceptId(null)} style={{ cursor: "pointer", color: COLORS.inkSecondary }}>✕</span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        {canUndoThis && (
+                          <span onClick={undoLastConversion} title={`Undo converting this from a ${lastConversion.kind}`}
+                            style={{ cursor: "pointer", color: COLORS.accent, fontSize: 12, fontWeight: 600 }}>
+                            ↩ Undo
+                          </span>
+                        )}
+                        <span onClick={() => { setEditingConceptId(null); if (canUndoThis) setLastConversion(null); }}
+                          style={{ cursor: "pointer", color: COLORS.inkSecondary }}>✕</span>
+                      </div>
                     </div>
+                    {canUndoThis && (
+                      <div style={{ fontSize: 11.5, color: COLORS.inkSecondary, background: "#F6F4EF", borderRadius: 8,
+                        padding: "8px 10px", marginBottom: 14, lineHeight: 1.5 }}>
+                        Converted from a {lastConversion.kind} — click "↩ Undo" above to turn it back, discarding anything edited here since.
+                      </div>
+                    )}
                     <label style={{ fontSize: 12, display: "block", marginBottom: 12 }}>Concept Type
                       <select value={c.conceptType} onChange={(e) => updateConcept({ conceptType: e.target.value, attributes: {} })}
                         disabled={c.pushed}
@@ -13728,8 +13780,11 @@ function APMDashboardLive() {
                 const update = (patch) => setCanvasTexts((prev) => prev.map((x) => x.id === t.id ? { ...x, ...patch } : x));
                 const alignBtn = (active) => ({ flex: 1, padding: "6px 0", fontSize: 11.5, cursor: "pointer", borderRadius: 6,
                   border: `1px solid ${active ? COLORS.ink : COLORS.border}`, background: active ? COLORS.ink : "#fff", color: active ? "#fff" : COLORS.ink });
+                // Same reasoning as Edit Concept's own editPanelRight — don't
+                // land on top of the Canvas Assistant panel when it's open.
+                const editPanelRight = canvasChatOpen ? 394 : 90;
                 return (
-                  <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: 300, background: COLORS.card,
+                  <div style={{ position: "fixed", top: 0, right: editPanelRight, bottom: 0, width: 300, background: COLORS.card,
                     borderLeft: `1px solid ${COLORS.border}`, boxShadow: "-12px 0 32px rgba(10,14,26,0.12)", padding: 22,
                     zIndex: 60, overflowY: "auto" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
