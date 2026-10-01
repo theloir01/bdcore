@@ -1059,7 +1059,9 @@
       "lifecycle": "Current",
       "support_status": "Full",
       "strategic_classification": "Preferred",
-      "stereotype": "Platform"
+      "stereotype": "Platform",
+      "vendor_jurisdiction": "US",
+      "vendor_country": "United States"
     },
     {
       "id": "st2",
@@ -1092,7 +1094,9 @@
       "lifecycle": "Current",
       "support_status": "Full",
       "strategic_classification": "Preferred",
-      "stereotype": "Platform"
+      "stereotype": "Platform",
+      "vendor_jurisdiction": "US",
+      "vendor_country": "United States"
     },
     {
       "id": "h1",
@@ -1414,7 +1418,9 @@
       "ai_target_pattern": "Enable",
       "ai_pathfinder_status": "Not Started",
       "review_date": "2027-04-01",
-      "transition_phase": "Current State"
+      "transition_phase": "Current State",
+      "vendor_jurisdiction": "US",
+      "vendor_country": "United States"
     },
     {
       "id": "a7",
