@@ -7347,6 +7347,11 @@ function APMDashboardLive() {
     ...shapes.map((o) => ({ kind: "shape", id: o.id, zIndex: o.zIndex || 0 })),
     ...canvasImages.map((o) => ({ kind: "image", id: o.id, zIndex: o.zIndex || 0 })),
   ];
+  // Always above every real canvas item currently on the board, however high
+  // zCounterRef has climbed this session — used by the image controls
+  // overlay below so its hit targets are never trapped behind whatever a
+  // deliberately-backgrounded image (see addImage) happens to sit under.
+  const topZIndex = Math.max(0, ...getAllLayeredObjects().map((o) => o.zIndex)) + 1;
   const setObjectZIndex = (kind, id, z) => {
     const updater = (prev) => prev.map((o) => o.id === id ? { ...o, zIndex: z } : o);
     if (kind === "sticky") setStickies(updater);
@@ -13239,18 +13244,35 @@ function APMDashboardLive() {
                         <span title="Locked — right-click to unlock" style={{ position: "absolute", top: 4, left: 4, fontSize: 11,
                           background: "rgba(10,14,26,0.55)", color: "#fff", borderRadius: 5, padding: "1px 5px" }}>🔒</span>
                       )}
-                      {!im.locked && (
-                        <>
-                          <span onMouseDown={(e) => e.stopPropagation()} onClick={() => deleteImage(im.id)}
-                            style={{ position: "absolute", top: -2, right: -2, cursor: "pointer", fontSize: 11,
-                              color: "rgba(28,42,58,0.4)", background: "#F3F4F7", borderRadius: "50%", width: 16, height: 16,
-                              display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2 }}>✕</span>
-                          <div onMouseDown={(e) => handleResizeMouseDown(e, im.id, "image", im.width, im.height)}
-                            title="Drag to resize"
-                            style={{ position: "absolute", right: 2, bottom: 2, width: 12, height: 12, cursor: "nwse-resize",
-                              borderRight: "2px solid rgba(255,255,255,0.65)", borderBottom: "2px solid rgba(255,255,255,0.65)" }} />
-                        </>
-                      )}
+                    </div>
+                  ))}
+                  {/* Delete button and resize grip render in a separate overlay, above
+                      every other canvas item, instead of as children of the image's own
+                      div above. Images are deliberately given a negative zIndex ("sent to
+                      the back automatically" — see addImage) specifically so stickies and
+                      concepts land on top of them for annotation, which is the documented
+                      primary use case. But a child's z-index only reorders it within its
+                      own parent's stacking context — it can never paint above a SIBLING
+                      stacking context (any other item) regardless of its own z-index. So
+                      with the controls nested inside the image's low-z div, any sticky or
+                      concept placed anywhere near the bottom-right corner — exactly where
+                      annotating "on top of" an image tends to land one — silently ate every
+                      click meant for the resize grip, making the image un-resizable with no
+                      visible error. This overlay is a sibling with its own always-on-top
+                      zIndex instead, so the hit targets are reachable no matter what's
+                      sitting visually on top of the image itself.
+                  */}
+                  {canvasImages.filter((im) => !im.locked).map((im) => (
+                    <div key={`${im.id}-controls`} style={{ position: "absolute", left: im.x, top: im.y, width: im.width, height: im.height,
+                      zIndex: topZIndex + 1, pointerEvents: "none" }}>
+                      <span onMouseDown={(e) => e.stopPropagation()} onClick={() => deleteImage(im.id)}
+                        style={{ position: "absolute", top: -2, right: -2, cursor: "pointer", fontSize: 11, pointerEvents: "auto",
+                          color: "rgba(28,42,58,0.4)", background: "#F3F4F7", borderRadius: "50%", width: 16, height: 16,
+                          display: "flex", alignItems: "center", justifyContent: "center" }}>✕</span>
+                      <div onMouseDown={(e) => handleResizeMouseDown(e, im.id, "image", im.width, im.height)}
+                        title="Drag to resize"
+                        style={{ position: "absolute", right: 2, bottom: 2, width: 12, height: 12, cursor: "nwse-resize", pointerEvents: "auto",
+                          borderRight: "2px solid rgba(255,255,255,0.85)", borderBottom: "2px solid rgba(255,255,255,0.85)" }} />
                     </div>
                   ))}
                 </div>
