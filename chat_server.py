@@ -478,7 +478,46 @@ BPM: start, end, intermediate, task, gateway-x, gateway-and, gateway-or, dataobj
 """
 
 
-def plan_create_guidance(schema_context, canvas_snapshot):
+def custom_palette_guidance(custom_palettes):
+    """
+    Describes whatever vendor icon packs (AWS, Azure, Cisco, …) this
+    customer has actually imported via "+ Import Palette" — key/label pairs
+    only, never the real images, since the model needs to know which real
+    icons exist and what to call them, not render them. Returns "" when
+    none are installed, so the prompt doesn't dangle an empty section.
+
+    This exists because without it, "create" shapes have only ever been able
+    to come from the built-in generic Cloud/Network/Security/Generic/Basic
+    set below — there was no way for the model to know a real, branded icon
+    pack was sitting right there, so even a request naming a specific vendor
+    (or reading a screenshot of an actual vendor diagram) could only ever
+    produce a generic composition, never the real icons a customer went to
+    the trouble of importing.
+    """
+    if not custom_palettes:
+        return ""
+    lines = []
+    for pack in custom_palettes:
+        icons = pack.get("icons") or []
+        if not icons:
+            continue
+        icon_list = ", ".join(f'"{ic.get("key")}" ({ic.get("label")})' for ic in icons if ic.get("key"))
+        lines.append(f'- Pack "{pack.get("name")}" — use category: "{pack.get("id")}" for any shape from it. Icons: {icon_list}')
+    if not lines:
+        return ""
+    return (
+        "\n\nInstalled custom icon packs — real, branded icons this customer has imported, distinct from "
+        "the generic shape library above:\n" + "\n".join(lines) + "\n"
+        "When something you're creating plausibly matches one of these real icons — especially when the "
+        "source image or text is itself about that exact vendor (an AWS diagram, an Azure architecture, "
+        "etc) — strongly prefer the real installed icon over the closest generic Cloud/Network/Security "
+        "equivalent. Use the icon's own \"key\" as shapeKey and its pack's category value exactly as given "
+        "above (not one of Basic/Cloud/Network/Security/Generic/BPM). Only fall back to a generic shape "
+        "when nothing installed actually fits what you're depicting."
+    )
+
+
+def plan_create_guidance(schema_context, canvas_snapshot, custom_palettes=None):
     """
     Shared by /canvas-chat and /canvas-interpret: which "create" kind to use,
     the pull-vs-create split, worked examples, the real shape library, the
@@ -585,7 +624,8 @@ def plan_create_guidance(schema_context, canvas_snapshot):
         "applies: a request for \"the AWS reference architecture\" with no more detail should "
         "get a recognisable, simple sketch like the one above, not an exhaustive rebuild of "
         "every AWS service that could theoretically be involved.\n\n"
-        "Real, available shape keys by category:\n" + SHAPE_LIBRARY_TEXT + "\n\n"
+        "Real, available shape keys by category:\n" + SHAPE_LIBRARY_TEXT
+        + custom_palette_guidance(custom_palettes) + "\n\n"
         "Schema (concept types, attributes, and the exact valid relationship triples):\n"
         + schema_context + "\n\n"
         "CURRENT CANVAS CONTENTS — the full text/attributes of everything already there "
@@ -624,6 +664,7 @@ def canvas_chat():
     if not request_text:
         return jsonify({"error": "No request provided"}), 400
     canvas_snapshot = request.json.get("canvas", [])
+    custom_palettes = request.json.get("customPalettes", [])
     # Prior turns in this canvas's chat thread — {role: "user"|"assistant", content}
     # — so a follow-up like "out of those options which would you recommend?"
     # resolves "those options" against what was actually just said, on top of
@@ -649,7 +690,8 @@ def canvas_chat():
         '    { "tempId": "n1", "kind": "concept", "conceptType": "<real concept type>", '
         '"name": "...", "attributes": { "<real attribute name>": "<value>" } },\n'
         '    { "tempId": "n2", "kind": "shape", "category": "<Basic|Cloud|Network|Security|'
-        'Generic|BPM>", "shapeKey": "<real shape key>", "label": "..." },\n'
+        'Generic|BPM, OR an installed custom pack\'s own id — see below>", "shapeKey": '
+        '"<real shape key — a built-in one below, or an installed custom pack\'s own icon key>", "label": "..." },\n'
         '    { "tempId": "n3", "kind": "sticky", "text": "..." }\n'
         "  ],\n"
         '  "connections": [\n'
@@ -698,7 +740,7 @@ def canvas_chat():
         "to draw just because those sections exist.\n"
         "- A request can combine both — e.g. \"add a fourth option and tell me which of "
         "all four you'd pick\" both creates something and answers in the same reply.\n\n"
-        + plan_create_guidance(schema_context, canvas_snapshot)
+        + plan_create_guidance(schema_context, canvas_snapshot, custom_palettes)
     )
 
     messages = [{"role": h["role"], "content": h["content"]} for h in history]
@@ -774,6 +816,7 @@ def canvas_interpret():
         return jsonify({"error": "No image or text provided"}), 400
 
     canvas_snapshot = request.json.get("canvas", [])
+    custom_palettes = request.json.get("customPalettes", [])
     schema_context, valid_rel_types = build_schema_context()
     source_desc = f' ("{source_label}")' if source_label else ""
 
@@ -823,7 +866,8 @@ def canvas_interpret():
         '    { "tempId": "n1", "kind": "concept", "conceptType": "<real concept type>", '
         '"name": "...", "attributes": { "<real attribute name>": "<value>" } },\n'
         '    { "tempId": "n2", "kind": "shape", "category": "<Basic|Cloud|Network|Security|'
-        'Generic|BPM>", "shapeKey": "<real shape key>", "label": "..." },\n'
+        'Generic|BPM, OR an installed custom pack\'s own id — see below>", "shapeKey": '
+        '"<real shape key — a built-in one below, or an installed custom pack\'s own icon key>", "label": "..." },\n'
         '    { "tempId": "n3", "kind": "sticky", "text": "..." }\n'
         "  ],\n"
         '  "connections": [\n'
@@ -843,7 +887,7 @@ def canvas_interpret():
         "process, etc). When genuinely unsure, prefer \"sticky\" — it's a far easier "
         "correction for a person to promote a sticky into a concept afterwards than to "
         "untangle an over-eager wrong concept.\n\n"
-        + plan_create_guidance(schema_context, canvas_snapshot)
+        + plan_create_guidance(schema_context, canvas_snapshot, custom_palettes)
     )
 
     messages = [{"role": "user", "content": content_blocks}]
