@@ -1380,7 +1380,11 @@
       "ai_target_pattern": "Rebuild",
       "ai_pathfinder_status": "Not Started",
       "review_date": "2026-12-01",
-      "transition_phase": "Current State"
+      "transition_phase": "Current State",
+      "rto_hours": 72,
+      "dr_last_tested_date": "2026-08-15",
+      "dr_last_test_result": "Passed",
+      "actual_recovery_time_hours": 48
     },
     {
       "id": "a8",
@@ -1520,7 +1524,11 @@
       "ai_target_pattern": "Rebuild",
       "ai_pathfinder_status": "Not Started",
       "review_date": "2027-03-01",
-      "transition_phase": "Current State"
+      "transition_phase": "Current State",
+      "rto_hours": 4,
+      "dr_last_tested_date": "2025-03-10",
+      "dr_last_test_result": "Failed",
+      "actual_recovery_time_hours": 9
     },
     {
       "id": "a13",

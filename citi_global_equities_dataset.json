@@ -1278,7 +1278,11 @@
       "ai_target_pattern": "Enable",
       "ai_pathfinder_status": "In Progress",
       "review_date": "2026-12-01",
-      "transition_phase": "Current State"
+      "transition_phase": "Current State",
+      "rto_hours": 1,
+      "dr_last_tested_date": "2025-03-20",
+      "dr_last_test_result": "Failed",
+      "actual_recovery_time_hours": 4
     },
     {
       "id": "a2",
@@ -1334,7 +1338,11 @@
       "ai_target_pattern": "Rebuild",
       "ai_pathfinder_status": "Not Started",
       "review_date": "2026-09-01",
-      "transition_phase": "Current State"
+      "transition_phase": "Current State",
+      "rto_hours": 4,
+      "dr_last_tested_date": "2026-08-01",
+      "dr_last_test_result": "Passed",
+      "actual_recovery_time_hours": 3
     },
     {
       "id": "a4",
@@ -1843,7 +1851,7 @@
     {
       "id": "ctrl4",
       "concept_type": "Control",
-      "name": "Trading Infrastructure DR & Failover Plan",
+      "name": "Trading Infrastructure Disaster Recovery & Backup Plan",
       "status": "Implemented",
       "stereotype": "Corrective"
     },

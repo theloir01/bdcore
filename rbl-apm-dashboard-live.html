@@ -253,7 +253,7 @@ const ROLE_VIEWS = {
   apm: new Set([
     "portfolio", "capboard", "profile", "techradar",
     "blocked", "decisionlog", "dependencies", "dataflow", "transitionroadmap", "redundancy",
-    "health", "renewals", "fieldreview", "ownership", "businessunits", "residency",
+    "health", "renewals", "fieldreview", "ownership", "businessunits", "residency", "stakeholdermap",
     "ai", "obsolescence", "cloudmigration", "initiatives",
     "journeytrace", "maturity", "ontology", "help",
   ]),
@@ -345,6 +345,7 @@ const GUIDE_SECTIONS = [
         tips: [
           "Every card is clickable — Blocked Decisions and Redundant Spend jump straight to their full detail view.",
           "\"Critical Systems With No DR\" expands in place rather than navigating away; click a listed app inside it to open that app's Profile.",
+          "\"DR Plan That's Unproven\" is a separate, lesser gap from no-DR-at-all — these DO have a documented control, but the plan itself has never been tested, wasn't tested in the last 12 months, failed its last test, or missed its own RTO when it was tested. Set DRLastTestedDate, DRLastTestResult, RTOHours, and ActualRecoveryTimeHours on an Application from Ontology Manager to populate it.",
           "Nothing here is a new calculation — verify any figure yourself by drilling into Blocked Decisions, Redundancy, Dependencies & Impact, or Portfolio Health.",
         ] },
       { key: "valuedelivered", label: "Value Delivered",
@@ -465,6 +466,14 @@ const GUIDE_SECTIONS = [
           "\"Vendor & Infrastructure Jurisdiction\" answers a different question than Residency Zone: not where it's hosted, but which legal jurisdiction can compel access to it regardless — a digital sovereignty concern (e.g. the US CLOUD Act reaching EU-hosted data), not a data residency one. Set VendorJurisdiction on an Application or its underlying SoftwareTechnology from Ontology Manager to populate it.",
           "\"⚠ Exposed\" means Residency Zone and Vendor/Infrastructure Jurisdiction disagree for that application — hosted in one jurisdiction, reachable from another. That's the actual sovereignty risk, not the hosting location alone.",
         ] },
+      { key: "stakeholdermap", label: "Stakeholder Map",
+        description: "A draft power/interest grid for a chosen Initiative — which Organisations are tied to it, how strongly, and each one's management chain — computed from relationships already in the graph rather than built from scratch in a workshop.",
+        tips: [
+          "Interest counts how many of the initiative's own touched Capabilities/Applications an Organisation owns or uses (its Organisation field, the same denormalised ref every concept type carries); Power weights StrategicRole against how close that org sits to the top of the Organisation hierarchy. Funding the initiative directly (FUNDS) adds to both.",
+          "The Sponsor named on the Initiative itself is shown separately above the grid — it's a free-text field, not an Organisation, so it isn't plotted or scored.",
+          "Nothing here is saved — this is a live, read-only computation each time you open the page or switch initiative, the same as Journey Trace.",
+          "Management Chain walks ParentOrganisation from each stakeholder up to the top — set it from Ontology Manager if a chain looks shorter than expected.",
+        ] },
     ],
   },
   {
@@ -570,6 +579,13 @@ const GUIDE_SECTIONS = [
           "Use \"Scan Now\" to check immediately rather than waiting for the next automatic interval.",
           "Click a finding's category to jump straight to the view it came from, or click \"Fix This\" on a new/worsened finding to resolve it directly through a short pop-out — no navigation needed.",
           "Unlike Workspaces and the Audit Log, findings here are wiped by a Load Demo Dataset data swap — old findings about a previous customer's gaps would be meaningless clutter once the underlying data they were about is gone.",
+        ] },
+      { key: "customrules", label: "Custom Watch Rules",
+        description: "Admin-only, under Admin in the sidebar: extends Agent Watch's fixed gap list with your own — pick a concept type, a field, a comparison, and a severity, and any matching record is tracked exactly like a built-in gap.",
+        tips: [
+          "A rule's Live Matches count on this page is computed fresh every time you visit — it isn't itself a finding until Agent Watch's next scan picks it up as new, worsened, or resolved, same as every built-in category.",
+          "There's no \"Fix This\" button for a custom rule's findings — only built-in categories have a hand-authored guided fix; a custom rule surfaces the match, not a remediation.",
+          "Unlike Agent Findings, rules themselves are NOT wiped by a Load Demo Dataset swap — a rule is admin configuration, independent of which dataset happens to be loaded. It'll simply find zero matches until data with that field exists again.",
         ] },
     ],
   },
@@ -2000,19 +2016,33 @@ function vendorJurisdictionsFor(app) {
 // composite severity score, and generates plain-language recovery notes —
 // all derived from data already in the graph, not a separate scoring model.
 const CRIT_WEIGHT_BR = { Critical: 3, High: 2, Medium: 1, Low: 0.5 };
+// Having a DR control at all (`covered`) only answers "is there a plan" —
+// it says nothing about whether that plan was ever tested, whether the last
+// test passed, or whether it would actually meet the business's own RTO.
+// Those three are separate, real readiness gaps even on a "covered" system,
+// so they're returned as their own booleans rather than collapsed into one
+// pass/fail — the same reasoning as this file's other multi-dimension
+// gap checks (e.g. the Field Review page's correlated-field flags).
+function drTestGaps(app) {
+  const stale = !app.drLastTestedDate || monthsSince(app.drLastTestedDate) >= 12;
+  const failed = app.drLastTestResult === "Failed";
+  const rtoBreach = app.rtoHours != null && app.actualRecoveryTimeHours != null && app.actualRecoveryTimeHours > app.rtoHours;
+  return { stale, failed, rtoBreach, hasGap: stale || failed || rtoBreach };
+}
 function computeDRReadiness(app, controls, depLinks) {
   const drControls = controls.filter((c) => /disaster recovery|backup/i.test(c.control || ""));
   const protectedIds = new Set(drControls.map((c) => c.targetId));
+  const gaps = drTestGaps(app);
   if (protectedIds.has(app.id)) {
-    return { covered: true, via: "direct", control: drControls.find((c) => c.targetId === app.id).control };
+    return { covered: true, via: "direct", control: drControls.find((c) => c.targetId === app.id).control, ...gaps };
   }
   const runsOnIds = depLinks.filter((l) => l.sourceId === app.id && l.relType === "RUNS_ON").map((l) => l.targetId);
   for (const tid of runsOnIds) {
     if (protectedIds.has(tid)) {
-      return { covered: true, via: "infrastructure", control: drControls.find((c) => c.targetId === tid).control };
+      return { covered: true, via: "infrastructure", control: drControls.find((c) => c.targetId === tid).control, ...gaps };
     }
   }
-  return { covered: false };
+  return { covered: false, ...gaps };
 }
 
 function computeBlastRadius(app, allApps, depLinks, depNodes, processes, orgsByProcess, controls, flowRows) {
@@ -2058,6 +2088,11 @@ function computeBlastRadius(app, allApps, depLinks, depNodes, processes, orgsByP
       .flatMap((p) => orgsByProcess[p.id] || [])
   )];
   const drReadiness = computeDRReadiness(app, controls, depLinks);
+  // The cascading case Ardoq's own DR agent write-up uses as its headline
+  // example: a system can be fully covered itself and still sit upstream of
+  // something that isn't — that dependent has no DR plan of its own, and
+  // nothing about THIS app's own coverage reveals that.
+  const unprotectedDownstream = downstreamApps.filter((a) => !computeDRReadiness(a, controls, depLinks).covered);
   const criticalFlowCount = affectedFlows.filter((f) => f.criticality === "Critical").length;
   const score = Math.min(100, Math.round(
     darkCapabilities.length * 25 + degradedCapabilities.length * 8 +
@@ -2081,9 +2116,18 @@ function computeBlastRadius(app, allApps, depLinks, depNodes, processes, orgsByP
   if (affectedFlows.length > 0) {
     recovery.push(`${affectedFlows.length} end-to-end flow${affectedFlows.length === 1 ? "" : "s"} run${affectedFlows.length === 1 ? "s" : ""} a step through this application — reinstate ${affectedFlows.length === 1 ? "it" : "each"} on the replacement before cutover, not after.`);
   }
-  if (!drReadiness.covered) recovery.push("No disaster recovery or backup control found covering this system or its infrastructure — a real readiness gap, not just a technical one.");
+  if (!drReadiness.covered) {
+    recovery.push("No disaster recovery or backup control found covering this system or its infrastructure — a real readiness gap, not just a technical one.");
+  } else {
+    if (drReadiness.failed) recovery.push("The last DR test for this system failed — a plan and a control both exist, but recovery hasn't actually been proven to work.");
+    else if (drReadiness.stale) recovery.push("This system's DR plan hasn't been tested in the last 12 months (or ever) — coverage on paper, unverified in practice.");
+    if (drReadiness.rtoBreach) recovery.push(`The last measured recovery time (${app.actualRecoveryTimeHours}h) exceeded this system's own RTO (${app.rtoHours}h) — the plan wouldn't actually meet its own target.`);
+  }
+  if (unprotectedDownstream.length > 0) {
+    recovery.push(`${unprotectedDownstream.length} downstream dependent${unprotectedDownstream.length === 1 ? "" : "s"} — ${unprotectedDownstream.map((a) => a.name).join(", ")} — ${unprotectedDownstream.length === 1 ? "has" : "have"} no DR plan of its own, even though this one is covered.`);
+  }
   if (recovery.length === 0) recovery.push("No significant dependencies found — this looks like a self-contained change.");
-  return { darkCapabilities, degradedCapabilities, downstreamApps, impactedTechnologies, usersAffected, score, severity, recovery, orgUnits, drReadiness, affectedFlows };
+  return { darkCapabilities, degradedCapabilities, downstreamApps, unprotectedDownstream, impactedTechnologies, usersAffected, score, severity, recovery, orgUnits, drReadiness, affectedFlows };
 }
 
 // Evenly spaces `count` points around a circle of the given radius, starting
@@ -3239,6 +3283,15 @@ function APMDashboardLive() {
   const [agentFindingsError, setAgentFindingsError] = useState("");
   const [agentLastRun, setAgentLastRun] = useState(null);
   const [agentScanBusy, setAgentScanBusy] = useState(false);
+  const [watchRules, setWatchRules] = useState([]);
+  const [watchRulesLoading, setWatchRulesLoading] = useState(false);
+  const [watchRulesError, setWatchRulesError] = useState("");
+  const [watchRuleInstances, setWatchRuleInstances] = useState({}); // { [conceptType]: [rawProps] }
+  const [watchRuleDraft, setWatchRuleDraft] = useState({
+    name: "", conceptType: "Application", field: "", comparator: "equals", value: "", severity: "medium",
+  });
+  const [watchRuleBusy, setWatchRuleBusy] = useState(false);
+  const [watchRuleStatus, setWatchRuleStatus] = useState("");
   const agentScanRunningRef = useRef(false);
   const [datasetFileName, setDatasetFileName] = useState("");
   const [datasetPreview, setDatasetPreview] = useState(null); // parsed + validated upload, or null
@@ -3268,6 +3321,10 @@ function APMDashboardLive() {
   const [initiatives, setInitiatives] = useState([]);
   const [initiativesLoading, setInitiativesLoading] = useState(false);
   const [initiativesError, setInitiativesError] = useState("");
+  const [stakeholderInitiativeId, setStakeholderInitiativeId] = useState(null);
+  const [stakeholderOrgs, setStakeholderOrgs] = useState([]);
+  const [stakeholderLoading, setStakeholderLoading] = useState(false);
+  const [stakeholderError, setStakeholderError] = useState("");
   const [dataFlows, setDataFlows] = useState([]);
   const [dataFlowLoading, setDataFlowLoading] = useState(false);
   const [dataFlowError, setDataFlowError] = useState("");
@@ -3407,6 +3464,7 @@ function APMDashboardLive() {
   const [capBoardColorBy, setCapBoardColorBy] = useState("disposition");
   const [fieldReviewKey, setFieldReviewKey] = useState("serviceLevel");
   const [briefDRExpanded, setBriefDRExpanded] = useState(false);
+  const [briefDRTestExpanded, setBriefDRTestExpanded] = useState(false);
   const [askState, setAskState] = useState({});
 
   const updateAsk = (key, patch) => setAskState((prev) => ({ ...prev, [key]: { ...(prev[key] || {}), ...patch } }));
@@ -3760,6 +3818,10 @@ function APMDashboardLive() {
         sunsetDate: row.app.sunset_date || null, retiringDate: row.app.retiring_date || null,
         decommissionDate: row.app.decommission_date || null, renewalDate: row.app.renewal_date || null,
         serviceLevel: row.app.service_level || null, rto: row.app.rto || null, rpo: row.app.rpo || null,
+        rtoHours: row.app.rto_hours != null ? Number(row.app.rto_hours) : null,
+        drLastTestedDate: row.app.dr_last_tested_date || null,
+        drLastTestResult: row.app.dr_last_test_result || null,
+        actualRecoveryTimeHours: row.app.actual_recovery_time_hours != null ? Number(row.app.actual_recovery_time_hours) : null,
         locations: appLocationMap[row.app.id] || [],
         risks: row.risks || [],
         capabilities: (row.capabilities || []).filter(Boolean),
@@ -3946,6 +4008,19 @@ function APMDashboardLive() {
     if (view === "initiatives") loadInitiatives();
   }, [view]);
   useEffect(() => {
+    if (view === "stakeholdermap") loadInitiatives();
+  }, [view]);
+  // Defaults to the first initiative once the list has loaded, rather than
+  // requiring a pick before anything renders — same "show something useful
+  // immediately" instinct as Journey Trace's own default-to-first-item.
+  useEffect(() => {
+    if (view !== "stakeholdermap" || initiatives.length === 0) return;
+    const id = stakeholderInitiativeId && initiatives.some((i) => i.id === stakeholderInitiativeId)
+      ? stakeholderInitiativeId : initiatives[0].id;
+    if (id !== stakeholderInitiativeId) setStakeholderInitiativeId(id);
+    loadStakeholderMap(id);
+  }, [view, initiatives]);
+  useEffect(() => {
     if (view === "dataflow" || view === "transitionroadmap") { loadDataFlows(); setDataFlowFocusId(null); }
   }, [view]);
   // A stale "Impact & Risk" tab left open from the last profile visited
@@ -4127,6 +4202,106 @@ function APMDashboardLive() {
     }
   };
 
+  // Custom Watch Rules: a user-defined extension of Agent Watch's fixed gap
+  // list — same "compare a field against a threshold, raise a severity"
+  // shape as Field Review and the DR readiness checks above, just scoped to
+  // whichever ConceptType/field/comparator an admin picks instead of being
+  // hard-coded. WatchRule is deliberately un-labelled :Instance (same
+  // reasoning as AgentFinding/Workspace/Canvas) so it survives a Load Demo
+  // Dataset wipe of real ontology data untouched.
+  const WATCH_RULE_COMPARATORS = [
+    ["equals", "equals"], ["not_equals", "does not equal"],
+    ["is_empty", "is empty"], ["is_not_empty", "is not empty"],
+    ["greater_than", "is greater than"], ["less_than", "is less than"],
+    ["contains", "contains"],
+  ];
+  const evalWatchRuleComparator = (raw, comparator, value) => {
+    const empty = raw === null || raw === undefined || String(raw).trim() === "";
+    switch (comparator) {
+      case "is_empty": return empty;
+      case "is_not_empty": return !empty;
+      case "equals": return !empty && String(raw).trim().toLowerCase() === String(value).trim().toLowerCase();
+      case "not_equals": return empty || String(raw).trim().toLowerCase() !== String(value).trim().toLowerCase();
+      case "contains": return !empty && String(raw).toLowerCase().includes(String(value).toLowerCase());
+      case "greater_than": return !empty && !isNaN(Number(raw)) && Number(raw) > Number(value);
+      case "less_than": return !empty && !isNaN(Number(raw)) && Number(raw) < Number(value);
+      default: return false;
+    }
+  };
+  const loadWatchRules = async () => {
+    setWatchRulesLoading(true);
+    try {
+      const apiUrl = deriveQueryApiUrl(uri, dbName);
+      const authHeader = "Basic " + btoa(`${username}:${password}`);
+      const rows = await runCypher(apiUrl, authHeader,
+        `MATCH (r:WatchRule) RETURN properties(r) AS props ORDER BY r.createdAt DESC`
+      );
+      setWatchRules(rows.map((r) => r.props));
+      setWatchRulesError("");
+    } catch (e) {
+      setWatchRulesError(`Couldn't load custom watch rules: ${e.message}`);
+      setWatchRules([]);
+    } finally {
+      setWatchRulesLoading(false);
+    }
+  };
+  // Fetches raw, un-renamed instance properties for every ConceptType any
+  // rule currently references — the same query Ontology Manager uses per
+  // type — so evalWatchRuleComparator can read a rule's exact snake_case
+  // field off real data, whatever type it happens to be scoped to.
+  const loadWatchRuleInstances = async (rules) => {
+    const types = [...new Set(rules.map((r) => r.conceptType))];
+    if (types.length === 0) { setWatchRuleInstances({}); return; }
+    try {
+      const apiUrl = deriveQueryApiUrl(uri, dbName);
+      const authHeader = "Basic " + btoa(`${username}:${password}`);
+      const byType = {};
+      for (const type of types) {
+        const rows = await runCypher(apiUrl, authHeader, `MATCH (n:Instance:${type}) RETURN properties(n) AS props`);
+        byType[type] = rows.map((r) => r.props);
+      }
+      setWatchRuleInstances(byType);
+    } catch (e) {
+      console.warn("Couldn't load data for custom watch rules:", e.message);
+    }
+  };
+  const createWatchRule = async () => {
+    const d = watchRuleDraft;
+    if (!d.name.trim() || !d.field) { setWatchRuleStatus("Give the rule a name and pick a field."); return; }
+    if (!["is_empty", "is_not_empty"].includes(d.comparator) && !String(d.value).trim()) {
+      setWatchRuleStatus("This comparator needs a value to compare against."); return;
+    }
+    setWatchRuleBusy(true);
+    try {
+      const apiUrl = deriveQueryApiUrl(uri, dbName);
+      const authHeader = "Basic " + btoa(`${username}:${password}`);
+      const id = newCanvasId("watchrule");
+      const props = {
+        id, name: d.name.trim(), conceptType: d.conceptType, field: d.field, snakeField: toSnakeCase(d.field),
+        comparator: d.comparator, value: String(d.value || ""), severity: d.severity, createdAt: new Date().toISOString(),
+      };
+      await runCypher(apiUrl, authHeader, `CREATE (r:WatchRule) SET r = $props`, { props });
+      setWatchRuleDraft({ name: "", conceptType: d.conceptType, field: "", comparator: "equals", value: "", severity: "medium" });
+      setWatchRuleStatus("");
+      await loadWatchRules();
+    } catch (e) {
+      setWatchRuleStatus(`Couldn't save rule: ${e.message}`);
+    } finally {
+      setWatchRuleBusy(false);
+    }
+  };
+  const deleteWatchRule = async (rule) => {
+    if (!(await askConfirm(`Delete the custom watch rule "${rule.name}"? This doesn't affect the underlying data, only the rule itself.`, { danger: true, confirmLabel: "Delete" }))) return;
+    try {
+      const apiUrl = deriveQueryApiUrl(uri, dbName);
+      const authHeader = "Basic " + btoa(`${username}:${password}`);
+      await runCypher(apiUrl, authHeader, `MATCH (r:WatchRule {id: $id}) DETACH DELETE r`, { id: rule.id });
+      await loadWatchRules();
+    } catch (e) {
+      setWatchRuleStatus(`Couldn't delete rule: ${e.message}`);
+    }
+  };
+
   const loadInitiatives = async () => {
     setInitiativesLoading(true);
     try {
@@ -4142,6 +4317,97 @@ function APMDashboardLive() {
       setInitiatives([]);
     } finally {
       setInitiativesLoading(false);
+    }
+  };
+
+  // Stakeholder Map: a deterministic power/interest draft for a given
+  // Initiative, built entirely from relationships already in the graph — no
+  // generated text, same house style as Field Review and Blast Radius.
+  // "Interest" is how many of the initiative's own touched
+  // Capabilities/Applications an Organisation OWNS or USES, plus 2 if it
+  // directly FUNDS the initiative. "Power" is that org's StrategicRole plus
+  // how close it sits to the top of the Organisation hierarchy
+  // (ParentOrganisation chain) plus 1 if it funds the initiative. Every
+  // input is a real field or edge — see the quadrant page's own "What is
+  // this page?" card for the exact formula, kept in sync with this comment
+  // by hand.
+  const loadStakeholderMap = async (initiativeId) => {
+    if (!initiativeId) return;
+    setStakeholderLoading(true);
+    try {
+      const apiUrl = deriveQueryApiUrl(uri, dbName);
+      const authHeader = "Basic " + btoa(`${username}:${password}`);
+      const rows = await runCypher(apiUrl, authHeader,
+        `MATCH (i:Instance:Initiative {id: $initiativeId})
+         OPTIONAL MATCH (i)<-[:FUNDS]-(funder:Instance:Organisation)
+         WITH i, collect(DISTINCT properties(funder)) AS funders
+         OPTIONAL MATCH (i)-[:TRANSFORMS|DEVELOPS|UNLOCKS|ADDRESSES_GAP_IN]->(cap:Instance:Capability)<-[:OWNS|USES]-(capOrg:Instance:Organisation)
+         WITH i, funders, collect(DISTINCT {orgId: capOrg.id, name: cap.name}) AS capTouches
+         OPTIONAL MATCH (i)-[:IMPLEMENTS|RETIRES|REPLACES]->(app:Instance:Application)<-[:OWNS|USES]-(appOrg:Instance:Organisation)
+         WITH i, funders, capTouches, collect(DISTINCT {orgId: appOrg.id, name: app.name}) AS appTouches
+         RETURN properties(i) AS initiative, funders, capTouches, appTouches`,
+        { initiativeId }
+      );
+      const orgRows = await runCypher(apiUrl, authHeader,
+        `MATCH (o:Instance:Organisation) RETURN properties(o) AS org ORDER BY o.name`
+      );
+      const orgById = {};
+      orgRows.forEach((r) => { orgById[r.org.id] = r.org; });
+
+      const row = rows[0];
+      if (!row) { setStakeholderOrgs([]); setStakeholderError(""); return; }
+
+      const funderIds = new Set((row.funders || []).filter(Boolean).map((f) => f.id));
+      const touchesByOrg = {};
+      const addTouch = (orgId, name, viaType) => {
+        if (!orgId || !orgById[orgId]) return;
+        if (!touchesByOrg[orgId]) touchesByOrg[orgId] = [];
+        touchesByOrg[orgId].push({ name, viaType });
+      };
+      (row.capTouches || []).forEach((t) => addTouch(t.orgId, t.name, "Capability"));
+      (row.appTouches || []).forEach((t) => addTouch(t.orgId, t.name, "Application"));
+
+      const allOrgIds = new Set([...Object.keys(touchesByOrg), ...[...funderIds].filter((id) => orgById[id])]);
+
+      const chainFor = (orgId) => {
+        const chain = [];
+        let cur = orgById[orgId];
+        const seen = new Set();
+        while (cur && !seen.has(cur.id)) {
+          chain.push({ id: cur.id, name: cur.name, leader: cur.leader || null });
+          seen.add(cur.id);
+          cur = cur.parent_organisation ? orgById[cur.parent_organisation] : null;
+        }
+        return chain; // [self, parent, grandparent, ... root]
+      };
+
+      const ROLE_WEIGHT = { Core: 3, Enabling: 2, Support: 1 };
+      const stakeholders = [...allOrgIds].map((orgId) => {
+        const org = orgById[orgId];
+        const chain = chainFor(orgId);
+        const depth = chain.length - 1; // 0 = root itself
+        const fundsInitiative = funderIds.has(orgId);
+        const reasons = touchesByOrg[orgId] || [];
+        const roleWeight = ROLE_WEIGHT[org.strategic_role] || 1;
+        const depthBonus = depth === 0 ? 2 : depth === 1 ? 1 : 0;
+        const powerScore = roleWeight + depthBonus + (fundsInitiative ? 1 : 0);
+        const powerLabel = powerScore >= 4 ? "High" : powerScore >= 2 ? "Medium" : "Low";
+        const interestScore = reasons.length + (fundsInitiative ? 2 : 0);
+        const interestLabel = interestScore >= 3 ? "High" : interestScore >= 2 ? "Medium" : "Low";
+        return {
+          orgId, name: org.name, leader: org.leader || null, strategicRole: org.strategic_role || null,
+          fundsInitiative, reasons, powerScore, powerLabel, interestScore, interestLabel,
+          managementChain: chain.slice(1).reverse(), // parent..root, root-first, excluding self
+        };
+      }).sort((a, b) => b.powerScore - a.powerScore || b.interestScore - a.interestScore);
+
+      setStakeholderOrgs(stakeholders);
+      setStakeholderError("");
+    } catch (e) {
+      setStakeholderError(`Couldn't load stakeholder map: ${e.message}`);
+      setStakeholderOrgs([]);
+    } finally {
+      setStakeholderLoading(false);
     }
   };
 
@@ -5283,6 +5549,18 @@ function APMDashboardLive() {
       .map((a) => ({ app: a, dr: computeDRReadiness(a, controls, depLinks) }))
       .filter((x) => !x.dr.covered),
     [appsWithDisposition, controls, depLinks]);
+  // A separate, less severe category from criticalNoDR above on purpose —
+  // these DO have a documented DR control, but the plan itself hasn't been
+  // proven: never tested (or not within the last year), the last test
+  // failed, or the last measured recovery time missed the system's own RTO.
+  // Coverage on paper isn't the same claim as coverage that would actually
+  // work, so it gets its own Action Center item rather than being folded in.
+  const drTestGapApps = useMemo(() =>
+    appsWithDisposition
+      .filter((a) => a.criticality === "Critical" || a.criticality === "High")
+      .map((a) => ({ app: a, dr: computeDRReadiness(a, controls, depLinks) }))
+      .filter((x) => x.dr.covered && x.dr.hasGap),
+    [appsWithDisposition, controls, depLinks]);
   const totalAtStake = totalBlockedCost + redundancyWaste + totalTcoExposed;
 
   // ValueSnapshot lives outside the governed ontology — a system/telemetry
@@ -5446,6 +5724,16 @@ function APMDashboardLive() {
       });
     }
 
+    if (drTestGapApps.length > 0) {
+      items.push({
+        severity: "high",
+        title: `${drTestGapApps.length} critical/high application${drTestGapApps.length === 1 ? "" : "s"} with an unproven DR plan`,
+        description: "Covered on paper, but never tested, not tested in over a year, last tested and failed, or didn't meet its own RTO when it was.",
+        view: "brief",
+        entities: drTestGapApps.map((x) => x.app.name),
+      });
+    }
+
     const eolTech = atRiskTech.filter((t) => t.lifecycle === "EOL" || t.lifecycle === "Unsupported");
     if (eolTech.length > 0) {
       items.push({
@@ -5531,10 +5819,34 @@ function APMDashboardLive() {
       });
     }
 
+    // Custom Watch Rules, evaluated here rather than fed through a separate
+    // engine, so Agent Watch's diff-and-persist loop below tracks drift on
+    // them exactly the same way it tracks every built-in gap above — adding
+    // a rule needs no changes to Agent Watch itself. `key` (as opposed to
+    // `view`, which every item above effectively doubles as) is what makes
+    // this safe with more than one rule: the fingerprint below is keyed by
+    // `item.key || item.view`, so N custom rules get N distinct fingerprint
+    // slots even though they all navigate to the same "agentwatch" view —
+    // without it, every rule after the first would silently overwrite the
+    // one before it in the fingerprint map.
+    watchRules.forEach((rule) => {
+      const instances = watchRuleInstances[rule.conceptType] || [];
+      const matches = instances.filter((inst) => evalWatchRuleComparator(inst[rule.snakeField], rule.comparator, rule.value));
+      if (matches.length === 0) return;
+      const comparatorLabel = (WATCH_RULE_COMPARATORS.find(([k]) => k === rule.comparator) || [, rule.comparator])[1];
+      items.push({
+        severity: rule.severity, key: `customrule:${rule.id}`, view: "agentwatch",
+        title: `${matches.length} ${rule.conceptType} record${matches.length === 1 ? "" : "s"} match "${rule.name}"`,
+        description: `Custom rule: ${rule.field} ${comparatorLabel}${["is_empty", "is_not_empty"].includes(rule.comparator) ? "" : ` "${rule.value}"`}.`,
+        entities: matches.map((m) => m.name),
+      });
+    });
+
     const severityRank = { critical: 0, high: 1, medium: 2 };
     return items.sort((a, b) => severityRank[a.severity] - severityRank[b.severity]);
-  }, [criticalNoDR, atRiskTech, totalAppsExposed, totalTcoExposed, rankedBlockedDecisions, totalBlockedCost, blockingAppIds,
-      redundancyGroups, redundancyWaste, fieldReviews, apps, pathfinderApps, healthStats, capabilityRealization, decisions]);
+  }, [criticalNoDR, drTestGapApps, atRiskTech, totalAppsExposed, totalTcoExposed, rankedBlockedDecisions, totalBlockedCost, blockingAppIds,
+      redundancyGroups, redundancyWaste, fieldReviews, apps, pathfinderApps, healthStats, capabilityRealization, decisions,
+      watchRules, watchRuleInstances]);
 
   // Agent Watch: the "small autonomous agent" — reuses actionItems (the same
   // computed gap list the landing page's Action Center already shows) rather
@@ -5560,9 +5872,16 @@ function APMDashboardLive() {
       const apiUrl = deriveQueryApiUrl(uri, dbName);
       const authHeader = "Basic " + btoa(`${username}:${password}`);
 
+      // Keyed by item.key when one's set (every custom watch rule needs its
+      // own distinct slot even though they all share view: "agentwatch") and
+      // falls back to item.view for every built-in item, which doubled as
+      // this key before custom rules existed and still can, since each
+      // built-in's view is unique. navView is carried separately so a
+      // finding can always be clicked through to somewhere real, even for
+      // keys that aren't themselves a navigable view.
       const currentFingerprint = {};
       actionItems.forEach((item) => {
-        currentFingerprint[item.view] = { title: item.title, severity: item.severity, entities: [...new Set(item.entities)] };
+        currentFingerprint[item.key || item.view] = { title: item.title, severity: item.severity, view: item.view, entities: [...new Set(item.entities)] };
       });
 
       const snapRows = await runCypher(apiUrl, authHeader,
@@ -5583,17 +5902,17 @@ function APMDashboardLive() {
         const listPreview = (arr) => `${arr.slice(0, 6).join(", ")}${arr.length > 6 ? "…" : ""}`;
 
         if (cur && !prev) {
-          findings.push({ kind: "new", severity: cur.severity, category: cat, title: cur.title,
+          findings.push({ kind: "new", severity: cur.severity, category: cat, navView: cur.view, title: cur.title,
             message: `New watch category triggered: ${cur.title}.`, entities: cur.entities });
         } else if (cur && newEntities.length > 0) {
-          findings.push({ kind: "worsened", severity: cur.severity, category: cat, title: cur.title,
+          findings.push({ kind: "worsened", severity: cur.severity, category: cat, navView: cur.view, title: cur.title,
             message: `${newEntities.length} newly flagged under "${cur.title}": ${listPreview(newEntities)}`, entities: newEntities });
         }
         if (prev && !cur) {
-          findings.push({ kind: "resolved", severity: "resolved", category: cat, title: prev.title,
+          findings.push({ kind: "resolved", severity: "resolved", category: cat, navView: prev.view, title: prev.title,
             message: `Fully resolved — "${prev.title}" no longer applies.`, entities: prev.entities });
         } else if (resolvedEntities.length > 0) {
-          findings.push({ kind: "resolved", severity: "resolved", category: cat, title: (cur || prev).title,
+          findings.push({ kind: "resolved", severity: "resolved", category: cat, navView: (cur || prev).view, title: (cur || prev).title,
             message: `${resolvedEntities.length} resolved under "${(cur || prev).title}": ${listPreview(resolvedEntities)}`, entities: resolvedEntities });
         }
       });
@@ -5603,7 +5922,7 @@ function APMDashboardLive() {
           `UNWIND $rows AS row CREATE (f:AgentFinding) SET f = row`,
           { rows: findings.map((f) => ({
               id: newCanvasId("finding"), timestamp: new Date().toISOString(),
-              kind: f.kind, severity: f.severity, category: f.category, title: f.title,
+              kind: f.kind, severity: f.severity, category: f.category, navView: f.navView, title: f.title,
               message: f.message, entities: JSON.stringify(f.entities),
             })) }
         );
@@ -5646,6 +5965,16 @@ function APMDashboardLive() {
   useEffect(() => {
     if (status === "connected" && lastFetched) runAgentScan();
   }, [lastFetched, status]);
+  // Custom Watch Rules need to feed actionItems (and so Agent Watch, Brief,
+  // and the landing Action Center) wherever they're visited from, not just
+  // on the admin page that manages them — so they load once on connect,
+  // same as schema/brand/workspace config, rather than per-view.
+  useEffect(() => {
+    if (status === "connected" && lastFetched) loadWatchRules();
+  }, [status, lastFetched === null]);
+  useEffect(() => {
+    if (status === "connected") loadWatchRuleInstances(watchRules);
+  }, [status, watchRules]);
 
   const radarData = useMemo(() => {
     const softwareTechs = technologies.filter((t) => t.type === "SoftwareTechnology");
@@ -5787,6 +6116,7 @@ function APMDashboardLive() {
     ["ownership", "Ownership Coverage", "ownership"],
     ["businessunits", "Business Units", "businessunits"],
     ["residency", "Data Residency & Compliance", "residency"],
+    ["stakeholdermap", "Stakeholder Map", "stakeholdermap"],
   ];
   const AI_NAV_ITEMS = [
     ["ai", "Portfolio AI Transformation", "ai"],
@@ -5812,7 +6142,7 @@ function APMDashboardLive() {
   // top level or are reached as a sub-tab, so no group needs opening for them.
   const VIEW_GROUP = {
     blocked: "costrisk", decisionlog: "costrisk", dependencies: "costrisk", dataflow: "costrisk", redundancy: "costrisk",
-    health: "datatrust", renewals: "datatrust", fieldreview: "datatrust", ownership: "datatrust", businessunits: "datatrust", residency: "datatrust",
+    health: "datatrust", renewals: "datatrust", fieldreview: "datatrust", ownership: "datatrust", businessunits: "datatrust", residency: "datatrust", stakeholdermap: "datatrust",
     ai: "ai",
     obsolescence: "modernisation", cloudmigration: "modernisation", initiatives: "modernisation",
     journeytrace: "journeys", maturity: "journeys",
@@ -5821,8 +6151,9 @@ function APMDashboardLive() {
   const ADMIN_NAV_ITEMS = [
     ["dataload", "Load Demo Dataset", "dataload"],
     ["agentwatch", "Agent Watch", "agentwatch"],
+    ["customrules", "Custom Watch Rules", "customrules"],
   ];
-  const ADMIN_KEYS = new Set(["dataload", "agentwatch"]);
+  const ADMIN_KEYS = new Set(["dataload", "agentwatch", "customrules"]);
   // Standalone top-level sidebar items (their own row, no parent group to
   // expand) — jumping to one of these via goToView (e.g. Help's "Open →")
   // must NOT force the "APM" section open, since they live outside it.
@@ -5882,12 +6213,14 @@ function APMDashboardLive() {
     canvas: <svg {...ICON_COMMON}><rect x="3" y="4" width="18" height="14" rx="2" /><path d="M7 17 L7 20 M17 17 L17 20 M7 20 L17 20" /><circle cx="9" cy="10" r="1.6" fill="currentColor" stroke="none" /><path d="M13 9 L18 9 L18 12 L13 12 Z" /></svg>,
     maturity: <svg {...ICON_COMMON}><line x1="3" y1="21" x2="21" y2="21" /><rect x="4.5" y="14" width="3.5" height="7" /><rect x="10.25" y="9" width="3.5" height="12" /><rect x="16" y="4" width="3.5" height="17" /></svg>,
     ownership: <svg {...ICON_COMMON}><circle cx="9.5" cy="8" r="3.2" /><path d="M3.5 20c0-4 2.5-6.2 6-6.2s6 2.2 6 6.2" /><path d="M15.5 14.5l2 2 4-4" /></svg>,
+    stakeholdermap: <svg {...ICON_COMMON}><circle cx="6" cy="6" r="2.6" /><circle cx="18" cy="6" r="2.6" /><circle cx="6" cy="18" r="2.6" /><circle cx="18" cy="18" r="2.6" /><line x1="12" y1="2.5" x2="12" y2="21.5" /><line x1="2.5" y1="12" x2="21.5" y2="12" /></svg>,
     businessunits: <svg {...ICON_COMMON}><rect x="9" y="3" width="6" height="4.5" rx="1" /><rect x="3" y="16.5" width="6" height="4.5" rx="1" /><rect x="15" y="16.5" width="6" height="4.5" rx="1" /><path d="M12 7.5v4.5M6 12v4.5M18 12v4.5M6 12h12" /></svg>,
     auditlog: <svg {...ICON_COMMON}><rect x="3" y="3" width="14" height="18" rx="2" /><line x1="6.5" y1="7.5" x2="13.5" y2="7.5" /><line x1="6.5" y1="11" x2="13.5" y2="11" /><line x1="6.5" y1="14.5" x2="10.5" y2="14.5" /><circle cx="17.5" cy="17.5" r="4.2" /><line x1="17.5" y1="15.3" x2="17.5" y2="17.5" /><line x1="17.5" y1="17.5" x2="19" y2="18.5" /></svg>,
     dataload: <svg {...ICON_COMMON}><path d="M12 3v12" /><polyline points="7.5,10.5 12,15 16.5,10.5" /><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" /></svg>,
     admin: <svg {...ICON_COMMON}><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /><circle cx="12" cy="15.5" r="1.3" fill="currentColor" stroke="none" /></svg>,
     residency: <svg {...ICON_COMMON}><circle cx="12" cy="12" r="9" /><ellipse cx="12" cy="12" rx="4" ry="9" /><line x1="3" y1="12" x2="21" y2="12" /><path d="M5 7.5c1.8 1.2 4.3 2 7 2s5.2-.8 7-2M5 16.5c1.8-1.2 4.3-2 7-2s5.2.8 7 2" /></svg>,
     agentwatch: <svg {...ICON_COMMON}><path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12z" /><circle cx="12" cy="12" r="3" /><circle cx="12" cy="12" r="0.6" fill="currentColor" stroke="none" /></svg>,
+    customrules: <svg {...ICON_COMMON}><path d="M4 6h16M4 12h10M4 18h7" /><circle cx="19" cy="17.5" r="3.2" /><path d="M19 16v1.5l1 1" /></svg>,
     initiatives: <svg {...ICON_COMMON}><rect x="3" y="5" width="11" height="3.2" rx="1" /><rect x="8" y="11" width="13" height="3.2" rx="1" /><rect x="5" y="17" width="9" height="3.2" rx="1" /></svg>,
     dataflow: <svg {...ICON_COMMON}><rect x="2" y="9" width="6" height="6" rx="1.2" /><rect x="16" y="2" width="6" height="6" rx="1.2" /><rect x="16" y="16" width="6" height="6" rx="1.2" /><path d="M8 11l7.5 -6M8 13l7.5 6" /></svg>,
     transitionroadmap: <svg {...ICON_COMMON}><path d="M3 20V4" /><circle cx="3" cy="16" r="1.6" fill="currentColor" stroke="none" /><circle cx="10" cy="11" r="1.6" fill="currentColor" stroke="none" /><circle cx="17" cy="6" r="1.6" fill="currentColor" stroke="none" /><path d="M3 16l7 -5l7 -5" /><path d="M17 6h4v4" /></svg>,
@@ -10584,6 +10917,150 @@ function APMDashboardLive() {
               </div>
             );
           })()}
+          {view === "stakeholdermap" && (() => {
+            const QUADRANTS = [
+              { power: "High", interest: "High", title: "Manage Closely", color: COLORS.risk },
+              { power: "High", interest: "Medium", title: "Manage Closely", color: COLORS.risk },
+              { power: "High", interest: "Low", title: "Keep Satisfied", color: COLORS.warning },
+              { power: "Medium", interest: "High", title: "Manage Closely", color: COLORS.risk },
+              { power: "Medium", interest: "Medium", title: "Keep Informed", color: COLORS.info },
+              { power: "Medium", interest: "Low", title: "Monitor", color: COLORS.inkSecondary },
+              { power: "Low", interest: "High", title: "Keep Informed", color: COLORS.info },
+              { power: "Low", interest: "Medium", title: "Monitor", color: COLORS.inkSecondary },
+              { power: "Low", interest: "Low", title: "Monitor", color: COLORS.inkSecondary },
+            ];
+            const POWER_ROWS = ["High", "Medium", "Low"];
+            const INTEREST_COLS = ["Low", "Medium", "High"];
+            const selectedInitiative = initiatives.find((i) => i.id === stakeholderInitiativeId);
+            const selectInitiative = (id) => { setStakeholderInitiativeId(id); loadStakeholderMap(id); };
+            return (
+              <div>
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)",
+                  borderRadius: 16, padding: 22, marginBottom: 22, maxWidth: 860 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 6 }}>What is this page?</div>
+                  <div style={{ fontSize: 13, color: COLORS.inkSecondary, lineHeight: 1.6 }}>
+                    A draft power/interest grid for an Initiative, built entirely from data already in the graph — no
+                    generated text, nothing saved here. <b>Interest</b> is how many of the initiative's touched
+                    Capabilities or Applications an Organisation owns or uses (its Organisation field), plus 2 if it
+                    directly funds the initiative. <b>Power</b> is that org's StrategicRole (Core/Enabling/Support),
+                    plus how close it sits to the top of the Organisation hierarchy, plus 1 if it funds the
+                    initiative. Every number traces to a real field — this is a faster starting point for a
+                    stakeholder workshop, not a replacement for one.
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
+                  {initiatives.map((i) => (
+                    <button key={i.id} onClick={() => selectInitiative(i.id)}
+                      style={{ padding: "7px 14px", fontSize: 12.5, fontWeight: 600, borderRadius: 8, cursor: "pointer",
+                        border: `1px solid ${stakeholderInitiativeId === i.id ? COLORS.ink : COLORS.border}`,
+                        background: stakeholderInitiativeId === i.id ? COLORS.ink : COLORS.card,
+                        color: stakeholderInitiativeId === i.id ? "#fff" : COLORS.ink }}>
+                      {i.name}
+                    </button>
+                  ))}
+                </div>
+
+                {initiatives.length === 0 ? (
+                  <div style={{ fontSize: 13, color: COLORS.inkSecondary }}>
+                    {initiativesLoading ? "Loading initiatives…" : "No initiatives found — add one in Ontology Manager to build a stakeholder map."}
+                  </div>
+                ) : (
+                  <>
+                    {selectedInitiative && selectedInitiative.sponsor && (
+                      <div style={{ fontSize: 12.5, color: COLORS.inkSecondary, marginBottom: 14 }}>
+                        Sponsor on record: <b style={{ color: COLORS.ink }}>{selectedInitiative.sponsor}</b> — a named
+                        individual, not modelled as an Organisation, so not plotted on the grid below.
+                      </div>
+                    )}
+                    {stakeholderError && <div style={{ fontSize: 12.5, color: COLORS.risk, marginBottom: 14 }}>{stakeholderError}</div>}
+
+                    {stakeholderLoading ? (
+                      <div style={{ fontSize: 13, color: COLORS.inkSecondary }}>Loading…</div>
+                    ) : stakeholderOrgs.length === 0 ? (
+                      <div style={{ fontSize: 13, color: COLORS.inkSecondary }}>
+                        No Organisation ties this initiative to a Capability, Application, or funding relationship yet.
+                      </div>
+                    ) : (
+                      <>
+                        <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)",
+                          borderRadius: 16, padding: 20, marginBottom: 22 }}>
+                          <div style={{ display: "grid", gridTemplateColumns: "90px repeat(3, 1fr)", gap: 10 }}>
+                            <div />
+                            {INTEREST_COLS.map((c) => (
+                              <div key={c} style={{ fontSize: 11, fontWeight: 700, color: COLORS.inkSecondary, textAlign: "center", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                                {c} Interest
+                              </div>
+                            ))}
+                            {POWER_ROWS.map((p) => (
+                              <React.Fragment key={p}>
+                                <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.inkSecondary, display: "flex", alignItems: "center", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                                  {p} Power
+                                </div>
+                                {INTEREST_COLS.map((c) => {
+                                  const q = QUADRANTS.find((x) => x.power === p && x.interest === c);
+                                  const orgsHere = stakeholderOrgs.filter((o) => o.powerLabel === p && o.interestLabel === c);
+                                  return (
+                                    <div key={c} style={{ background: `${q.color}0D`, border: `1px solid ${q.color}33`, borderRadius: 12, padding: 12, minHeight: 90 }}>
+                                      <div style={{ fontSize: 10.5, fontWeight: 700, color: q.color, textTransform: "uppercase", letterSpacing: "0.03em", marginBottom: 8 }}>
+                                        {q.title}
+                                      </div>
+                                      {orgsHere.length === 0 ? (
+                                        <div style={{ fontSize: 11.5, color: COLORS.inkSecondary }}>—</div>
+                                      ) : orgsHere.map((o) => (
+                                        <div key={o.orgId} style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>
+                                          {o.name}{o.fundsInitiative && <span title="Funds this initiative" style={{ color: q.color }}> $</span>}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  );
+                                })}
+                              </React.Fragment>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18, overflow: "hidden" }}>
+                          <div style={{ padding: "16px 18px 4px", fontSize: 15, fontWeight: 600 }}>
+                            {stakeholderOrgs.length} stakeholder{stakeholderOrgs.length === 1 ? "" : "s"}
+                          </div>
+                          <SortableTable
+                            rowKey={(o) => o.orgId}
+                            defaultSort={{ key: "powerScore", dir: "desc" }}
+                            rows={stakeholderOrgs}
+                            columns={[
+                              { key: "name", label: "Organisation", render: (o) => <span style={{ fontWeight: 600 }}>{o.name}</span> },
+                              { key: "leader", label: "Leader", render: (o) => o.leader || "—" },
+                              { key: "powerScore", label: "Power", chip: true, render: (o) => (
+                                  <span style={{ background: `${COLORS.ink}14`, color: COLORS.ink, padding: "2px 9px", borderRadius: 8, fontSize: 11, fontWeight: 700 }}>{o.powerLabel}</span>
+                                ) },
+                              { key: "interestScore", label: "Interest", chip: true, render: (o) => (
+                                  <span style={{ background: `${COLORS.accent}18`, color: COLORS.accent, padding: "2px 9px", borderRadius: 8, fontSize: 11, fontWeight: 700 }}>{o.interestLabel}</span>
+                                ) },
+                              { key: "why", label: "Why", sortable: false, render: (o) => (
+                                  <span style={{ color: COLORS.inkSecondary, fontSize: 12.5 }}>
+                                    {[o.fundsInitiative ? "Funds this initiative" : null,
+                                      ...o.reasons.map((r) => `${r.viaType === "Capability" ? "Owns/uses" : "Owns/uses"} ${r.name}`)]
+                                      .filter(Boolean).join("; ") || "—"}
+                                  </span>
+                                ) },
+                              { key: "chain", label: "Management Chain", sortable: false, render: (o) => (
+                                  o.managementChain.length === 0 ? <span style={{ color: COLORS.inkSecondary }}>Top of hierarchy</span> : (
+                                    <span style={{ color: COLORS.inkSecondary, fontSize: 12.5 }}>
+                                      {o.managementChain.map((c) => c.leader ? `${c.name} (${c.leader})` : c.name).join(" → ")}
+                                    </span>
+                                  )
+                                ) },
+                            ]}
+                          />
+                        </div>
+                      </>
+                    )}
+                  </>
+                )}
+              </div>
+            );
+          })()}
           {view === "auditlog" && (() => {
             const ACTION_STYLE = {
               created: COLORS.accent, updated: COLORS.info, deleted: COLORS.risk, verified: COLORS.accent2, imported: COLORS.warning, loaded: COLORS.risk,
@@ -10715,7 +11192,7 @@ function APMDashboardLive() {
                             padding: "2px 9px", borderRadius: 8, fontSize: 11, fontWeight: 700, textTransform: "capitalize" }}>{f.severity}</span>
                         ) },
                       { key: "title", label: "Category", render: (f) => (
-                          <span onClick={() => goToView(f.category)} style={{ color: COLORS.accent, cursor: "pointer", fontWeight: 600 }}>{f.title} →</span>
+                          <span onClick={() => goToView(f.navView || f.category)} style={{ color: COLORS.accent, cursor: "pointer", fontWeight: 600 }}>{f.title} →</span>
                         ) },
                       { key: "message", label: "Details", render: (f) => <span style={{ color: COLORS.inkSecondary }}>{f.message}</span> },
                       { key: "fix", label: "", sortable: false, render: (f) => (
@@ -10730,6 +11207,119 @@ function APMDashboardLive() {
                         ) },
                     ]}
                     rows={agentFindings}
+                  />
+                </div>
+              </div>
+            );
+          })()}
+          {view === "customrules" && (() => {
+            const fieldOptions = schemaAttributes[watchRuleDraft.conceptType] || [];
+            const valueNeeded = !["is_empty", "is_not_empty"].includes(watchRuleDraft.comparator);
+            const matchCountFor = (rule) => {
+              const instances = watchRuleInstances[rule.conceptType] || [];
+              return instances.filter((inst) => evalWatchRuleComparator(inst[rule.snakeField], rule.comparator, rule.value)).length;
+            };
+            return (
+              <div>
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)",
+                  borderRadius: 16, padding: 22, marginBottom: 22, maxWidth: 820 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 6 }}>What is this page?</div>
+                  <div style={{ fontSize: 13, color: COLORS.inkSecondary, lineHeight: 1.6 }}>
+                    Agent Watch's gap list is fixed — the same checks for every customer. A custom rule extends it with
+                    your own: pick a concept type, a field, a comparison, and a severity, and any record matching it
+                    shows up in the Action Center and Agent Watch exactly like a built-in gap — tracked for drift the
+                    same way, with the same "🔧 Fix This" exclusion (there's no guided fix for a rule nobody wrote one
+                    for, just the match itself).
+                  </div>
+                  <div style={{ fontSize: 12, color: COLORS.inkSecondary, marginTop: 10, lineHeight: 1.6 }}>
+                    <b>One honest limitation:</b> this is a fixed comparison against one field, evaluated client-side —
+                    not a generated rule, and not a substitute for a real data-quality platform if your actual need is
+                    more complex than "field compares to value."
+                  </div>
+                </div>
+
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)",
+                  borderRadius: 16, padding: 22, marginBottom: 22, maxWidth: 820 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 14 }}>New rule</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+                    <div>
+                      <div style={{ fontSize: 11.5, fontWeight: 600, color: COLORS.inkSecondary, marginBottom: 5 }}>Name</div>
+                      <input value={watchRuleDraft.name} onChange={(e) => setWatchRuleDraft((d) => ({ ...d, name: e.target.value }))}
+                        placeholder="e.g. Critical apps missing a vendor"
+                        style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 13 }} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 11.5, fontWeight: 600, color: COLORS.inkSecondary, marginBottom: 5 }}>Severity</div>
+                      <select value={watchRuleDraft.severity} onChange={(e) => setWatchRuleDraft((d) => ({ ...d, severity: e.target.value }))}
+                        style={{ width: "100%", padding: "8px 10px", border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 13 }}>
+                        {["critical", "high", "medium"].map((s) => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 11.5, fontWeight: 600, color: COLORS.inkSecondary, marginBottom: 5 }}>Concept type</div>
+                      <select value={watchRuleDraft.conceptType}
+                        onChange={(e) => setWatchRuleDraft((d) => ({ ...d, conceptType: e.target.value, field: "" }))}
+                        style={{ width: "100%", padding: "8px 10px", border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 13 }}>
+                        {CANVAS_CONCEPT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 11.5, fontWeight: 600, color: COLORS.inkSecondary, marginBottom: 5 }}>Field</div>
+                      <select value={watchRuleDraft.field} onChange={(e) => setWatchRuleDraft((d) => ({ ...d, field: e.target.value }))}
+                        style={{ width: "100%", padding: "8px 10px", border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 13 }}>
+                        <option value="">Select a field…</option>
+                        {fieldOptions.map((a) => <option key={a.name} value={a.name}>{a.name}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 11.5, fontWeight: 600, color: COLORS.inkSecondary, marginBottom: 5 }}>Comparison</div>
+                      <select value={watchRuleDraft.comparator} onChange={(e) => setWatchRuleDraft((d) => ({ ...d, comparator: e.target.value }))}
+                        style={{ width: "100%", padding: "8px 10px", border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 13 }}>
+                        {WATCH_RULE_COMPARATORS.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+                      </select>
+                    </div>
+                    {valueNeeded && (
+                      <div>
+                        <div style={{ fontSize: 11.5, fontWeight: 600, color: COLORS.inkSecondary, marginBottom: 5 }}>Value</div>
+                        <input value={watchRuleDraft.value} onChange={(e) => setWatchRuleDraft((d) => ({ ...d, value: e.target.value }))}
+                          style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 13 }} />
+                      </div>
+                    )}
+                  </div>
+                  {watchRuleStatus && <div style={{ fontSize: 12.5, color: COLORS.risk, marginBottom: 10 }}>{watchRuleStatus}</div>}
+                  <button onClick={createWatchRule} disabled={watchRuleBusy}
+                    style={{ padding: "8px 18px", background: COLORS.accent, color: "#fff", border: "none",
+                      borderRadius: 8, fontSize: 12.5, fontWeight: 600, cursor: watchRuleBusy ? "default" : "pointer", opacity: watchRuleBusy ? 0.6 : 1 }}>
+                    {watchRuleBusy ? "Saving…" : "+ Add Rule"}
+                  </button>
+                </div>
+
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18, overflow: "hidden" }}>
+                  <div style={{ padding: "16px 18px 4px", fontSize: 15, fontWeight: 600 }}>
+                    {watchRulesLoading ? "Loading…" : `${watchRules.length} rule${watchRules.length === 1 ? "" : "s"}`}
+                  </div>
+                  {watchRulesError && <div style={{ padding: "0 18px 14px", fontSize: 12.5, color: COLORS.risk }}>{watchRulesError}</div>}
+                  <SortableTable
+                    rowKey={(r) => r.id}
+                    emptyMessage="No custom rules yet — add one above."
+                    columns={[
+                      { key: "name", label: "Name", render: (r) => <span style={{ fontWeight: 600 }}>{r.name}</span> },
+                      { key: "conceptType", label: "Concept Type" },
+                      { key: "condition", label: "Condition", sortable: false, render: (r) => (
+                          <span style={{ color: COLORS.inkSecondary }}>
+                            {r.field} {(WATCH_RULE_COMPARATORS.find(([k]) => k === r.comparator) || [, r.comparator])[1]}
+                            {["is_empty", "is_not_empty"].includes(r.comparator) ? "" : ` "${r.value}"`}
+                          </span>
+                        ) },
+                      { key: "severity", label: "Severity", chip: true, render: (r) => (
+                          <span style={{ background: `${COLORS.ink}14`, color: COLORS.ink, padding: "2px 9px", borderRadius: 8, fontSize: 11, fontWeight: 700, textTransform: "capitalize" }}>{r.severity}</span>
+                        ) },
+                      { key: "matches", label: "Live Matches", sortable: false, render: (r) => matchCountFor(r) },
+                      { key: "actions", label: "", sortable: false, render: (r) => (
+                          <span onClick={() => deleteWatchRule(r)} style={{ color: COLORS.risk, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>Delete</span>
+                        ) },
+                    ]}
+                    rows={watchRules}
                   />
                 </div>
               </div>
@@ -11411,6 +12001,30 @@ function APMDashboardLive() {
                     <div key={app.id} onClick={(e) => { e.stopPropagation(); setProfileAppId(app.id); setView("profile"); }}
                       style={{ fontSize: 12.5, padding: "6px 0", borderTop: `1px solid ${COLORS.border}`, marginTop: 8, textDecoration: "underline" }}>
                       {app.name}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="brief-card" onClick={() => setBriefDRTestExpanded(!briefDRTestExpanded)} style={{ cursor: "pointer", background: COLORS.card,
+                  border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)",
+                  borderRadius: 16, padding: 22 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 12, background: "#FBEAD0", color: "#D97706",
+                    display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}>{ICONS.obsolescence}</div>
+                  <div style={{ fontSize: 26, fontWeight: 700, color: "#D97706" }}>{drTestGapApps.length}</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, marginTop: 6, lineHeight: 1.4 }}>
+                    critical/high system{drTestGapApps.length === 1 ? "" : "s"} with a DR plan that's unproven, not just undocumented
+                  </div>
+                  <div style={{ fontSize: 12, color: COLORS.inkSecondary, marginTop: 8 }}>
+                    {drTestGapApps.length === 0 ? "Every covered system's DR plan has been tested and holds" : (briefDRTestExpanded ? "Hide" : "Which ones? →")}
+                  </div>
+                  {briefDRTestExpanded && drTestGapApps.map(({ app, dr }) => (
+                    <div key={app.id} onClick={(e) => { e.stopPropagation(); setProfileAppId(app.id); setView("profile"); }}
+                      style={{ fontSize: 12.5, padding: "6px 0", borderTop: `1px solid ${COLORS.border}`, marginTop: 8 }}>
+                      <span style={{ textDecoration: "underline" }}>{app.name}</span>
+                      <span style={{ color: COLORS.inkSecondary }}>
+                        {" — "}{dr.failed ? "last test failed" : dr.stale ? "never tested / not in 12+ months" : ""}
+                        {dr.rtoBreach ? `${dr.failed || dr.stale ? ", " : ""}missed its own RTO (${app.actualRecoveryTimeHours}h vs ${app.rtoHours}h)` : ""}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -13130,12 +13744,17 @@ function APMDashboardLive() {
                         <div style={{ fontSize: 11, color: COLORS.inkSecondary, marginTop: 2 }}>{br.severity} Blast Radius</div>
                       </div>
                     </div>
-                    <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 16 }}>
+                    <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 16, flexWrap: "wrap" }}>
                       <span style={{ background: br.drReadiness.covered ? "#DCEAE1" : "#FBE0D8",
                         color: br.drReadiness.covered ? COLORS.accent : COLORS.risk,
                         padding: "5px 12px", borderRadius: 8, fontSize: 12, fontWeight: 600 }}>
                         DR Readiness: {br.drReadiness.covered ? `Covered (${br.drReadiness.control}, ${br.drReadiness.via})` : "Gap — no DR/backup control found"}
                       </span>
+                      {br.drReadiness.covered && br.drReadiness.hasGap && (
+                        <span style={{ background: "#FBEAD0", color: "#D97706", padding: "5px 12px", borderRadius: 8, fontSize: 12, fontWeight: 600 }}>
+                          {br.drReadiness.failed ? "Last test failed" : br.drReadiness.stale ? "Never tested / stale" : "Missed its own RTO"}
+                        </span>
+                      )}
                       {(app.rto || app.rpo) && (
                         <span style={{ fontSize: 12, color: COLORS.inkSecondary }}>
                           RTO {app.rto || "—"} · RPO {app.rpo || "—"}
