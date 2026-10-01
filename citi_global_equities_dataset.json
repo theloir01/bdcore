@@ -406,7 +406,8 @@
       "process_maturity": "3 - Defined",
       "people_maturity": "3 - Defined",
       "applications_maturity": "3 - Defined",
-      "metrics_maturity": "3 - Defined"
+      "metrics_maturity": "3 - Defined",
+      "transition_phase": "Current State"
     },
     {
       "id": "c2",
@@ -420,7 +421,8 @@
       "process_maturity": "2 - Managed",
       "people_maturity": "3 - Defined",
       "applications_maturity": "2 - Managed",
-      "metrics_maturity": "2 - Managed"
+      "metrics_maturity": "2 - Managed",
+      "transition_phase": "Current State"
     },
     {
       "id": "c3",
@@ -434,7 +436,8 @@
       "process_maturity": "3 - Defined",
       "people_maturity": "3 - Defined",
       "applications_maturity": "3 - Defined",
-      "metrics_maturity": "3 - Defined"
+      "metrics_maturity": "3 - Defined",
+      "transition_phase": "Current State"
     },
     {
       "id": "c4",
@@ -448,7 +451,8 @@
       "process_maturity": "2 - Managed",
       "people_maturity": "3 - Defined",
       "applications_maturity": "2 - Managed",
-      "metrics_maturity": "2 - Managed"
+      "metrics_maturity": "2 - Managed",
+      "transition_phase": "Current State"
     },
     {
       "id": "c5",
@@ -462,7 +466,8 @@
       "process_maturity": "2 - Managed",
       "people_maturity": "3 - Defined",
       "applications_maturity": "2 - Managed",
-      "metrics_maturity": "1 - Initial"
+      "metrics_maturity": "1 - Initial",
+      "transition_phase": "Current State"
     },
     {
       "id": "c6",
@@ -476,7 +481,8 @@
       "process_maturity": "2 - Managed",
       "people_maturity": "3 - Defined",
       "applications_maturity": "2 - Managed",
-      "metrics_maturity": "2 - Managed"
+      "metrics_maturity": "2 - Managed",
+      "transition_phase": "Current State"
     },
     {
       "id": "c7",
@@ -490,7 +496,8 @@
       "process_maturity": "3 - Defined",
       "people_maturity": "3 - Defined",
       "applications_maturity": "3 - Defined",
-      "metrics_maturity": "3 - Defined"
+      "metrics_maturity": "3 - Defined",
+      "transition_phase": "Current State"
     },
     {
       "id": "c8",
@@ -504,7 +511,8 @@
       "process_maturity": "2 - Managed",
       "people_maturity": "2 - Managed",
       "applications_maturity": "2 - Managed",
-      "metrics_maturity": "1 - Initial"
+      "metrics_maturity": "1 - Initial",
+      "transition_phase": "Current State"
     },
     {
       "id": "c9",
@@ -518,7 +526,8 @@
       "process_maturity": "2 - Managed",
       "people_maturity": "3 - Defined",
       "applications_maturity": "2 - Managed",
-      "metrics_maturity": "2 - Managed"
+      "metrics_maturity": "2 - Managed",
+      "transition_phase": "Current State"
     },
     {
       "id": "c3a",
@@ -532,7 +541,8 @@
       "process_maturity": "3 - Defined",
       "people_maturity": "3 - Defined",
       "applications_maturity": "3 - Defined",
-      "metrics_maturity": "3 - Defined"
+      "metrics_maturity": "3 - Defined",
+      "transition_phase": "Current State"
     },
     {
       "id": "c3b",
@@ -546,7 +556,8 @@
       "process_maturity": "2 - Managed",
       "people_maturity": "3 - Defined",
       "applications_maturity": "2 - Managed",
-      "metrics_maturity": "2 - Managed"
+      "metrics_maturity": "2 - Managed",
+      "transition_phase": "Current State"
     },
     {
       "id": "c5a",
@@ -560,7 +571,8 @@
       "process_maturity": "1 - Initial",
       "people_maturity": "2 - Managed",
       "applications_maturity": "1 - Initial",
-      "metrics_maturity": "1 - Initial"
+      "metrics_maturity": "1 - Initial",
+      "transition_phase": "Current State"
     },
     {
       "id": "c5b",
@@ -574,7 +586,8 @@
       "process_maturity": "2 - Managed",
       "people_maturity": "3 - Defined",
       "applications_maturity": "2 - Managed",
-      "metrics_maturity": "2 - Managed"
+      "metrics_maturity": "2 - Managed",
+      "transition_phase": "Current State"
     },
     {
       "id": "c4a",
@@ -588,7 +601,8 @@
       "process_maturity": "2 - Managed",
       "people_maturity": "3 - Defined",
       "applications_maturity": "2 - Managed",
-      "metrics_maturity": "2 - Managed"
+      "metrics_maturity": "2 - Managed",
+      "transition_phase": "Current State"
     },
     {
       "id": "c4b",
@@ -602,7 +616,8 @@
       "process_maturity": "3 - Defined",
       "people_maturity": "3 - Defined",
       "applications_maturity": "3 - Defined",
-      "metrics_maturity": "2 - Managed"
+      "metrics_maturity": "2 - Managed",
+      "transition_phase": "Current State"
     },
     {
       "id": "req1",
@@ -680,7 +695,8 @@
       "data_format": "FIX",
       "frequency": "Real-time",
       "auth_method": "Certificate",
-      "data_classification": "Restricted"
+      "data_classification": "Restricted",
+      "transition_phase": "Current State"
     },
     {
       "id": "iface2",
@@ -692,7 +708,8 @@
       "data_format": "Binary",
       "frequency": "Real-time",
       "auth_method": "Certificate",
-      "data_classification": "Confidential"
+      "data_classification": "Confidential",
+      "transition_phase": "Current State"
     },
     {
       "id": "iface3",
@@ -704,7 +721,8 @@
       "data_format": "JSON",
       "frequency": "Near Real-time",
       "auth_method": "OAuth2",
-      "data_classification": "Confidential"
+      "data_classification": "Confidential",
+      "transition_phase": "Current State"
     },
     {
       "id": "iface4",
@@ -716,7 +734,8 @@
       "data_format": "JSON",
       "frequency": "Near Real-time",
       "auth_method": "OAuth2",
-      "data_classification": "Internal"
+      "data_classification": "Internal",
+      "transition_phase": "Current State"
     },
     {
       "id": "iface5",
@@ -728,7 +747,8 @@
       "data_format": "JSON",
       "frequency": "Real-time",
       "auth_method": "Certificate",
-      "data_classification": "Restricted"
+      "data_classification": "Restricted",
+      "transition_phase": "Current State"
     },
     {
       "id": "iface6",
@@ -740,7 +760,8 @@
       "data_format": "CSV",
       "frequency": "Daily",
       "auth_method": "API Key",
-      "data_classification": "Confidential"
+      "data_classification": "Confidential",
+      "transition_phase": "Current State"
     },
     {
       "id": "iface7",
@@ -752,7 +773,8 @@
       "data_format": "SWIFT",
       "frequency": "Daily",
       "auth_method": "Certificate",
-      "data_classification": "Restricted"
+      "data_classification": "Restricted",
+      "transition_phase": "Current State"
     },
     {
       "id": "iface8",
@@ -764,7 +786,8 @@
       "data_format": "JSON",
       "frequency": "Near Real-time",
       "auth_method": "OAuth2",
-      "data_classification": "Restricted"
+      "data_classification": "Restricted",
+      "transition_phase": "Current State"
     },
     {
       "id": "p1",
@@ -1250,7 +1273,8 @@
       "ai_availability": "Planned",
       "ai_target_pattern": "Enable",
       "ai_pathfinder_status": "In Progress",
-      "review_date": "2026-12-01"
+      "review_date": "2026-12-01",
+      "transition_phase": "Current State"
     },
     {
       "id": "a2",
@@ -1277,7 +1301,8 @@
       "ai_availability": "Available",
       "ai_target_pattern": "Enable",
       "ai_pathfinder_status": "In Progress",
-      "review_date": "2026-10-01"
+      "review_date": "2026-10-01",
+      "transition_phase": "Current State"
     },
     {
       "id": "a3",
@@ -1304,7 +1329,8 @@
       "ai_availability": "Planned",
       "ai_target_pattern": "Rebuild",
       "ai_pathfinder_status": "Not Started",
-      "review_date": "2026-09-01"
+      "review_date": "2026-09-01",
+      "transition_phase": "Current State"
     },
     {
       "id": "a4",
@@ -1331,7 +1357,8 @@
       "ai_availability": "Planned",
       "ai_target_pattern": "Enable",
       "ai_pathfinder_status": "In Progress",
-      "review_date": "2027-02-01"
+      "review_date": "2027-02-01",
+      "transition_phase": "Current State"
     },
     {
       "id": "a5",
@@ -1358,7 +1385,8 @@
       "ai_availability": "Planned",
       "ai_target_pattern": "Enable",
       "ai_pathfinder_status": "Not Started",
-      "review_date": "2027-05-01"
+      "review_date": "2027-05-01",
+      "transition_phase": "Current State"
     },
     {
       "id": "a6",
@@ -1385,7 +1413,8 @@
       "ai_availability": "Planned",
       "ai_target_pattern": "Enable",
       "ai_pathfinder_status": "Not Started",
-      "review_date": "2027-04-01"
+      "review_date": "2027-04-01",
+      "transition_phase": "Current State"
     },
     {
       "id": "a7",
@@ -1412,7 +1441,8 @@
       "ai_availability": "Planned",
       "ai_target_pattern": "Rebuild",
       "ai_pathfinder_status": "Not Started",
-      "review_date": "2027-06-01"
+      "review_date": "2027-06-01",
+      "transition_phase": "Current State"
     },
     {
       "id": "a8",
@@ -1439,7 +1469,8 @@
       "ai_availability": "Planned",
       "ai_target_pattern": "Enable",
       "ai_pathfinder_status": "Not Started",
-      "review_date": "2027-01-01"
+      "review_date": "2027-01-01",
+      "transition_phase": "Current State"
     },
     {
       "id": "a9",
@@ -1466,7 +1497,8 @@
       "ai_availability": "Planned",
       "ai_target_pattern": "Rebuild",
       "ai_pathfinder_status": "Not Started",
-      "review_date": "2027-03-01"
+      "review_date": "2027-03-01",
+      "transition_phase": "Current State"
     },
     {
       "id": "a10",
@@ -1493,7 +1525,8 @@
       "ai_availability": "Embedded",
       "ai_target_pattern": "Enable",
       "ai_pathfinder_status": "Done",
-      "review_date": "2026-11-01"
+      "review_date": "2026-11-01",
+      "transition_phase": "Current State"
     },
     {
       "id": "a11",
@@ -1520,7 +1553,8 @@
       "ai_availability": "Planned",
       "ai_target_pattern": "Enable",
       "ai_pathfinder_status": "In Progress",
-      "review_date": "2026-06-01"
+      "review_date": "2026-06-01",
+      "transition_phase": "Phase 1"
     },
     {
       "id": "a12",
@@ -1547,7 +1581,8 @@
       "ai_availability": "Embedded",
       "ai_target_pattern": "Enable",
       "ai_pathfinder_status": "Done",
-      "review_date": "2026-07-15"
+      "review_date": "2026-07-15",
+      "transition_phase": "Current State"
     },
     {
       "id": "a13",
@@ -1574,7 +1609,8 @@
       "ai_availability": "Planned",
       "ai_target_pattern": "Enable",
       "ai_pathfinder_status": "Not Started",
-      "review_date": "2026-10-01"
+      "review_date": "2026-10-01",
+      "transition_phase": "Phase 2"
     },
     {
       "id": "a14",
@@ -1603,7 +1639,8 @@
       "ai_relevance": "Low",
       "ai_availability": "Planned",
       "ai_target_pattern": "Consolidate",
-      "ai_pathfinder_status": "Not Started"
+      "ai_pathfinder_status": "Not Started",
+      "transition_phase": "Current State"
     },
     {
       "id": "f1",

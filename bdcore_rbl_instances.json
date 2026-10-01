@@ -1,5 +1,5 @@
 {
-  "dataset_name": "Royal British Legion — Demo Dataset",
+  "dataset_name": "Royal British Legion \u2014 Demo Dataset",
   "nodes": [
     {
       "id": "s1",
@@ -48,7 +48,7 @@
       "decision_date": "2019-03-01",
       "rationale": "Legacy CRM was over a decade old, built for direct marketing, and not integrated with digital channels",
       "options_considered": "Retain and extend the legacy CRM; build a bespoke platform; adopt Salesforce Nonprofit Cloud; adopt Microsoft Dynamics 365",
-      "chosen_option": "Microsoft Dynamics 365 — best fit for existing Microsoft 365/Azure investment and lower integration overhead",
+      "chosen_option": "Microsoft Dynamics 365 \u2014 best fit for existing Microsoft 365/Azure investment and lower integration overhead",
       "consequences": "Easier: single supporter view across channels, native Power Platform automation, reduced integration cost with other Microsoft services. Harder: licensing cost scales with user count; direct-marketing data required significant cleansing to migrate.",
       "confidence": "High",
       "impact_level": "Critical",
@@ -63,7 +63,7 @@
       "decision_date": "2021-06-01",
       "rationale": "Legacy SQL infrastructure was complex, outdated, and relied on a single point of failure",
       "options_considered": "Do nothing and accept the risk; in-place hardware refresh; managed cloud service; full application re-platform",
-      "chosen_option": "Managed service on Azure — addressed the single-point-of-failure risk without the cost/risk of a full re-platform",
+      "chosen_option": "Managed service on Azure \u2014 addressed the single-point-of-failure risk without the cost/risk of a full re-platform",
       "consequences": "Easier: reduced operational burden on internal IT, built-in DR/failover, predictable running cost. Harder: recurring managed-service cost replaces one-off capital spend; less low-level control over tuning.",
       "confidence": "Medium",
       "impact_level": "High",
@@ -78,7 +78,7 @@
       "decision_date": "2026-01-01",
       "rationale": "The managed-service approach solved the immediate resilience risk, but reporting and cross-system data needs have grown beyond what a lift-and-shift managed instance comfortably supports",
       "options_considered": "Stay on the current managed service; move to a cloud-native platform (e.g. Azure SQL / Synapse-style); adopt a separate analytics platform alongside the existing service",
-      "chosen_option": "Not yet finalised — proposed, pending review",
+      "chosen_option": "Not yet finalised \u2014 proposed, pending review",
       "consequences": "Easier (anticipated): elastic scaling for reporting workloads, reduced patching overhead. Harder (anticipated): migration effort from the current managed instance; team upskilling required.",
       "confidence": "Medium",
       "impact_level": "High",
@@ -207,7 +207,8 @@
       "process_maturity": "2 - Managed",
       "people_maturity": "3 - Defined",
       "applications_maturity": "2 - Managed",
-      "metrics_maturity": "2 - Managed"
+      "metrics_maturity": "2 - Managed",
+      "transition_phase": "Current State"
     },
     {
       "id": "c2",
@@ -221,7 +222,8 @@
       "process_maturity": "3 - Defined",
       "people_maturity": "3 - Defined",
       "applications_maturity": "3 - Defined",
-      "metrics_maturity": "2 - Managed"
+      "metrics_maturity": "2 - Managed",
+      "transition_phase": "Current State"
     },
     {
       "id": "c3",
@@ -235,7 +237,8 @@
       "process_maturity": "3 - Defined",
       "people_maturity": "4 - Quantitative",
       "applications_maturity": "3 - Defined",
-      "metrics_maturity": "3 - Defined"
+      "metrics_maturity": "3 - Defined",
+      "transition_phase": "Current State"
     },
     {
       "id": "c4",
@@ -249,7 +252,8 @@
       "process_maturity": "2 - Managed",
       "people_maturity": "3 - Defined",
       "applications_maturity": "2 - Managed",
-      "metrics_maturity": "2 - Managed"
+      "metrics_maturity": "2 - Managed",
+      "transition_phase": "Current State"
     },
     {
       "id": "c5",
@@ -263,7 +267,8 @@
       "process_maturity": "2 - Managed",
       "people_maturity": "3 - Defined",
       "applications_maturity": "2 - Managed",
-      "metrics_maturity": "1 - Initial"
+      "metrics_maturity": "1 - Initial",
+      "transition_phase": "Current State"
     },
     {
       "id": "c6",
@@ -277,7 +282,8 @@
       "process_maturity": "3 - Defined",
       "people_maturity": "3 - Defined",
       "applications_maturity": "3 - Defined",
-      "metrics_maturity": "2 - Managed"
+      "metrics_maturity": "2 - Managed",
+      "transition_phase": "Current State"
     },
     {
       "id": "c7",
@@ -291,7 +297,8 @@
       "process_maturity": "4 - Quantitative",
       "people_maturity": "3 - Defined",
       "applications_maturity": "3 - Defined",
-      "metrics_maturity": "3 - Defined"
+      "metrics_maturity": "3 - Defined",
+      "transition_phase": "Current State"
     },
     {
       "id": "c1a",
@@ -305,7 +312,8 @@
       "process_maturity": "2 - Managed",
       "people_maturity": "3 - Defined",
       "applications_maturity": "2 - Managed",
-      "metrics_maturity": "2 - Managed"
+      "metrics_maturity": "2 - Managed",
+      "transition_phase": "Current State"
     },
     {
       "id": "c1b",
@@ -319,7 +327,8 @@
       "process_maturity": "2 - Managed",
       "people_maturity": "3 - Defined",
       "applications_maturity": "1 - Initial",
-      "metrics_maturity": "1 - Initial"
+      "metrics_maturity": "1 - Initial",
+      "transition_phase": "Current State"
     },
     {
       "id": "c1c",
@@ -333,7 +342,8 @@
       "process_maturity": "1 - Initial",
       "people_maturity": "3 - Defined",
       "applications_maturity": "1 - Initial",
-      "metrics_maturity": "1 - Initial"
+      "metrics_maturity": "1 - Initial",
+      "transition_phase": "Current State"
     },
     {
       "id": "c3a",
@@ -347,7 +357,8 @@
       "process_maturity": "3 - Defined",
       "people_maturity": "4 - Quantitative",
       "applications_maturity": "3 - Defined",
-      "metrics_maturity": "3 - Defined"
+      "metrics_maturity": "3 - Defined",
+      "transition_phase": "Current State"
     },
     {
       "id": "c3b",
@@ -361,7 +372,8 @@
       "process_maturity": "3 - Defined",
       "people_maturity": "3 - Defined",
       "applications_maturity": "3 - Defined",
-      "metrics_maturity": "3 - Defined"
+      "metrics_maturity": "3 - Defined",
+      "transition_phase": "Current State"
     },
     {
       "id": "c3c",
@@ -375,7 +387,8 @@
       "process_maturity": "2 - Managed",
       "people_maturity": "3 - Defined",
       "applications_maturity": "2 - Managed",
-      "metrics_maturity": "2 - Managed"
+      "metrics_maturity": "2 - Managed",
+      "transition_phase": "Current State"
     },
     {
       "id": "c4a",
@@ -389,7 +402,8 @@
       "process_maturity": "2 - Managed",
       "people_maturity": "3 - Defined",
       "applications_maturity": "2 - Managed",
-      "metrics_maturity": "2 - Managed"
+      "metrics_maturity": "2 - Managed",
+      "transition_phase": "Current State"
     },
     {
       "id": "c4b",
@@ -403,7 +417,8 @@
       "process_maturity": "2 - Managed",
       "people_maturity": "3 - Defined",
       "applications_maturity": "1 - Initial",
-      "metrics_maturity": "1 - Initial"
+      "metrics_maturity": "1 - Initial",
+      "transition_phase": "Current State"
     },
     {
       "id": "req1",
@@ -492,7 +507,8 @@
       "data_format": "CSV",
       "frequency": "Daily",
       "auth_method": "API Key",
-      "data_classification": "Confidential"
+      "data_classification": "Confidential",
+      "transition_phase": "Current State"
     },
     {
       "id": "iface2",
@@ -504,7 +520,8 @@
       "data_format": "JSON",
       "frequency": "Real-time",
       "auth_method": "API Key",
-      "data_classification": "Confidential"
+      "data_classification": "Confidential",
+      "transition_phase": "Current State"
     },
     {
       "id": "iface3",
@@ -516,7 +533,8 @@
       "data_format": "JSON",
       "frequency": "Near Real-time",
       "auth_method": "OAuth2",
-      "data_classification": "Confidential"
+      "data_classification": "Confidential",
+      "transition_phase": "Current State"
     },
     {
       "id": "iface4",
@@ -528,7 +546,8 @@
       "data_format": "N/A",
       "frequency": "Real-time",
       "auth_method": "Basic Auth",
-      "data_classification": "Internal"
+      "data_classification": "Internal",
+      "transition_phase": "Current State"
     },
     {
       "id": "iface5",
@@ -540,7 +559,8 @@
       "data_format": "JSON",
       "frequency": "Near Real-time",
       "auth_method": "OAuth2",
-      "data_classification": "Restricted"
+      "data_classification": "Restricted",
+      "transition_phase": "Current State"
     },
     {
       "id": "iface6",
@@ -552,7 +572,8 @@
       "data_format": "CSV",
       "frequency": "Weekly",
       "auth_method": "API Key",
-      "data_classification": "Confidential"
+      "data_classification": "Confidential",
+      "transition_phase": "Current State"
     },
     {
       "id": "iface7",
@@ -564,7 +585,8 @@
       "data_format": "Fixed-Width",
       "frequency": "Daily",
       "auth_method": "Certificate",
-      "data_classification": "Confidential"
+      "data_classification": "Confidential",
+      "transition_phase": "Current State"
     },
     {
       "id": "iface8",
@@ -576,7 +598,8 @@
       "data_format": "JSON",
       "frequency": "Real-time",
       "auth_method": "Certificate",
-      "data_classification": "Internal"
+      "data_classification": "Internal",
+      "transition_phase": "Current State"
     },
     {
       "id": "p1",
@@ -1183,7 +1206,8 @@
       "ai_target_pattern": "Enable",
       "ai_pathfinder_status": "In Progress",
       "review_date": "2026-12-01",
-      "renewal_date": "2026-11-15"
+      "renewal_date": "2026-11-15",
+      "transition_phase": "Current State"
     },
     {
       "id": "a2",
@@ -1211,7 +1235,8 @@
       "ai_target_pattern": "Enable",
       "ai_pathfinder_status": "Not Started",
       "review_date": "2027-03-01",
-      "renewal_date": "2027-02-15"
+      "renewal_date": "2027-02-15",
+      "transition_phase": "Current State"
     },
     {
       "id": "a3",
@@ -1238,7 +1263,8 @@
       "ai_target_pattern": "Consolidate",
       "ai_pathfinder_status": "Not Started",
       "review_date": "2027-06-01",
-      "renewal_date": "2027-05-01"
+      "renewal_date": "2027-05-01",
+      "transition_phase": "Current State"
     },
     {
       "id": "a4",
@@ -1264,7 +1290,8 @@
       "ai_target_pattern": "Enable",
       "ai_pathfinder_status": "Done",
       "review_date": "2027-01-01",
-      "renewal_date": "2026-08-15"
+      "renewal_date": "2026-08-15",
+      "transition_phase": "Current State"
     },
     {
       "id": "a5",
@@ -1291,7 +1318,8 @@
       "ai_target_pattern": "Enable",
       "ai_pathfinder_status": "In Progress",
       "review_date": "2026-11-01",
-      "renewal_date": "2026-10-31"
+      "renewal_date": "2026-10-31",
+      "transition_phase": "Current State"
     },
     {
       "id": "a6",
@@ -1320,7 +1348,8 @@
       "ai_relevance": "Low",
       "ai_availability": "Planned",
       "ai_target_pattern": "Consolidate",
-      "ai_pathfinder_status": "Not Started"
+      "ai_pathfinder_status": "Not Started",
+      "transition_phase": "Current State"
     },
     {
       "id": "a7",
@@ -1346,7 +1375,8 @@
       "ai_availability": "Planned",
       "ai_target_pattern": "Rebuild",
       "ai_pathfinder_status": "Not Started",
-      "review_date": "2026-12-01"
+      "review_date": "2026-12-01",
+      "transition_phase": "Current State"
     },
     {
       "id": "a8",
@@ -1374,7 +1404,8 @@
       "ai_target_pattern": "Enable",
       "ai_pathfinder_status": "In Progress",
       "review_date": "2026-04-01",
-      "renewal_date": "2027-01-20"
+      "renewal_date": "2027-01-20",
+      "transition_phase": "Current State"
     },
     {
       "id": "a9",
@@ -1402,7 +1433,8 @@
       "ai_target_pattern": "Enable",
       "ai_pathfinder_status": "Not Started",
       "review_date": "2027-06-01",
-      "renewal_date": "2027-06-01"
+      "renewal_date": "2027-06-01",
+      "transition_phase": "Current State"
     },
     {
       "id": "a10",
@@ -1428,7 +1460,8 @@
       "ai_target_pattern": "Enable",
       "ai_pathfinder_status": "Not Started",
       "review_date": "2027-01-01",
-      "renewal_date": "2026-12-10"
+      "renewal_date": "2026-12-10",
+      "transition_phase": "Current State"
     },
     {
       "id": "a11",
@@ -1454,7 +1487,8 @@
       "ai_availability": "Planned",
       "ai_target_pattern": "Consolidate",
       "ai_pathfinder_status": "Not Started",
-      "review_date": "2027-09-01"
+      "review_date": "2027-09-01",
+      "transition_phase": "Current State"
     },
     {
       "id": "a12",
@@ -1481,7 +1515,8 @@
       "ai_availability": "Planned",
       "ai_target_pattern": "Rebuild",
       "ai_pathfinder_status": "Not Started",
-      "review_date": "2027-03-01"
+      "review_date": "2027-03-01",
+      "transition_phase": "Current State"
     },
     {
       "id": "a13",
@@ -1508,7 +1543,8 @@
       "ai_availability": "Planned",
       "ai_target_pattern": "Enable",
       "ai_pathfinder_status": "In Progress",
-      "review_date": "2026-04-01"
+      "review_date": "2026-04-01",
+      "transition_phase": "Phase 1"
     },
     {
       "id": "a14",
@@ -1535,7 +1571,8 @@
       "ai_availability": "Planned",
       "ai_target_pattern": "Enable",
       "ai_pathfinder_status": "Not Started",
-      "review_date": "2026-09-01"
+      "review_date": "2026-09-01",
+      "transition_phase": "Phase 2"
     },
     {
       "id": "a15",
@@ -1563,7 +1600,8 @@
       "ai_target_pattern": "Enable",
       "ai_pathfinder_status": "Done",
       "review_date": "2027-02-01",
-      "renewal_date": "2027-08-01"
+      "renewal_date": "2027-08-01",
+      "transition_phase": "Current State"
     },
     {
       "id": "aim1",
@@ -2393,7 +2431,7 @@
       "criticality": "Medium",
       "status": "Retiring",
       "strength": 40,
-      "type": "legacy support — being superseded by a1"
+      "type": "legacy support \u2014 being superseded by a1"
     },
     {
       "source": "dt1",
@@ -2907,7 +2945,7 @@
       "criticality": "Medium",
       "status": "Active",
       "strength": 55,
-      "type": "illustrative — welfare demand growth vs digital investment focus"
+      "type": "illustrative \u2014 welfare demand growth vs digital investment focus"
     },
     {
       "source": "p4",
@@ -4027,7 +4065,7 @@
       "criticality": "High",
       "status": "Active",
       "strength": 65,
-      "type": "partial automation — routine renewal communications"
+      "type": "partial automation \u2014 routine renewal communications"
     },
     {
       "source": "a15",
