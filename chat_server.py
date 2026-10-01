@@ -34,6 +34,7 @@ import json
 import os
 import re
 import sys
+import uuid
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify
 from neo4j import GraphDatabase
@@ -984,6 +985,131 @@ def refine_filters():
         "summary": result.get("summary", "") if isinstance(result.get("summary"), str) else "",
         "tokens": total_usage,
     })
+
+
+MCP_PROTOCOL_VERSION = "2025-03-26"
+
+
+def _mcp_parse_response(resp):
+    """
+    An MCP Streamable-HTTP server may answer a POST with a single JSON
+    object, or with an SSE stream of `data: {...}` events (the spec allows
+    either) — this normalizes both into a list of JSON-RPC messages.
+    """
+    if "text/event-stream" in resp.headers.get("content-type", ""):
+        messages = []
+        for line in resp.text.splitlines():
+            line = line.strip()
+            if line.startswith("data:"):
+                try:
+                    messages.append(json.loads(line[len("data:"):].strip()))
+                except ValueError:
+                    pass
+        return messages
+    try:
+        return [resp.json()]
+    except ValueError:
+        return []
+
+
+def mcp_request(url, token, method, params, session_id=None):
+    """
+    Sends one JSON-RPC 2.0 request (or, for a "notifications/..." method, a
+    fire-and-forget notification) to a remote MCP server over the
+    Streamable-HTTP transport. Returns (result, session_id) — session_id is
+    whatever the server handed back via the Mcp-Session-Id response header,
+    carried forward for the next call in the same handshake.
+    """
+    headers = {"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    if session_id:
+        headers["Mcp-Session-Id"] = session_id
+    is_notification = method.startswith("notifications/")
+    body = {"jsonrpc": "2.0", "method": method, "params": params}
+    if not is_notification:
+        body["id"] = str(uuid.uuid4())
+
+    resp = requests.post(url, json=body, headers=headers, timeout=20)
+    resp.raise_for_status()
+    new_session_id = resp.headers.get("Mcp-Session-Id") or session_id
+    if is_notification or resp.status_code == 202:
+        return None, new_session_id
+
+    for msg in _mcp_parse_response(resp):
+        if msg.get("id") == body.get("id"):
+            if "error" in msg:
+                raise RuntimeError(msg["error"].get("message", "The MCP server returned an error"))
+            return msg.get("result"), new_session_id
+    return None, new_session_id
+
+
+def mcp_handshake(url, token):
+    """
+    Every /mcp/* request here opens (and discards) a brand-new MCP session
+    rather than persisting one across requests — this is a stateless Flask
+    handler with no per-browser-tab session store, and re-initializing each
+    time is cheap next to the complexity of caching one server-side.
+    """
+    _, session_id = mcp_request(url, token, "initialize", {
+        "protocolVersion": MCP_PROTOCOL_VERSION,
+        "capabilities": {},
+        "clientInfo": {"name": "bdcore", "version": "1.0"},
+    })
+    mcp_request(url, token, "notifications/initialized", {}, session_id=session_id)
+    return session_id
+
+
+@app.route("/mcp/tools", methods=["POST", "OPTIONS"])
+def mcp_tools():
+    """
+    Connects to a user-configured MCP server (Miro, or any other) and lists
+    its available tools, so the Integrations panel can show what's actually
+    callable instead of the dashboard having to hard-code any one server's
+    API shape.
+    """
+    if request.method == "OPTIONS":
+        return "", 204
+
+    url = (request.json.get("url") or "").strip()
+    token = (request.json.get("token") or "").strip()
+    if not url:
+        return jsonify({"ok": False, "error": "No server URL provided"}), 200
+
+    try:
+        session_id = mcp_handshake(url, token)
+        result, _ = mcp_request(url, token, "tools/list", {}, session_id=session_id)
+        return jsonify({"ok": True, "tools": (result or {}).get("tools", [])})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 200
+
+
+@app.route("/mcp/call", methods=["POST", "OPTIONS"])
+def mcp_call():
+    """
+    Calls one tool on a user-configured MCP server and hands back its raw
+    result — deliberately generic (any tool, any arguments) rather than
+    Miro-specific, so the same endpoint serves whatever MCP server gets
+    connected next.
+    """
+    if request.method == "OPTIONS":
+        return "", 204
+
+    url = (request.json.get("url") or "").strip()
+    token = (request.json.get("token") or "").strip()
+    tool_name = (request.json.get("tool") or "").strip()
+    args = request.json.get("args") or {}
+    if not url or not tool_name:
+        return jsonify({"ok": False, "error": "Server URL and tool name are required"}), 200
+    if not isinstance(args, dict):
+        return jsonify({"ok": False, "error": "Tool arguments must be a JSON object"}), 200
+
+    try:
+        session_id = mcp_handshake(url, token)
+        result, _ = mcp_request(url, token, "tools/call", {"name": tool_name, "arguments": args}, session_id=session_id)
+        return jsonify({"ok": True, "result": result})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 200
 
 
 if __name__ == "__main__":

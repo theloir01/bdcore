@@ -3303,6 +3303,30 @@ function APMDashboardLive() {
   });
   const [watchRuleBusy, setWatchRuleBusy] = useState(false);
   const [watchRuleStatus, setWatchRuleStatus] = useState("");
+  // MCP ("Model Context Protocol") integrations — lets the dashboard act as
+  // an MCP *client* and pull content in from any MCP server (Miro's board
+  // tools, etc.) via chat_server.py's /mcp/* proxy. The server list (name,
+  // URL, bearer token) lives client-side in localStorage, same trust model
+  // as the Neo4j credentials above — chat_server.py only ever relays a
+  // call, it never stores a token itself.
+  const [mcpServers, setMcpServersRaw] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("bdcore_mcp_servers") || "[]"); } catch { return []; }
+  });
+  const setMcpServers = (updater) => setMcpServersRaw((prev) => {
+    const next = typeof updater === "function" ? updater(prev) : updater;
+    try { localStorage.setItem("bdcore_mcp_servers", JSON.stringify(next)); } catch {}
+    return next;
+  });
+  const [mcpServerDraft, setMcpServerDraft] = useState({ name: "", url: "", token: "" });
+  // { [serverId]: { testing, ok, error, tools } } — kept per server so
+  // switching between several configured servers doesn't lose each one's
+  // own last-tested state.
+  const [mcpServerStatus, setMcpServerStatus] = useState({});
+  const [mcpActiveServerId, setMcpActiveServerId] = useState(null);
+  const [mcpToolDraft, setMcpToolDraft] = useState({ tool: "", argsText: "{}" });
+  const [mcpCallBusy, setMcpCallBusy] = useState(false);
+  const [mcpCallResult, setMcpCallResult] = useState(null); // { toolName, ok, text, error }
+  const [mcpImportLabel, setMcpImportLabel] = useState("");
   const agentScanRunningRef = useRef(false);
   const [datasetFileName, setDatasetFileName] = useState("");
   const [datasetPreview, setDatasetPreview] = useState(null); // parsed + validated upload, or null
@@ -6166,8 +6190,9 @@ function APMDashboardLive() {
     ["dataload", "Load Demo Dataset", "dataload"],
     ["agentwatch", "Agent Watch", "agentwatch"],
     ["customrules", "Custom Watch Rules", "customrules"],
+    ["integrations", "Integrations", "integrations"],
   ];
-  const ADMIN_KEYS = new Set(["dataload", "agentwatch", "customrules"]);
+  const ADMIN_KEYS = new Set(["dataload", "agentwatch", "customrules", "integrations"]);
   // Standalone top-level sidebar items (their own row, no parent group to
   // expand) — jumping to one of these via goToView (e.g. Help's "Open →")
   // must NOT force the "APM" section open, since they live outside it.
@@ -6235,6 +6260,7 @@ function APMDashboardLive() {
     residency: <svg {...ICON_COMMON}><circle cx="12" cy="12" r="9" /><ellipse cx="12" cy="12" rx="4" ry="9" /><line x1="3" y1="12" x2="21" y2="12" /><path d="M5 7.5c1.8 1.2 4.3 2 7 2s5.2-.8 7-2M5 16.5c1.8-1.2 4.3-2 7-2s5.2.8 7 2" /></svg>,
     agentwatch: <svg {...ICON_COMMON}><path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12z" /><circle cx="12" cy="12" r="3" /><circle cx="12" cy="12" r="0.6" fill="currentColor" stroke="none" /></svg>,
     customrules: <svg {...ICON_COMMON}><path d="M4 6h16M4 12h10M4 18h7" /><circle cx="19" cy="17.5" r="3.2" /><path d="M19 16v1.5l1 1" /></svg>,
+    integrations: <svg {...ICON_COMMON}><circle cx="6" cy="6" r="3" /><circle cx="18" cy="6" r="3" /><circle cx="12" cy="18" r="3" /><path d="M8.6 7.6 10.5 15.5M15.4 7.6 13.5 15.5M9 6h6" /></svg>,
     initiatives: <svg {...ICON_COMMON}><rect x="3" y="5" width="11" height="3.2" rx="1" /><rect x="8" y="11" width="13" height="3.2" rx="1" /><rect x="5" y="17" width="9" height="3.2" rx="1" /></svg>,
     dataflow: <svg {...ICON_COMMON}><rect x="2" y="9" width="6" height="6" rx="1.2" /><rect x="16" y="2" width="6" height="6" rx="1.2" /><rect x="16" y="16" width="6" height="6" rx="1.2" /><path d="M8 11l7.5 -6M8 13l7.5 6" /></svg>,
     transitionroadmap: <svg {...ICON_COMMON}><path d="M3 20V4" /><circle cx="3" cy="16" r="1.6" fill="currentColor" stroke="none" /><circle cx="10" cy="11" r="1.6" fill="currentColor" stroke="none" /><circle cx="17" cy="6" r="1.6" fill="currentColor" stroke="none" /><path d="M3 16l7 -5l7 -5" /><path d="M17 6h4v4" /></svg>,
@@ -7386,6 +7412,74 @@ function APMDashboardLive() {
     );
   };
 
+  // --- MCP integrations (Integrations admin page) -------------------------
+  const testMcpServer = async (server) => {
+    setMcpServerStatus((prev) => ({ ...prev, [server.id]: { ...(prev[server.id] || {}), testing: true, error: "" } }));
+    try {
+      const res = await fetch("http://localhost:5050/mcp/tools", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: server.url, token: server.token }),
+      });
+      const data = await res.json();
+      setMcpServerStatus((prev) => ({ ...prev, [server.id]: data.ok
+        ? { testing: false, ok: true, tools: data.tools || [], error: "" }
+        : { testing: false, ok: false, tools: [], error: data.error || "Connection failed" } }));
+    } catch (e) {
+      setMcpServerStatus((prev) => ({ ...prev, [server.id]: { testing: false, ok: false, tools: [], error: e.message } }));
+    }
+  };
+  const addMcpServer = () => {
+    const name = mcpServerDraft.name.trim();
+    const url = mcpServerDraft.url.trim();
+    if (!name || !url) return;
+    const server = { id: newCanvasId("mcp"), name, url, token: mcpServerDraft.token.trim() };
+    setMcpServers((prev) => [...prev, server]);
+    setMcpServerDraft({ name: "", url: "", token: "" });
+    testMcpServer(server);
+  };
+  const deleteMcpServer = async (server) => {
+    if (!(await askConfirm(`Remove the "${server.name}" MCP connection? This only forgets it locally — nothing changes on ${server.name}'s side.`, { danger: true, confirmLabel: "Remove" }))) return;
+    setMcpServers((prev) => prev.filter((s) => s.id !== server.id));
+    setMcpServerStatus((prev) => { const next = { ...prev }; delete next[server.id]; return next; });
+    if (mcpActiveServerId === server.id) setMcpActiveServerId(null);
+  };
+  const callMcpTool = async (server) => {
+    const toolName = mcpToolDraft.tool;
+    if (!toolName) return;
+    let args;
+    try { args = mcpToolDraft.argsText.trim() ? JSON.parse(mcpToolDraft.argsText) : {}; }
+    catch (e) { setMcpCallResult({ toolName, ok: false, error: `Arguments aren't valid JSON: ${e.message}` }); return; }
+    setMcpCallBusy(true);
+    setMcpCallResult(null);
+    try {
+      const res = await fetch("http://localhost:5050/mcp/call", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: server.url, token: server.token, tool: toolName, args }),
+      });
+      const data = await res.json();
+      setMcpCallResult(data.ok
+        ? { toolName, ok: true, text: JSON.stringify(data.result, null, 2) }
+        : { toolName, ok: false, error: data.error || "The call failed" });
+    } catch (e) {
+      setMcpCallResult({ toolName, ok: false, error: e.message });
+    } finally {
+      setMcpCallBusy(false);
+    }
+  };
+  // Hands whatever a tool call came back with to the exact same
+  // text-interpretation pipeline "paste a document to interpret" already
+  // uses, rather than a hand-written per-service JSON-shape mapper that
+  // would only stay correct until that service's next API change. Claude
+  // already reads unstructured Miro-style content well (see
+  // canvas_interpret's own prompt), so this stays robust to whatever shape
+  // any given MCP server's tools actually return.
+  const importMcpResultToCanvas = (server, toolName, resultText) => {
+    if (!activeCanvasId) return;
+    const label = (mcpImportLabel || `${server.name}: ${toolName}`).trim();
+    setView("canvas");
+    runCanvasInterpretRequest({ text: resultText, sourceLabel: label }, `🔌 Import from ${label}`);
+  };
+
   const sendCanvasChatMessage = async () => {
     const requestText = canvasChatInput.trim();
     if (!requestText || canvasChatLoading) return;
@@ -8059,7 +8153,7 @@ function APMDashboardLive() {
     redundancy: "Redundancy", ai: "Portfolio AI Transformation",
     obsolescence: "Tech Obsolescence", cloudmigration: "Cloud Migration", techradar: "Tech Radar",
     fieldreview: "Field Review", ontology: "Ontology Manager", ownership: "Ownership Coverage", renewals: "Renewals & Reviews", auditlog: "Audit Log", dataload: "Load Demo Dataset",
-    residency: "Data Residency & Compliance", agentwatch: "Agent Watch",
+    residency: "Data Residency & Compliance", agentwatch: "Agent Watch", integrations: "Integrations",
     initiatives: "Initiatives Roadmap", dataflow: "Data Flow", transitionroadmap: "Transition Roadmap", businessunits: "Business Units",
     valuedelivered: "Value Delivered",
     journeytrace: "Journey Trace", maturity: "Capability Maturity", decisionlog: "Decision Log",
@@ -11542,6 +11636,164 @@ function APMDashboardLive() {
                     rows={watchRules}
                   />
                 </div>
+              </div>
+            );
+          })()}
+          {view === "integrations" && (() => {
+            const activeServer = mcpServers.find((s) => s.id === mcpActiveServerId) || null;
+            const activeStatus = activeServer ? (mcpServerStatus[activeServer.id] || {}) : null;
+            return (
+              <div>
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)",
+                  borderRadius: 16, padding: 22, marginBottom: 22, maxWidth: 820 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 6 }}>What is this page?</div>
+                  <div style={{ fontSize: 13, color: COLORS.inkSecondary, lineHeight: 1.6 }}>
+                    Connect the dashboard to an outside tool's MCP (Model Context Protocol) server — Miro's, or any
+                    other — so its content can be pulled onto the canvas. This isn't Miro-specific: any MCP server's
+                    tools can be browsed and called from here, and whatever a tool returns can be handed straight to
+                    the same "interpret" pipeline that already reads a pasted document or a whiteboard photo, landing
+                    as draft stickies, shapes, and concepts on a canvas for you to review — nothing is pushed to Neo4j
+                    until you choose to.
+                  </div>
+                  <div style={{ fontSize: 12, color: COLORS.inkSecondary, marginTop: 10, lineHeight: 1.6 }}>
+                    <b>Where credentials live:</b> a server's URL and access token are kept only in this browser's
+                    local storage, the same trust model as your Neo4j connection — chat_server.py relays each call
+                    but never stores one.
+                  </div>
+                </div>
+
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)",
+                  borderRadius: 16, padding: 22, marginBottom: 22, maxWidth: 820 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 14 }}>Add a connection</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+                    <div>
+                      <div style={{ fontSize: 11.5, fontWeight: 600, color: COLORS.inkSecondary, marginBottom: 5 }}>Name</div>
+                      <input value={mcpServerDraft.name} onChange={(e) => setMcpServerDraft((d) => ({ ...d, name: e.target.value }))}
+                        placeholder="e.g. Miro"
+                        style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 13 }} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 11.5, fontWeight: 600, color: COLORS.inkSecondary, marginBottom: 5 }}>Access token (if required)</div>
+                      <input type="password" value={mcpServerDraft.token} onChange={(e) => setMcpServerDraft((d) => ({ ...d, token: e.target.value }))}
+                        style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 13 }} />
+                    </div>
+                    <div style={{ gridColumn: "1 / -1" }}>
+                      <div style={{ fontSize: 11.5, fontWeight: 600, color: COLORS.inkSecondary, marginBottom: 5 }}>Server URL</div>
+                      <input value={mcpServerDraft.url} onChange={(e) => setMcpServerDraft((d) => ({ ...d, url: e.target.value }))}
+                        placeholder="https://mcp.example.com/..."
+                        style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 13 }} />
+                    </div>
+                  </div>
+                  <button onClick={addMcpServer} disabled={!mcpServerDraft.name.trim() || !mcpServerDraft.url.trim()}
+                    style={{ padding: "8px 18px", background: COLORS.accent, color: "#fff", border: "none",
+                      borderRadius: 8, fontSize: 12.5, fontWeight: 600,
+                      cursor: (!mcpServerDraft.name.trim() || !mcpServerDraft.url.trim()) ? "default" : "pointer",
+                      opacity: (!mcpServerDraft.name.trim() || !mcpServerDraft.url.trim()) ? 0.5 : 1 }}>
+                    + Add Connection
+                  </button>
+                </div>
+
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18, overflow: "hidden", marginBottom: 22 }}>
+                  <div style={{ padding: "16px 18px 4px", fontSize: 15, fontWeight: 600 }}>
+                    {mcpServers.length} connection{mcpServers.length === 1 ? "" : "s"}
+                  </div>
+                  <SortableTable
+                    rowKey={(r) => r.id}
+                    emptyMessage="No MCP connections yet — add one above."
+                    columns={[
+                      { key: "name", label: "Name", render: (r) => <span style={{ fontWeight: 600 }}>{r.name}</span> },
+                      { key: "url", label: "Server URL", render: (r) => <span style={{ color: COLORS.inkSecondary, fontFamily: "monospace", fontSize: 11.5 }}>{r.url}</span> },
+                      { key: "status", label: "Status", sortable: false, render: (r) => {
+                          const s = mcpServerStatus[r.id] || {};
+                          if (s.testing) return <span style={{ color: COLORS.inkSecondary }}>Testing…</span>;
+                          if (s.ok) return <span style={{ color: COLORS.accent, fontWeight: 600 }}>● Connected · {s.tools.length} tool{s.tools.length === 1 ? "" : "s"}</span>;
+                          if (s.error) return <span style={{ color: COLORS.risk }} title={s.error}>● {s.error.length > 44 ? s.error.slice(0, 44) + "…" : s.error}</span>;
+                          return <span style={{ color: COLORS.inkSecondary }}>Not tested</span>;
+                        } },
+                      { key: "actions", label: "", sortable: false, render: (r) => (
+                          <span style={{ display: "flex", gap: 12 }}>
+                            <span onClick={() => testMcpServer(r)} style={{ color: COLORS.accent, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>Test</span>
+                            {(mcpServerStatus[r.id] || {}).ok && (
+                              <span onClick={() => { setMcpActiveServerId(r.id); setMcpToolDraft({ tool: "", argsText: "{}" }); setMcpCallResult(null); }}
+                                style={{ color: COLORS.accent, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>Browse tools</span>
+                            )}
+                            <span onClick={() => deleteMcpServer(r)} style={{ color: COLORS.risk, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>Remove</span>
+                          </span>
+                        ) },
+                    ]}
+                    rows={mcpServers}
+                  />
+                </div>
+
+                {activeServer && (
+                  <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)",
+                    borderRadius: 16, padding: 22, maxWidth: 820 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                      <div style={{ fontSize: 13.5, fontWeight: 600 }}>{activeServer.name} — tools</div>
+                      <span onClick={() => setMcpActiveServerId(null)} style={{ cursor: "pointer", color: COLORS.inkSecondary, fontSize: 12 }}>✕ Close</span>
+                    </div>
+                    {(activeStatus.tools || []).length === 0 ? (
+                      <div style={{ fontSize: 12.5, color: COLORS.inkSecondary }}>This server reported no callable tools.</div>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 16, maxHeight: 220, overflowY: "auto" }}>
+                        {activeStatus.tools.map((t) => (
+                          <div key={t.name} onClick={() => setMcpToolDraft({ tool: t.name, argsText: "{}" })}
+                            style={{ padding: "8px 10px", borderRadius: 8, cursor: "pointer",
+                              border: `1px solid ${mcpToolDraft.tool === t.name ? COLORS.accent : COLORS.border}`,
+                              background: mcpToolDraft.tool === t.name ? `${COLORS.accent}0D` : "transparent" }}>
+                            <div style={{ fontSize: 12.5, fontWeight: 600 }}>{t.name}</div>
+                            {t.description && <div style={{ fontSize: 11.5, color: COLORS.inkSecondary, marginTop: 2 }}>{t.description}</div>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {mcpToolDraft.tool && (
+                      <>
+                        <div style={{ fontSize: 11.5, fontWeight: 600, color: COLORS.inkSecondary, marginBottom: 5 }}>
+                          Arguments (JSON) for "{mcpToolDraft.tool}"
+                        </div>
+                        <textarea value={mcpToolDraft.argsText} onChange={(e) => setMcpToolDraft((d) => ({ ...d, argsText: e.target.value }))}
+                          rows={3} style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: `1px solid ${COLORS.border}`,
+                            borderRadius: 8, fontSize: 12, fontFamily: "monospace", marginBottom: 10 }} />
+                        <button onClick={() => callMcpTool(activeServer)} disabled={mcpCallBusy}
+                          style={{ padding: "8px 18px", background: COLORS.accent, color: "#fff", border: "none",
+                            borderRadius: 8, fontSize: 12.5, fontWeight: 600, cursor: mcpCallBusy ? "default" : "pointer",
+                            opacity: mcpCallBusy ? 0.6 : 1, marginBottom: 14 }}>
+                          {mcpCallBusy ? "Calling…" : "Call tool"}
+                        </button>
+
+                        {mcpCallResult && mcpCallResult.toolName === mcpToolDraft.tool && (
+                          mcpCallResult.ok ? (
+                            <div>
+                              <pre style={{ background: "#F6F4EF", border: `1px solid ${COLORS.border}`, borderRadius: 8, padding: 12,
+                                fontSize: 11, maxHeight: 260, overflow: "auto", whiteSpace: "pre-wrap" }}>{mcpCallResult.text}</pre>
+                              <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 10 }}>
+                                <input value={mcpImportLabel} onChange={(e) => setMcpImportLabel(e.target.value)}
+                                  placeholder={`Source label (e.g. "${activeServer.name}: ${mcpToolDraft.tool}")`}
+                                  style={{ flex: 1, boxSizing: "border-box", padding: "8px 10px", border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 12.5 }} />
+                                <button onClick={() => importMcpResultToCanvas(activeServer, mcpToolDraft.tool, mcpCallResult.text)}
+                                  disabled={!activeCanvasId} title={activeCanvasId ? "" : "Open a canvas first (Workspaces) — there's nowhere to land this yet"}
+                                  style={{ padding: "8px 16px", background: COLORS.ink, color: "#fff", border: "none",
+                                    borderRadius: 8, fontSize: 12.5, fontWeight: 600, whiteSpace: "nowrap",
+                                    cursor: activeCanvasId ? "pointer" : "default", opacity: activeCanvasId ? 1 : 0.5 }}>
+                                  Import into canvas →
+                                </button>
+                              </div>
+                              {!activeCanvasId && (
+                                <div style={{ fontSize: 11.5, color: COLORS.inkSecondary, marginTop: 6 }}>
+                                  Open a canvas first (Workspaces in the sidebar) — there's nowhere to land this yet.
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div style={{ fontSize: 12.5, color: COLORS.risk }}>{mcpCallResult.error}</div>
+                          )
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })()}
