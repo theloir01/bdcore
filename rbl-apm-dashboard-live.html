@@ -7050,7 +7050,7 @@ function APMDashboardLive() {
   // retroactively update (setState from that call only affects future
   // renders, not variables this closure already captured), so without a
   // seed the plan would land on top of the previous canvas's content.
-  const executeCanvasPlan = async (plan, seed) => {
+  const executeCanvasPlan = async (plan, seed, anchor) => {
     const localConcepts = [...(seed ? seed.concepts : canvasConcepts)];
     const localShapes = [...(seed ? seed.shapes : shapes)];
     const localStickies = [...(seed ? seed.stickies : stickies)];
@@ -7058,12 +7058,26 @@ function APMDashboardLive() {
     const localShapeEdges = [...(seed ? seed.shapeEdges : shapeEdges)];
     const idMap = {}, kindMap = {}; // tempId or "pull:i:j" -> real canvas id / which array it's in
 
+    // Reference images are deliberately excluded from allCanvasItems() (see
+    // its own comment) since manual placement ring-searches outward from
+    // wherever you clicked, and an image usually fills most of the visible
+    // canvas — treating it as "occupied" there would push every manual
+    // placement off to the edges. A plan's placement has the opposite
+    // problem: it searches from canvasCenter() with no idea an image is
+    // even there, and a reference image is exactly where an "interpret this
+    // board" plan's own source image sits — so without this, the shapes it
+    // creates land directly on top of the board they were just read from.
     const occupied = () => [
       ...localConcepts.map((c) => ({ x: c.x, y: c.y, w: c.width || CONCEPT_W, h: c.height || CONCEPT_H })),
       ...localShapes.map((s) => ({ x: s.x, y: s.y, w: s.width || SHAPE_W, h: s.height || SHAPE_H })),
       ...localStickies.map((s) => ({ x: s.x, y: s.y, w: s.width || 160, h: s.height || 120 })),
+      ...canvasImages.map((im) => ({ x: im.x, y: im.y, w: im.width, h: im.height })),
     ];
-    const center = canvasCenter();
+    // anchor lets a caller that knows WHERE on the canvas this plan is
+    // "about" (e.g. interpretImage, placing the recreated diagram beside
+    // the board it was read from rather than wherever the canvas's own
+    // center happens to be) override the default search origin.
+    const center = anchor || canvasCenter();
     const apiUrl = deriveQueryApiUrl(uri, dbName);
     const authHeader = "Basic " + btoa(`${username}:${password}`);
 
@@ -7106,8 +7120,12 @@ function APMDashboardLive() {
           conceptType: item.conceptType, name, attributes: attrs, pushed: false, zIndex: zCounterRef.current++ };
         localConcepts.push(concept);
         idMap[item.tempId] = concept.id; kindMap[item.tempId] = "concept";
-      } else if (item.kind === "shape" && SHAPE_INDEX[item.shapeKey]) {
-        const def = SHAPE_INDEX[item.shapeKey];
+      } else if (item.kind === "shape" && getShapeDef(item.shapeKey)) {
+        // getShapeDef, not SHAPE_INDEX directly — a plan can now reference an
+        // imported custom palette's own icon keys (see plan_create_guidance's
+        // "Installed custom icon packs" section), and those only resolve
+        // through getShapeDef, the same lookup the manual shape palette uses.
+        const def = getShapeDef(item.shapeKey);
         let pos;
         if (item.category === "BPM") {
           if (bpmX === null) { const s = findFreePosition(center.x - SHAPE_W / 2, center.y - SHAPE_H / 2, occupied(), SHAPE_W, SHAPE_H); bpmX = s.x; bpmY = s.y; }
@@ -7212,6 +7230,14 @@ function APMDashboardLive() {
     ...stickies.map((s) => ({ id: s.id, kind: "sticky", text: s.text })),
   ];
 
+  // Key/label only, never the raw SVG content — the model needs to know
+  // which real icons exist and what to call them, not render them. Shared
+  // by /canvas-chat and /canvas-interpret so an imported vendor pack (AWS,
+  // Azure, Cisco, …) is something either can actually reach for instead of
+  // always falling back to the generic Cloud/Network/Security shapes.
+  const buildCustomPaletteSummary = () =>
+    customPalettes.map((p) => ({ id: p.id, name: p.name, icons: (p.icons || []).map((ic) => ({ key: ic.key, label: ic.label })) }));
+
   // Shared by the manual "Draw on canvas" box and escalateToCanvas's
   // auto-fired ideation prompt — snapshot is passed in rather than always
   // read fresh, since a just-created canvas's state hasn't necessarily
@@ -7231,7 +7257,8 @@ function APMDashboardLive() {
     try {
       const res = await fetch("http://localhost:5050/canvas-chat", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ request: requestText, canvas: canvasSnapshot, history: historyForRequest }),
+        body: JSON.stringify({ request: requestText, canvas: canvasSnapshot, history: historyForRequest,
+          customPalettes: buildCustomPaletteSummary() }),
       });
       if (!res.ok) throw new Error(`Chat backend returned ${res.status}`);
       const data = await res.json();
@@ -7264,19 +7291,19 @@ function APMDashboardLive() {
   // of which of the two endpoints produced it. One-shot: no history is sent
   // (see canvas_interpret's own docstring for why), and there is no
   // "recolor" action for freshly-extracted content.
-  const runCanvasInterpretRequest = async (body, logLabel) => {
+  const runCanvasInterpretRequest = async (body, logLabel, anchor) => {
     setCanvasChatLog((prev) => [...prev, { role: "user", content: logLabel }]);
     setCanvasChatOpen(true);
     setCanvasChatLoading(true);
     try {
       const res = await fetch("http://localhost:5050/canvas-interpret", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...body, canvas: buildCanvasSnapshot() }),
+        body: JSON.stringify({ ...body, canvas: buildCanvasSnapshot(), customPalettes: buildCustomPaletteSummary() }),
       });
       if (!res.ok) throw new Error(`Chat backend returned ${res.status}`);
       const data = await res.json();
       if (data.error) { setCanvasChatLog((prev) => [...prev, { role: "assistant", content: data.error, error: true }]); return; }
-      await executeCanvasPlan(data);
+      await executeCanvasPlan(data, undefined, anchor);
       const meta = {
         pulled: (data.pulled || []).reduce((sum, p) => sum + (p.rows ? p.rows.length : 0), 0),
         created: (data.create || []).length,
@@ -7294,9 +7321,16 @@ function APMDashboardLive() {
   };
   const interpretImage = (im) => {
     if (!im || canvasChatLoading) return;
+    // Anchored just clear of the source image's own right edge, vertically
+    // centered on it, rather than the canvas's own center — the whole point
+    // of recreating a board is to compare it against the real thing, which
+    // isn't possible if the recreation lands stacked on top of (or
+    // scattered randomly around) the image it was read from.
+    const anchor = { x: im.x + im.width + 80, y: im.y + im.height / 2 };
     runCanvasInterpretRequest(
       { image: im.content, sourceLabel: im.fileName || "" },
-      `🔍 Interpret image: ${im.fileName || "reference image"}`
+      `🔍 Interpret image: ${im.fileName || "reference image"}`,
+      anchor
     );
   };
   const confirmPasteInterpret = () => {
