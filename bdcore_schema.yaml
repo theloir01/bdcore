@@ -117,6 +117,7 @@ concept_types:
       - {name: PeopleMaturity, type: enum, options: ["1 - Initial", "2 - Managed", "3 - Defined", "4 - Quantitative", "5 - Optimizing"], purpose: "skills, capacity, and role clarity of the people delivering this capability"}
       - {name: ApplicationsMaturity, type: enum, options: ["1 - Initial", "2 - Managed", "3 - Defined", "4 - Quantitative", "5 - Optimizing"], purpose: "how well the supporting application landscape actually serves this capability"}
       - {name: MetricsMaturity, type: enum, options: ["1 - Initial", "2 - Managed", "3 - Defined", "4 - Quantitative", "5 - Optimizing"], purpose: "is performance of this capability actually measured, and are those measures used"}
+      - {name: TransitionPhase, type: enum, options: ["Current State", "Phase 1", "Phase 2", "Phase 3", "Target State"], purpose: "which stage of a multi-year transformation programme this capability belongs to — paired with Status to show what's new, changed, or already in place at each phase"}
    
   - name: Process 
     category: Structural
@@ -300,6 +301,7 @@ concept_types:
          purpose: "whether AI capability already exists in this application today, is available to switch on, or is only planned"}
       - {name: AITargetPattern, type: enum, options: [Enable, Replace, Rebuild, Consolidate],
          purpose: "the intended shape of AI-driven change for this application"}
+      - {name: TransitionPhase, type: enum, options: ["Current State", "Phase 1", "Phase 2", "Phase 3", "Target State"], purpose: "which stage of a multi-year transformation programme this application belongs to — paired with Status to show what's new, changed, or already in place at each phase"}
       - {name: AIPathfinderStatus, type: enum, options: [Not Started, In Progress, Done],
          purpose: "progress against the AI Pathfinder next action"}
       - {name: ReviewDate, type: date, purpose: "when this application's AI Pathfinder decision should next be reviewed"}

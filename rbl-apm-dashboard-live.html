@@ -404,12 +404,13 @@ const GUIDE_SECTIONS = [
           "If this looks empty, it needs at least one Interface instance connecting two applications — add one from Ontology Manager or sketch it on the Modelling Canvas.",
         ] },
       { key: "transitionroadmap", label: "Transition Roadmap",
-        description: "The same real Interface data as Data Flow, with one more dimension: which stage of a multi-year programme each integration belongs to, and whether it's Planned, Active, Deprecated or Retired there — what's new, changed, or already in place, at every phase.",
+        description: "The same real Interface, Application or Capability data used everywhere else, with one more dimension: which stage of a multi-year programme each one belongs to, and its status there — what's new, changed, or already in place, at every phase.",
         tips: [
+          "Switch between Integrations, Applications, and Capabilities with the tabs at the top — each reuses that type's own real Status field (they're worded differently per type: e.g. Interface's Deprecated vs. Application's Retiring) as the \"what kind of change\" dimension alongside the shared Transition Phase field.",
           "Click any card to set its Transition Phase and Status — there's no automatic phase detection, this is architect-assigned like everything else in Ontology Manager.",
-          "Each phase column is cumulative: it carries forward everything from earlier phases automatically, and drops anything already marked Retired — so retired integrations stop cluttering later phases without anyone manually cleaning up a diagram.",
+          "Each phase column is cumulative: it carries forward everything from earlier phases automatically, and drops anything already at that type's terminal status (Retired for Interfaces/Applications, Retiring for Capabilities, since Capability's Status enum has no fully-retired value) — so retired items stop cluttering later phases without anyone manually cleaning up a diagram.",
           "\"New here\" on a card means this is the phase it was first introduced in; \"since [phase]\" means it's carried forward unchanged from an earlier one.",
-          "If you see \"No transition phases are defined yet,\" add a TransitionPhase picklist attribute to Interface via Ontology Manager → Manage Attributes, or re-run load_schema.py — it's defined there by default now.",
+          "If you see \"No transition phases are defined yet,\" add a TransitionPhase picklist attribute to that type via Ontology Manager → Manage Attributes, or re-run load_schema.py — it's defined there by default now, for all three types.",
         ] },
       { key: "redundancy", label: "Redundancy",
         description: "Where you're genuinely paying twice: applications sharing both the same capability AND the same functional category — not just the same capability, which is normal on its own.",
@@ -1589,6 +1590,23 @@ const DATAFLOW_PROTOCOL_COLORS = {
   "REST API": COLORS.accent2, SOAP: "#2C7A8C", "File Transfer (SFTP)": COLORS.warning,
   "Database Link": COLORS.info, "Message Queue": COLORS.accent, Webhook: COLORS.accent2Muted,
   "Batch ETL": "#8B6F47", "Manual/Other": COLORS.inkSecondary,
+};
+
+// Transition Roadmap: each concept type already has its own real Status
+// enum (from bdcore_schema.yaml) rather than one invented for this view —
+// reused here as the "what kind of change" dimension alongside the new
+// TransitionPhase attribute. terminalStatus is whichever of that type's own
+// values means "gone" — the one that drops an item out of later phase
+// columns. Capability's Status enum has no fully-retired value (only
+// "Retiring"), so that's its terminal state; that's a real gap in the
+// schema's own vocabulary, not something this view papers over.
+const ROADMAP_TYPE_CONFIG = {
+  Interface: { label: "Integrations", statusOptions: ["Planned", "Active", "Deprecated", "Retired"], terminalStatus: "Retired",
+    statusStyle: { Planned: COLORS.info, Active: COLORS.accent, Deprecated: COLORS.warning, Retired: COLORS.risk } },
+  Application: { label: "Applications", statusOptions: ["Planned", "In Development", "Production", "Retiring", "Retired"], terminalStatus: "Retired",
+    statusStyle: { Planned: COLORS.info, "In Development": COLORS.info, Production: COLORS.accent, Retiring: COLORS.warning, Retired: COLORS.risk } },
+  Capability: { label: "Capabilities", statusOptions: ["Planned", "Developing", "Operational", "Retiring"], terminalStatus: "Retiring",
+    statusStyle: { Planned: COLORS.info, Developing: COLORS.info, Operational: COLORS.accent, Retiring: COLORS.risk } },
 };
 
 // A minimal SVG path for a sparkline — one line per Value Delivered metric
@@ -3233,9 +3251,10 @@ function APMDashboardLive() {
   const [dataFlowLoading, setDataFlowLoading] = useState(false);
   const [dataFlowError, setDataFlowError] = useState("");
   const [dataFlowFocusId, setDataFlowFocusId] = useState(null);
-  const [phaseEditFlow, setPhaseEditFlow] = useState(null); // { interfaceId, interfaceName, transitionPhase, status } — the flow being assigned a phase
+  const [phaseEditFlow, setPhaseEditFlow] = useState(null); // { entityType, id, name, transitionPhase, status } — the item being assigned a phase
   const [phaseEditBusy, setPhaseEditBusy] = useState(false);
   const [phaseEditError, setPhaseEditError] = useState("");
+  const [phaseRoadmapType, setPhaseRoadmapType] = useState("Interface"); // "Interface" | "Application" | "Capability"
   const [residencyApps, setResidencyApps] = useState([]);
   const [residencyFlows, setResidencyFlows] = useState([]);
   const [residencyAIModels, setResidencyAIModels] = useState([]);
@@ -3726,6 +3745,7 @@ function APMDashboardLive() {
         aiAvailability: row.app.ai_availability || null, aiTargetPattern: row.app.ai_target_pattern || null,
         aiPathfinderStatus: row.app.ai_pathfinder_status || null, reviewDate: row.app.review_date || null,
         organisation: row.app.organisation || null, verified_at: row.app.verified_at || null,
+        transitionPhase: row.app.transition_phase || null,
       }));
 
       const nodeMap = new Map();
@@ -3764,6 +3784,7 @@ function APMDashboardLive() {
       const capCoverageNormalised = capRows.map((r) => ({
         id: r.cap.id, capability: r.cap.name, count: r.count,
         importance: r.cap.importance || null, marketDifferentiation: r.cap.market_differentiation || null,
+        status: r.cap.status || null, transitionPhase: r.cap.transition_phase || null,
         maturity: {
           governance: r.cap.governance_maturity || null, policies: r.cap.policies_maturity || null,
           process: r.cap.process_maturity || null, people: r.cap.people_maturity || null,
@@ -4132,12 +4153,12 @@ function APMDashboardLive() {
     }
   };
 
-  // Assigns (or reassigns) which transition phase an integration belongs to,
-  // and its status at that phase (Planned/Active/Deprecated/Retired — the
-  // same Interface.Status field used everywhere else) — the two together
-  // are what let the Transition Roadmap show what's new, changed, or
-  // already in place at each phase, entirely from real Interface data
-  // rather than a hand-drawn diagram per phase.
+  // Assigns (or reassigns) which transition phase an Interface, Application
+  // or Capability belongs to, and its status at that phase — reusing each
+  // type's own real Status enum (see ROADMAP_TYPE_CONFIG) rather than one
+  // invented for this view. The two together are what let the Transition
+  // Roadmap show what's new, changed, or already in place at each phase,
+  // entirely from real data rather than a hand-drawn diagram per phase.
   const saveFlowPhase = async () => {
     if (!phaseEditFlow) return;
     setPhaseEditBusy(true);
@@ -4146,15 +4167,23 @@ function APMDashboardLive() {
       const apiUrl = deriveQueryApiUrl(uri, dbName);
       const authHeader = "Basic " + btoa(`${username}:${password}`);
       await runCypher(apiUrl, authHeader,
-        `MATCH (n:Instance:Interface {id: $id}) SET n.transition_phase = $phase, n.status = $status`,
-        { id: phaseEditFlow.interfaceId, phase: phaseEditFlow.transitionPhase || null, status: phaseEditFlow.status || null }
+        `MATCH (n:Instance:${phaseEditFlow.entityType} {id: $id}) SET n.transition_phase = $phase, n.status = $status`,
+        { id: phaseEditFlow.id, phase: phaseEditFlow.transitionPhase || null, status: phaseEditFlow.status || null }
       );
       await logAudit({
-        action: "updated", entityType: "Interface", entityId: phaseEditFlow.interfaceId, entityName: phaseEditFlow.interfaceName,
+        action: "updated", entityType: phaseEditFlow.entityType, entityId: phaseEditFlow.id, entityName: phaseEditFlow.name,
         summary: `Transition phase set to "${phaseEditFlow.transitionPhase || "—"}" (${phaseEditFlow.status || "—"}) via Transition Roadmap.`,
       });
-      setDataFlows((prev) => prev.map((f) => f.interfaceId === phaseEditFlow.interfaceId
-        ? { ...f, transitionPhase: phaseEditFlow.transitionPhase, status: phaseEditFlow.status } : f));
+      if (phaseEditFlow.entityType === "Interface") {
+        setDataFlows((prev) => prev.map((f) => f.interfaceId === phaseEditFlow.id
+          ? { ...f, transitionPhase: phaseEditFlow.transitionPhase, status: phaseEditFlow.status } : f));
+      } else if (phaseEditFlow.entityType === "Application") {
+        setApps((prev) => prev.map((a) => a.id === phaseEditFlow.id
+          ? { ...a, transitionPhase: phaseEditFlow.transitionPhase, status: phaseEditFlow.status } : a));
+      } else if (phaseEditFlow.entityType === "Capability") {
+        setCapCoverage((prev) => prev.map((c) => c.id === phaseEditFlow.id
+          ? { ...c, transitionPhase: phaseEditFlow.transitionPhase, status: phaseEditFlow.status } : c));
+      }
       setPhaseEditFlow(null);
     } catch (e) {
       setPhaseEditError(`Couldn't save: ${e.message}`);
@@ -9929,35 +9958,48 @@ function APMDashboardLive() {
             );
           })()}
           {view === "transitionroadmap" && (() => {
-            const phaseAttr = (schemaAttributes["Interface"] || []).find((a) => toSnakeCase(a.name) === "transition_phase");
+            const cfg = ROADMAP_TYPE_CONFIG[phaseRoadmapType];
+            const phaseAttr = (schemaAttributes[phaseRoadmapType] || []).find((a) => toSnakeCase(a.name) === "transition_phase");
             const phases = (phaseAttr && phaseAttr.options) || [];
-            const STATUS_STYLE = { Planned: COLORS.info, Active: COLORS.accent, Deprecated: COLORS.warning, Retired: COLORS.risk };
-            const unassigned = dataFlows.filter((f) => !f.transitionPhase || !phases.includes(f.transitionPhase));
+
+            // Normalises whichever source array is live for the selected type into
+            // one common card shape — same cumulative-column logic underneath
+            // regardless of what's being tracked.
+            const items = phaseRoadmapType === "Interface"
+              ? dataFlows.map((f) => ({ id: f.interfaceId, primary: `${f.providerName} → ${f.consumerName}`,
+                  secondary: `${f.interfaceName}${f.protocol ? ` · ${f.protocol}` : ""}`, status: f.status, transitionPhase: f.transitionPhase }))
+              : phaseRoadmapType === "Application"
+              ? apps.map((a) => ({ id: a.id, primary: a.name,
+                  secondary: [a.criticality, a.category].filter(Boolean).join(" · "), status: a.status, transitionPhase: a.transitionPhase }))
+              : capCoverage.map((c) => ({ id: c.id, primary: c.capability,
+                  secondary: c.importance ? `${c.importance} importance` : null, status: c.status, transitionPhase: c.transitionPhase }));
+
+            const isLoading = phaseRoadmapType === "Interface" && dataFlowLoading;
+            const loadError = phaseRoadmapType === "Interface" ? dataFlowError : "";
+            const unassigned = items.filter((f) => !f.transitionPhase || !phases.includes(f.transitionPhase));
             const columns = phases.map((phase, idx) => ({
               phase, idx,
-              items: dataFlows
+              items: items
                 .filter((f) => {
                   const fi = phases.indexOf(f.transitionPhase);
                   if (fi === -1 || fi > idx) return false;
-                  if (fi < idx && f.status === "Retired") return false;
+                  if (fi < idx && f.status === cfg.terminalStatus) return false;
                   return true;
                 })
                 .map((f) => ({ ...f, introducedHere: phases.indexOf(f.transitionPhase) === idx })),
             }));
-            const FlowCard = ({ f }) => (
-              <div key={f.interfaceId} onClick={() => setPhaseEditFlow({ interfaceId: f.interfaceId, interfaceName: f.interfaceName, transitionPhase: f.transitionPhase || "", status: f.status || "" })}
-                style={{ background: COLORS.card, border: `1px solid ${f.introducedHere ? (STATUS_STYLE[f.status] || COLORS.border) : COLORS.border}`,
-                  borderLeft: `3px solid ${STATUS_STYLE[f.status] || COLORS.inkSecondary}`, borderRadius: 10, padding: "10px 12px",
-                  marginBottom: 8, cursor: "pointer", opacity: f.status === "Retired" ? 0.6 : 1 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.ink, textDecoration: f.status === "Retired" ? "line-through" : "none" }}>
-                  {f.providerName} → {f.consumerName}
+            const ItemCard = ({ f }) => (
+              <div key={f.id} onClick={() => setPhaseEditFlow({ entityType: phaseRoadmapType, id: f.id, name: f.primary, transitionPhase: f.transitionPhase || "", status: f.status || "" })}
+                style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`,
+                  borderLeft: `3px solid ${cfg.statusStyle[f.status] || COLORS.inkSecondary}`, borderRadius: 10, padding: "10px 12px",
+                  marginBottom: 8, cursor: "pointer", opacity: f.status === cfg.terminalStatus ? 0.6 : 1 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.ink, textDecoration: f.status === cfg.terminalStatus ? "line-through" : "none" }}>
+                  {f.primary}
                 </div>
-                <div style={{ fontSize: 10.5, color: COLORS.inkSecondary, marginTop: 2 }}>
-                  {f.interfaceName}{f.protocol ? ` · ${f.protocol}` : ""}
-                </div>
+                {f.secondary && <div style={{ fontSize: 10.5, color: COLORS.inkSecondary, marginTop: 2 }}>{f.secondary}</div>}
                 <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6 }}>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: STATUS_STYLE[f.status] || COLORS.inkSecondary,
-                    background: `${STATUS_STYLE[f.status] || COLORS.inkSecondary}18`, padding: "1px 7px", borderRadius: 6 }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: cfg.statusStyle[f.status] || COLORS.inkSecondary,
+                    background: `${cfg.statusStyle[f.status] || COLORS.inkSecondary}18`, padding: "1px 7px", borderRadius: 6 }}>
                     {f.status || "Unspecified"}
                   </span>
                   {!f.introducedHere && (
@@ -9976,39 +10018,52 @@ function APMDashboardLive() {
                   borderRadius: 16, padding: 22, marginBottom: 22, maxWidth: 860 }}>
                   <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 6 }}>What is this page?</div>
                   <div style={{ fontSize: 13, color: COLORS.inkSecondary, lineHeight: 1.6 }}>
-                    Every integration below is the same real Interface data the Data Flow view reads — this view adds
-                    one more dimension: which stage of a multi-year programme each integration belongs to, and
-                    whether it's Planned, Active, Deprecated or Retired at that stage. Each phase column is
-                    cumulative — it shows everything introduced at or before that phase, minus anything already
-                    Retired — so you can see what's new, what's carried forward unchanged, and what's dropped out,
-                    at every stage, without redrawing a diagram per phase.
+                    The same real Interface, Application or Capability data used everywhere else in the tool, with
+                    one more dimension: which stage of a multi-year programme each one belongs to, and its status
+                    at that stage. Each phase column is cumulative — it shows everything introduced at or before
+                    that phase, minus anything already at its terminal status — so you can see what's new, what's
+                    carried forward unchanged, and what's dropped out, at every stage, without redrawing a diagram
+                    per phase.
                   </div>
                   <div style={{ fontSize: 12, color: COLORS.inkSecondary, marginTop: 10, lineHeight: 1.6 }}>
-                    <b>One honest limitation:</b> phase and status are set per integration by whoever's doing the
+                    <b>One honest limitation:</b> phase and status are set per record by whoever's doing the
                     assigning — click any card to set them. There's no automatic detection of "this replaced that
-                    one" between phases; if an integration is genuinely replaced by a different one, that's two
-                    separate cards, one Retired and one Planned/Active, rather than a single "changed" link between
-                    them.
+                    one" between phases; if something is genuinely replaced by another, that's two separate cards,
+                    one at its terminal status and one Planned/Active, rather than a single "changed" link between
+                    them. Capability's own Status enum has no fully-retired value, so "Retiring" is treated as its
+                    terminal state here — a real gap in that enum, not something this view papers over.
                   </div>
                 </div>
 
-                {dataFlowError && <div style={{ fontSize: 13, color: COLORS.risk, marginBottom: 16 }}>{dataFlowError}</div>}
+                <div style={{ display: "flex", gap: 6, marginBottom: 18 }}>
+                  {Object.keys(ROADMAP_TYPE_CONFIG).map((t) => (
+                    <button key={t} onClick={() => setPhaseRoadmapType(t)}
+                      style={{ padding: "6px 14px", fontSize: 12.5, borderRadius: 8, cursor: "pointer",
+                        border: `1px solid ${phaseRoadmapType === t ? COLORS.ink : COLORS.border}`,
+                        background: phaseRoadmapType === t ? COLORS.ink : COLORS.card,
+                        color: phaseRoadmapType === t ? "#fff" : COLORS.ink }}>
+                      {ROADMAP_TYPE_CONFIG[t].label}
+                    </button>
+                  ))}
+                </div>
 
-                {dataFlowLoading ? (
+                {loadError && <div style={{ fontSize: 13, color: COLORS.risk, marginBottom: 16 }}>{loadError}</div>}
+
+                {isLoading ? (
                   <div style={{ fontSize: 13, color: COLORS.inkSecondary }}>Loading…</div>
                 ) : phases.length === 0 ? (
                   <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: 20, maxWidth: 720 }}>
                     <div style={{ fontSize: 13, color: COLORS.inkSecondary, lineHeight: 1.6 }}>
-                      No transition phases are defined yet. Interface needs a "TransitionPhase" picklist attribute —
-                      add it via Ontology Manager → Manage Attributes (type: enum, one option per phase, e.g.
-                      "Current State", "Phase 1", "Phase 2", "Target State"), or re-run load_schema.py after
-                      pulling the latest schema, which now defines it by default.
+                      No transition phases are defined yet. {phaseRoadmapType} needs a "TransitionPhase" picklist
+                      attribute — add it via Ontology Manager → Manage Attributes (type: enum, one option per
+                      phase, e.g. "Current State", "Phase 1", "Phase 2", "Target State"), or re-run load_schema.py
+                      after pulling the latest schema, which now defines it by default.
                     </div>
                   </div>
-                ) : dataFlows.length === 0 ? (
+                ) : items.length === 0 ? (
                   <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: 20, maxWidth: 720 }}>
                     <div style={{ fontSize: 13, color: COLORS.inkSecondary, lineHeight: 1.6 }}>
-                      No data flows found yet — see the Data Flow view for how to add one.
+                      No {cfg.label.toLowerCase()} found yet.
                     </div>
                   </div>
                 ) : (
@@ -10019,8 +10074,8 @@ function APMDashboardLive() {
                         Unassigned{unassigned.length > 0 ? ` (${unassigned.length})` : ""}
                       </div>
                       {unassigned.length === 0 ? (
-                        <div style={{ fontSize: 11.5, color: COLORS.inkSecondary }}>Every integration has a phase.</div>
-                      ) : unassigned.map((f) => <FlowCard key={f.interfaceId} f={f} />)}
+                        <div style={{ fontSize: 11.5, color: COLORS.inkSecondary }}>Everything has a phase.</div>
+                      ) : unassigned.map((f) => <ItemCard key={f.id} f={f} />)}
                     </div>
                     {columns.map((col) => (
                       <div key={col.phase} style={{ flex: "0 0 220px", minWidth: 220 }}>
@@ -10030,7 +10085,7 @@ function APMDashboardLive() {
                         </div>
                         {col.items.length === 0 ? (
                           <div style={{ fontSize: 11.5, color: COLORS.inkSecondary }}>Nothing here yet.</div>
-                        ) : col.items.map((f) => <FlowCard key={f.interfaceId} f={f} />)}
+                        ) : col.items.map((f) => <ItemCard key={f.id} f={f} />)}
                       </div>
                     ))}
                   </div>
@@ -10041,7 +10096,7 @@ function APMDashboardLive() {
                     display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
                     <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, width: "min(420px, 100%)",
                       padding: 24, boxShadow: "0 24px 60px rgba(10,14,26,0.38)" }}>
-                      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{phaseEditFlow.interfaceName}</div>
+                      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{phaseEditFlow.name}</div>
                       <div style={{ fontSize: 12.5, color: COLORS.inkSecondary, marginBottom: 18 }}>Set its transition phase and status.</div>
 
                       <label style={{ fontSize: 11.5, fontWeight: 600, display: "block", marginBottom: 6 }}>Transition Phase</label>
@@ -10055,7 +10110,7 @@ function APMDashboardLive() {
                       <select value={phaseEditFlow.status} onChange={(e) => setPhaseEditFlow((f) => ({ ...f, status: e.target.value }))}
                         style={{ width: "100%", padding: "8px 10px", border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 13, marginBottom: 18 }}>
                         <option value="">— Unspecified —</option>
-                        {["Planned", "Active", "Deprecated", "Retired"].map((s) => <option key={s} value={s}>{s}</option>)}
+                        {ROADMAP_TYPE_CONFIG[phaseEditFlow.entityType].statusOptions.map((s) => <option key={s} value={s}>{s}</option>)}
                       </select>
 
                       {phaseEditError && <div style={{ fontSize: 12.5, color: COLORS.risk, marginBottom: 12 }}>{phaseEditError}</div>}
