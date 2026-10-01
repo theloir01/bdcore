@@ -3232,6 +3232,7 @@ function APMDashboardLive() {
   const [schemaRelationships, setSchemaRelationships] = useState([]);
   const [showConceptPicker, setShowConceptPicker] = useState(false);
   const [convertingStickyId, setConvertingStickyId] = useState(null);
+  const [convertingShapeId, setConvertingShapeId] = useState(null);
   const [conceptPickerPos, setConceptPickerPos] = useState(null); // {left, top} in screen px, or null for the default toolbar anchor
   const [canvasTexts, setCanvasTexts] = useState([]);
   const [editingTextId, setEditingTextId] = useState(null);
@@ -6635,20 +6636,19 @@ function APMDashboardLive() {
   // the canvas, not bespoke logic tied to any one feature. Levels nodes via
   // BFS from root (zero in-degree) concepts; disconnected pieces and cycles
   // just become extra roots rather than breaking the layout.
-  const autoOrganizeCanvas = (overrideConcepts, overrideEdges, overrideShapes, overrideStickies) => {
-    const concepts = overrideConcepts || canvasConcepts;
-    const edges = overrideEdges || canvasEdges;
-    const nodeIds = concepts.map((c) => c.id);
+  // Core level-based tree layout, generalized over WHICH node/edge pair it's
+  // organizing — concepts+canvasEdges, or shapes+shapeEdges. Originally this
+  // only ever existed for concepts; an AI-recreated reference diagram
+  // (executeCanvasPlan's response to "draw an AWS architecture" or
+  // "interpret this board") only ever produces shapes, never concepts (see
+  // plan_create_guidance) — so without this generalization, Organize had
+  // literally nothing to do for exactly the kind of plan most likely to need
+  // it, and the shapes were left wherever their own node-by-node
+  // free-position search happened to land them, independent of which ones
+  // actually connect to which.
+  const organizeNodeGraph = (nodes, edges, obstacles, nodeW, nodeH, setNodes, setEdges, overrideNodes, overrideEdges) => {
+    const nodeIds = nodes.map((c) => c.id);
     if (nodeIds.length === 0) return;
-    // What else is already on the canvas that this tree needs to be laid out
-    // around, rather than through — otherwise a fixed (CENTER_X, 80) origin
-    // plants the tree wherever that happens to be regardless of what's there
-    // (this is what made a "pull concepts + sketch ideation stickies" plan
-    // draw its tree straight through the stickies it had just placed).
-    const obstacles = [
-      ...(overrideShapes || shapes).map((s) => ({ x: s.x, y: s.y, w: s.width || SHAPE_W, h: s.height || SHAPE_H })),
-      ...(overrideStickies || stickies).map((s) => ({ x: s.x, y: s.y, w: s.width || 160, h: s.height || 120 })),
-    ];
     // Undirected adjacency — "drives" pointing one way and "invests in" pointing
     // the other shouldn't change which row something lands in. What matters for
     // layout is how many hops something is from where you started, not which
@@ -6664,7 +6664,7 @@ function APMDashboardLive() {
     // Anchor = the node placed first (lowest zIndex), since that's the thing
     // the person actually started from and expanded outward from — not
     // whichever node happens to have no incoming edges.
-    const sorted = [...concepts].sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
+    const sorted = [...nodes].sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
     const anchor = sorted[0].id;
 
     const level = { [anchor]: 0 };
@@ -6689,9 +6689,9 @@ function APMDashboardLive() {
     const LEVEL_HEIGHT = 220, NODE_SPACING = 260, CENTER_X = 500, BASE_Y = 80;
     // Default origin when nothing else is on the canvas (the common case,
     // and identical to the old fixed-origin behavior — no regression for a
-    // canvas that's just a concept tree). With obstacles, treat the tree's
-    // own overall footprint as one item and find it a genuinely free spot
-    // via the same ring-search used for every other object on the canvas,
+    // canvas that's just a tree). With obstacles, treat the tree's own
+    // overall footprint as one item and find it a genuinely free spot via
+    // the same ring-search used for every other object on the canvas,
     // rather than always landing at the same fixed spot regardless.
     let originDX = 0, originDY = 0;
     if (obstacles.length > 0) {
@@ -6707,7 +6707,7 @@ function APMDashboardLive() {
       const startX = CENTER_X - (ids.length * NODE_SPACING) / 2 + originDX;
       ids.forEach((id, i) => { newPos[id] = { x: startX + i * NODE_SPACING, y: BASE_Y + l * LEVEL_HEIGHT + originDY }; });
     });
-    setCanvasConcepts((prev) => (overrideConcepts || prev).map((c) => newPos[c.id] ? { ...c, x: newPos[c.id].x, y: newPos[c.id].y } : c));
+    setNodes((prev) => (overrideNodes || prev).map((c) => newPos[c.id] ? { ...c, x: newPos[c.id].x, y: newPos[c.id].y } : c));
 
     // Route edges to match the new tree — a straight line makes sense on a
     // freely-positioned canvas, but once everything's aligned into neat rows,
@@ -6745,10 +6745,10 @@ function APMDashboardLive() {
       const group = groups[nodeId];
       if (!group || group.length <= 1) return baseX;
       const idx = group.findIndex((g) => g.id === edgeId);
-      const usable = Math.min(CONCEPT_W - 32, (group.length - 1) * 28);
+      const usable = Math.min(nodeW - 32, (group.length - 1) * 28);
       return baseX - usable / 2 + idx * (usable / (group.length - 1));
     };
-    setCanvasEdges((prev) => (overrideEdges || prev).map((e) => {
+    setEdges((prev) => (overrideEdges || prev).map((e) => {
       const srcLevel = level[e.sourceId], tgtLevel = level[e.targetId];
       const srcPos = newPos[e.sourceId], tgtPos = newPos[e.targetId];
       if (srcLevel === undefined || tgtLevel === undefined || !srcPos || !tgtPos || srcLevel === tgtLevel) {
@@ -6759,8 +6759,8 @@ function APMDashboardLive() {
       const higherId = higherIsSource ? e.sourceId : e.targetId;
       const lowerId = higherIsSource ? e.targetId : e.sourceId;
       const higherAnchor = "bottom", lowerAnchor = "top";
-      const hCenterX = fanX(exitGroups, higherId, e.id, higher.x + CONCEPT_W / 2), hBottomY = higher.y + CONCEPT_H;
-      const lCenterX = fanX(entryGroups, lowerId, e.id, lower.x + CONCEPT_W / 2), lTopY = lower.y;
+      const hCenterX = fanX(exitGroups, higherId, e.id, higher.x + nodeW / 2), hBottomY = higher.y + nodeH;
+      const lCenterX = fanX(entryGroups, lowerId, e.id, lower.x + nodeW / 2), lTopY = lower.y;
       const midY = hBottomY + (lTopY - hBottomY - STUB) / 2 + STUB / 2;
       // Waypoint order must follow the edge's actual source→target direction —
       // not always "higher node first" — or edges where the source happens to
@@ -6773,6 +6773,35 @@ function APMDashboardLive() {
         sourceAnchor: higherIsSource ? higherAnchor : lowerAnchor,
         targetAnchor: higherIsSource ? lowerAnchor : higherAnchor };
     }));
+  };
+
+  const autoOrganizeCanvas = (overrideConcepts, overrideEdges, overrideShapes, overrideStickies) => {
+    const concepts = overrideConcepts || canvasConcepts;
+    const edges = overrideEdges || canvasEdges;
+    // What else is already on the canvas that this tree needs to be laid out
+    // around, rather than through — otherwise a fixed (CENTER_X, 80) origin
+    // plants the tree wherever that happens to be regardless of what's there
+    // (this is what made a "pull concepts + sketch ideation stickies" plan
+    // draw its tree straight through the stickies it had just placed).
+    const obstacles = [
+      ...(overrideShapes || shapes).map((s) => ({ x: s.x, y: s.y, w: s.width || SHAPE_W, h: s.height || SHAPE_H })),
+      ...(overrideStickies || stickies).map((s) => ({ x: s.x, y: s.y, w: s.width || 160, h: s.height || 120 })),
+    ];
+    organizeNodeGraph(concepts, edges, obstacles, CONCEPT_W, CONCEPT_H, setCanvasConcepts, setCanvasEdges, overrideConcepts, overrideEdges);
+  };
+
+  // The shape-graph counterpart — same algorithm, same reasoning, applied to
+  // shapes+shapeEdges instead of concepts+canvasEdges. Concepts and stickies
+  // are what IT treats as obstacles to lay out around, the mirror image of
+  // autoOrganizeCanvas's own obstacle list above.
+  const autoOrganizeShapes = (overrideShapes, overrideShapeEdges, overrideConcepts, overrideStickies) => {
+    const shapeNodes = overrideShapes || shapes;
+    const shapeEdgeList = overrideShapeEdges || shapeEdges;
+    const obstacles = [
+      ...(overrideConcepts || canvasConcepts).map((c) => ({ x: c.x, y: c.y, w: c.width || CONCEPT_W, h: c.height || CONCEPT_H })),
+      ...(overrideStickies || stickies).map((s) => ({ x: s.x, y: s.y, w: s.width || 160, h: s.height || 120 })),
+    ];
+    organizeNodeGraph(shapeNodes, shapeEdgeList, obstacles, SHAPE_W, SHAPE_H, setShapes, setShapeEdges, overrideShapes, overrideShapeEdges);
   };
 
   const allCanvasItems = () => [
@@ -7206,7 +7235,13 @@ function APMDashboardLive() {
     // React hasn't necessarily re-rendered with the setState calls above yet
     // (same reason shapes/stickies are passed too, so the tree lays out
     // around the stickies this same plan just placed, not an empty canvas).
+    // Both calls run regardless of which kind the plan actually produced —
+    // each is a no-op when its own node list is empty (see organizeNodeGraph's
+    // own early return), and a single plan can genuinely contain both a
+    // concept tree and a shape diagram (see plan_create_guidance's "onboarding
+    // process" worked example) that need laying out independently.
     autoOrganizeCanvas(localConcepts, localCanvasEdges, localShapes, localStickies);
+    autoOrganizeShapes(localShapes, localShapeEdges, localConcepts, localStickies);
   };
 
   // What the AI sees of the canvas today — just enough per object to answer
@@ -7600,9 +7635,13 @@ function APMDashboardLive() {
   };
 
   // Single entry point for the type picker regardless of what opened it — the
-  // "+ Concept" button (no sticky context) and "Convert to Concept" on a sticky
-  // (uses that sticky's position/text) now share the exact same experience,
-  // instead of the sticky path silently defaulting to Application.
+  // "+ Concept" button (no sticky/shape context), "Convert to Concept" on a
+  // sticky (uses that sticky's position/text), and "Convert to Concept" on a
+  // shape (uses that shape's position/label — the path a recreated reference
+  // diagram's icons need, since "create" from a plan only ever produces
+  // visual shapes, never real concepts, for exactly this reason: a person
+  // decides which of the boxes it drew are actually worth promoting) all
+  // share the exact same experience.
   const handleConceptTypeChosen = (conceptType) => {
     if (convertingStickyId) {
       const sticky = stickies.find((s) => s.id === convertingStickyId);
@@ -7615,6 +7654,21 @@ function APMDashboardLive() {
         setEditingConceptId(concept.id);
       }
       setConvertingStickyId(null);
+    } else if (convertingShapeId) {
+      const shape = shapes.find((s) => s.id === convertingShapeId);
+      if (shape) {
+        const conceptName = (shape.label || "").trim() || `New ${conceptType}`;
+        const concept = { id: newCanvasId("concept"), x: shape.x, y: shape.y, width: CONCEPT_W, height: CONCEPT_H, conceptType, name: conceptName, attributes: {}, pushed: false, zIndex: zCounterRef.current++ };
+        // Any shape-to-shape connections this icon had are purely visual
+        // (free-label lines, never a governed verb) and have no concept-edge
+        // equivalent to carry forward — dropped rather than guessed, same as
+        // a sticky's own conversion never invents relationships either.
+        setShapes((prev) => prev.filter((s) => s.id !== convertingShapeId));
+        setShapeEdges((prev) => prev.filter((e) => e.sourceId !== convertingShapeId && e.targetId !== convertingShapeId));
+        setCanvasConcepts((prev) => [...prev, concept]);
+        setEditingConceptId(concept.id);
+      }
+      setConvertingShapeId(null);
     } else {
       addConcept(conceptType);
     }
@@ -12953,7 +13007,7 @@ function APMDashboardLive() {
 
                 <button onClick={() => saveCanvas()} title="Save Canvas" style={iconToolBtnStyle}>{TOOLBAR_ICONS.save}</button>
                 <button onClick={() => { setCanvasScale(1); setCanvasOffset({ x: 400, y: 300 }); }} title="Reset View" style={iconToolBtnStyle}>{TOOLBAR_ICONS.resetView}</button>
-                <button onClick={() => autoOrganizeCanvas()} title="Organize — auto-arrange concepts into a tree" style={iconToolBtnStyle}>{TOOLBAR_ICONS.organize}</button>
+                <button onClick={() => { autoOrganizeCanvas(); autoOrganizeShapes(); }} title="Organize — auto-arrange concepts and shapes into trees" style={iconToolBtnStyle}>{TOOLBAR_ICONS.organize}</button>
                 <button onClick={async () => {
                     if (!(await askConfirm("Clear everything on the canvas? This only affects the canvas — nothing already pushed to Neo4j is touched.", { danger: true, confirmLabel: "Clear Canvas" }))) return;
                     setStickies([]); setCanvasConcepts([]); setCanvasEdges([]); setCanvasTexts([]); setShapes([]); setShapeEdges([]); setFreeArrows([]); setCanvasImages([]);
@@ -13437,6 +13491,18 @@ function APMDashboardLive() {
                         </button>
                         <button style={menuItemStyle} onClick={() => { toggleImageLock(contextMenu.id); closeContextMenu(); }}>
                           {(canvasImages.find((im) => im.id === contextMenu.id) || {}).locked ? "🔓 Unlock" : "🔒 Lock in place"}
+                        </button>
+                        <div style={{ height: 1, background: COLORS.border, margin: "3px 0" }} />
+                      </>
+                    )}
+                    {contextMenu.kind === "shape" && (
+                      <>
+                        <button style={menuItemStyle} onClick={() => {
+                            setConvertingStickyId(null); setConvertingShapeId(contextMenu.id);
+                            setConceptPickerPos({ left: contextMenu.x, top: contextMenu.y });
+                            setShowConceptPicker(true); closeContextMenu();
+                          }}>
+                          → Convert to Concept
                         </button>
                         <div style={{ height: 1, background: COLORS.border, margin: "3px 0" }} />
                       </>
