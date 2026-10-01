@@ -302,6 +302,8 @@ concept_types:
       - {name: AITargetPattern, type: enum, options: [Enable, Replace, Rebuild, Consolidate],
          purpose: "the intended shape of AI-driven change for this application"}
       - {name: TransitionPhase, type: enum, options: ["Current State", "Phase 1", "Phase 2", "Phase 3", "Target State"], purpose: "which stage of a multi-year transformation programme this application belongs to — paired with Status to show what's new, changed, or already in place at each phase"}
+      - {name: VendorJurisdiction, type: enum, options: [UK, EU, US, APAC, Global], purpose: "which legal jurisdiction this vendor is domiciled in and reachable under (e.g. the US CLOUD Act) — distinct from DataResidencyZone, which is only where the data/workload is hosted. Same vocabulary as Location.DataResidencyZone on purpose, so the two are directly comparable: a vendor can be EU-hosted but still US-jurisdiction."}
+      - {name: VendorCountry, type: string, purpose: "the vendor's specific country of legal domicile — denormalised quick-reference, same pattern as Location.Country"}
       - {name: AIPathfinderStatus, type: enum, options: [Not Started, In Progress, Done],
          purpose: "progress against the AI Pathfinder next action"}
       - {name: ReviewDate, type: date, purpose: "when this application's AI Pathfinder decision should next be reviewed"}
@@ -337,6 +339,8 @@ concept_types:
       - {name: OperatingCost, type: currency}
       - {name: TCO, type: currency}
       - {name: TechCategory, type: enum, options: ["Languages & Frameworks", "Data & Analytics", "Infrastructure & Security", "Integration & Tools", "Cloud Platforms"], purpose: "radar quadrant grouping"}
+      - {name: VendorJurisdiction, type: enum, options: [UK, EU, US, APAC, Global], purpose: "which legal jurisdiction this vendor is domiciled in and reachable under — same vocabulary as Location.DataResidencyZone and Application.VendorJurisdiction on purpose. Most relevant on Cloud Platform entries: the underlying infrastructure a sovereign-looking application actually runs on."}
+      - {name: VendorCountry, type: string, purpose: "the vendor's specific country of legal domicile — denormalised quick-reference, same pattern as Location.Country"}
 
   - name: HardwareTechnology
     category: Technology

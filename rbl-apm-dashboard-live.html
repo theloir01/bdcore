@@ -462,6 +462,8 @@ const GUIDE_SECTIONS = [
           "\"Cross-Border Data Flows\" is the one section that isn't a heuristic — it's read directly off real Interface relationships between applications resolved to different residency zones.",
           "The EU AI Act isn't in the jurisdiction map on purpose: applicability turns on a model's risk classification and where its output is used, not simply where it's hosted — so it's tracked per AI model via Regulatory Relevance instead.",
           "\"Residency Unknown\" is a real governance gap, the same as an unowned record elsewhere in Data Trust — set an application's Location from Ontology Manager to resolve it.",
+          "\"Vendor & Infrastructure Jurisdiction\" answers a different question than Residency Zone: not where it's hosted, but which legal jurisdiction can compel access to it regardless — a digital sovereignty concern (e.g. the US CLOUD Act reaching EU-hosted data), not a data residency one. Set VendorJurisdiction on an Application or its underlying SoftwareTechnology from Ontology Manager to populate it.",
+          "\"⚠ Exposed\" means Residency Zone and Vendor/Infrastructure Jurisdiction disagree for that application — hosted in one jurisdiction, reachable from another. That's the actual sovereignty risk, not the hosting location alone.",
         ] },
     ],
   },
@@ -1974,6 +1976,20 @@ function residencyFrameworksFor(loc) {
 function residencyZoneLabel(loc) {
   if (!loc) return "Residency Unknown";
   return loc.data_residency_zone || loc.country || loc.name || "Residency Unknown";
+}
+// Digital sovereignty is a different question from data residency: residency
+// asks where the workload physically runs (Location.data_residency_zone);
+// this asks which legal jurisdiction can compel access to it regardless of
+// where it's hosted — a vendor's own domicile (Application/SoftwareTechnology
+// .vendor_jurisdiction), reachable under laws like the US CLOUD Act even for
+// EU-hosted data. Checks both the application's own vendor and every
+// technology it runs on, since an EU-vendor app can still sit on US-owned
+// cloud infrastructure underneath — that's exactly the gap this is for.
+function vendorJurisdictionsFor(app) {
+  const jurisdictions = new Set();
+  if (app.vendor_jurisdiction) jurisdictions.add(app.vendor_jurisdiction);
+  (app.technologies || []).forEach((t) => { if (t.vendor_jurisdiction) jurisdictions.add(t.vendor_jurisdiction); });
+  return [...jurisdictions];
 }
 
 // a process's AI readiness comes from the quality of the DATA belonging to the
@@ -4041,9 +4057,11 @@ function APMDashboardLive() {
       const appRows = await runCypher(apiUrl, authHeader,
         `MATCH (a:Instance:Application)
          OPTIONAL MATCH (a)-[:HOSTED_AT]->(directLoc:Instance:Location)
-         OPTIONAL MATCH (a)-[:RUNS_ON]->(:Instance)-[:HOSTED_AT]->(techLoc:Instance:Location)
-         WITH a, collect(DISTINCT properties(directLoc)) + collect(DISTINCT properties(techLoc)) AS locs
-         RETURN properties(a) AS app, [l IN locs WHERE l IS NOT NULL] AS locations
+         OPTIONAL MATCH (a)-[:RUNS_ON]->(tech:Instance)-[:HOSTED_AT]->(techLoc:Instance:Location)
+         WITH a, collect(DISTINCT properties(directLoc)) + collect(DISTINCT properties(techLoc)) AS locs,
+              collect(DISTINCT properties(tech)) AS techs
+         RETURN properties(a) AS app, [l IN locs WHERE l IS NOT NULL] AS locations,
+                [t IN techs WHERE t IS NOT NULL] AS technologies
          ORDER BY a.name`
       );
       const flowRows = await runCypher(apiUrl, authHeader,
@@ -4057,7 +4075,7 @@ function APMDashboardLive() {
       const aiModelRows = await runCypher(apiUrl, authHeader,
         `MATCH (m:Instance:AIModel) RETURN properties(m) AS model ORDER BY m.name`
       );
-      setResidencyApps(appRows.map((r) => ({ ...r.app, locations: r.locations || [] })));
+      setResidencyApps(appRows.map((r) => ({ ...r.app, locations: r.locations || [], technologies: r.technologies || [] })));
       setResidencyFlows(flowRows);
       setResidencyAIModels(aiModelRows.map((r) => r.model));
       setResidencyError("");
@@ -10350,6 +10368,15 @@ function APMDashboardLive() {
               return b.apps.length - a.apps.length;
             });
             const unresolvedApps = appsWithZone.filter((a) => a.zone === "Residency Unknown");
+            const appsWithJurisdiction = appsWithZone.map((app) => {
+              const vendorJurisdictions = vendorJurisdictionsFor(app);
+              const zoneKnown = app.zone !== "Residency Unknown" && app.zone !== "Multiple Zones";
+              const exposed = zoneKnown && vendorJurisdictions.length > 0 && vendorJurisdictions.some((j) => j !== app.zone);
+              const aligned = zoneKnown && vendorJurisdictions.length > 0 && vendorJurisdictions.every((j) => j === app.zone);
+              return { ...app, vendorJurisdictions, exposed, aligned, zoneKnown };
+            });
+            const exposedApps = appsWithJurisdiction.filter((a) => a.exposed);
+            const jurisdictionUnknownApps = appsWithJurisdiction.filter((a) => a.vendorJurisdictions.length === 0);
             const crossBorderFlows = residencyFlows.filter((f) => {
               const pZone = residencyZoneLabel(f.providerLoc);
               const cZone = residencyZoneLabel(f.consumerLoc);
@@ -10366,6 +10393,12 @@ function APMDashboardLive() {
                     Where every application actually sits, traced through the real hosting graph — and which cross-border
                     data flows carry data between jurisdictions — plus the frameworks commonly associated with each
                     jurisdiction, and each AI model's own tagged regulatory relevance.
+                  </div>
+                  <div style={{ fontSize: 12, color: COLORS.inkSecondary, marginTop: 10, lineHeight: 1.6 }}>
+                    <b>Residency is not sovereignty.</b> Residency Zone (above) is where the workload is hosted.
+                    Vendor &amp; Infrastructure Jurisdiction (below) is which legal jurisdiction can compel access to
+                    it regardless of where it's hosted — a US-domiciled vendor is reachable under the US CLOUD Act
+                    even for data they host in the EU. The two can and do disagree.
                   </div>
                   <div style={{ fontSize: 12, color: COLORS.inkSecondary, marginTop: 10, lineHeight: 1.6 }}>
                     <b>One honest limitation:</b> the framework list per jurisdiction is a starting-point heuristic,
@@ -10418,6 +10451,56 @@ function APMDashboardLive() {
                           { key: "criticality", label: "Criticality", chip: true },
                         ]}
                         rows={appsWithZone}
+                      />
+                    </div>
+
+                    {exposedApps.length > 0 && (
+                      <div className="ds-card" style={{ background: "#FBE0D8", border: `1px solid ${COLORS.riskMuted}`, borderRadius: 14, padding: "14px 18px", marginBottom: 24 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: COLORS.risk }}>
+                          {exposedApps.length} application{exposedApps.length === 1 ? "" : "s"} hosted in one jurisdiction but exposed to another
+                        </div>
+                        <div style={{ fontSize: 12, color: COLORS.risk, marginTop: 3 }}>
+                          Residency Zone and Vendor/Infrastructure Jurisdiction disagree — see the table below for which ones and why.
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 18, overflow: "hidden", marginBottom: 24 }}>
+                      <div style={{ padding: "16px 18px 4px" }}>
+                        <div style={{ fontSize: 15, fontWeight: 600 }}>Vendor &amp; Infrastructure Jurisdiction</div>
+                        <div style={{ fontSize: 12, color: COLORS.inkSecondary, marginTop: 4, marginBottom: 8 }}>
+                          Who can be legally compelled to grant access to this application, and from where — the
+                          application's own vendor plus every technology it runs on (so a US-owned cloud platform
+                          underneath an EU vendor's app still shows up here).
+                        </div>
+                      </div>
+                      <SortableTable
+                        rowKey={(a) => a.id}
+                        defaultSort={{ key: "exposed", dir: "desc" }}
+                        emptyMessage="No applications found."
+                        columns={[
+                          { key: "name", label: "Application", render: (a) => (
+                              <span onClick={() => { setProfileAppId(a.id); setView("profile"); }}
+                                style={{ cursor: "pointer", fontWeight: 600, color: COLORS.ink }}>{a.name}</span>
+                            ) },
+                          { key: "zone", label: "Residency Zone", chip: true },
+                          { key: "vendorJurisdictions", label: "Vendor / Infra Jurisdiction", sortValue: (a) => a.vendorJurisdictions.length,
+                              render: (a) => a.vendorJurisdictions.length === 0 ? "—" : a.vendorJurisdictions.join(", ") },
+                          { key: "exposed", label: "Status", chip: true,
+                              sortValue: (a) => a.exposed ? 3 : (a.vendorJurisdictions.length > 0 && !a.zoneKnown) ? 2 : a.vendorJurisdictions.length === 0 ? 1 : 0,
+                              filterValue: (a) => a.exposed ? "⚠ Exposed" : a.vendorJurisdictions.length === 0 ? "Jurisdiction Unknown"
+                                : !a.zoneKnown ? "Residency Unknown" : "Aligned",
+                              render: (a) => a.exposed ? (
+                                <span style={{ background: `${COLORS.risk}18`, color: COLORS.risk, padding: "2px 9px", borderRadius: 8, fontSize: 11, fontWeight: 700 }}>⚠ Exposed</span>
+                              ) : a.vendorJurisdictions.length === 0 ? (
+                                <span style={{ background: `${COLORS.inkSecondary}18`, color: COLORS.inkSecondary, padding: "2px 9px", borderRadius: 8, fontSize: 11, fontWeight: 700 }}>Jurisdiction Unknown</span>
+                              ) : !a.zoneKnown ? (
+                                <span style={{ background: `${COLORS.inkSecondary}18`, color: COLORS.inkSecondary, padding: "2px 9px", borderRadius: 8, fontSize: 11, fontWeight: 700 }}>Residency Unknown</span>
+                              ) : (
+                                <span style={{ background: `${COLORS.accent}18`, color: COLORS.accent, padding: "2px 9px", borderRadius: 8, fontSize: 11, fontWeight: 700 }}>Aligned</span>
+                              ) },
+                        ]}
+                        rows={appsWithJurisdiction}
                       />
                     </div>
 

@@ -1291,7 +1291,9 @@
       "ai_pathfinder_status": "Done",
       "review_date": "2027-01-01",
       "renewal_date": "2026-08-15",
-      "transition_phase": "Current State"
+      "transition_phase": "Current State",
+      "vendor_jurisdiction": "US",
+      "vendor_country": "United States"
     },
     {
       "id": "a5",
@@ -1319,7 +1321,9 @@
       "ai_pathfinder_status": "In Progress",
       "review_date": "2026-11-01",
       "renewal_date": "2026-10-31",
-      "transition_phase": "Current State"
+      "transition_phase": "Current State",
+      "vendor_jurisdiction": "US",
+      "vendor_country": "United States"
     },
     {
       "id": "a6",
@@ -1733,7 +1737,9 @@
       "support_status": "Full",
       "strategic_classification": "Preferred",
       "status": "Active",
-      "stereotype": "Platform"
+      "stereotype": "Platform",
+      "vendor_jurisdiction": "US",
+      "vendor_country": "United States"
     },
     {
       "id": "st2",
@@ -1744,7 +1750,9 @@
       "support_status": "Full",
       "strategic_classification": "Preferred",
       "status": "Active",
-      "stereotype": "Platform"
+      "stereotype": "Platform",
+      "vendor_jurisdiction": "US",
+      "vendor_country": "United States"
     },
     {
       "id": "st3",
@@ -1777,7 +1785,9 @@
       "support_status": "Limited",
       "strategic_classification": "Contained",
       "status": "Active",
-      "stereotype": "Database"
+      "stereotype": "Database",
+      "vendor_jurisdiction": "US",
+      "vendor_country": "United States"
     },
     {
       "id": "h1",
