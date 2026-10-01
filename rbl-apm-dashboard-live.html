@@ -540,6 +540,8 @@ const GUIDE_SECTIONS = [
           "A sticky note can be converted into a real, typed concept with attributes; shapes, arrows, plain text, and reference images stay purely visual and are never written to the graph, even after a push.",
           "The image icon in the toolbar drops in a reference image — a screenshot of a Miro board, a whiteboard photo, anything to trace or annotate over — resized to fit, sent to the back automatically so your own stickies and concepts land on top of it, and freely resizable afterwards. PNG, JPEG, GIF, WEBP, and SVG are all supported, up to 8MB.",
           "Right-click a reference image to \"Lock in place\" once it's positioned, so it can't be dragged by accident while you're working over it — unlock the same way when you need to move it again.",
+          "Right-click a reference image and choose \"🔍 Interpret this board\" to have it actually read — not just traced over. It proposes real concepts and stickies for what's depicted (grounded in your real schema, same validation as the Canvas Assistant's own \"create\"), landing as drafts for you to review, same as everything else here. SVG images can't be read this way — Claude's vision input only accepts JPEG/PNG/GIF/WEBP.",
+          "The document icon next to it does the same thing for pasted text instead of an image — a Confluence page, meeting notes, a requirements doc. Paste it in, optionally name the source, and it's read the same way.",
           "\"Add From Graph\" pulls in real existing instances to build a picture around, instead of starting from a blank canvas.",
           "Drag any item straight from the Concept or Shape palette onto the canvas to place it exactly where you drop it — or click it to place at the default spot, same as before.",
           "\"+ Import Palette\" builds a custom shape palette from your own icons — drop in a whole vendor .zip exactly as downloaded (AWS, Azure, Cisco, …; nested folders and duplicate sizes are sorted out automatically) or select individual .svg/.png files. The palette is saved to the graph, so everyone connected sees it too.",
@@ -749,6 +751,7 @@ const TOOLBAR_ICONS = {
     <line x1="12" y1="6.7" x2="6.3" y2="16" /><line x1="12" y1="6.7" x2="17.7" y2="16" /></svg>,
   arrow: <svg {...TOOLBAR_ICON_COMMON}><line x1="5" y1="19" x2="19" y2="5" /><polyline points="9,5 19,5 19,15" /></svg>,
   image: <svg {...TOOLBAR_ICON_COMMON}><rect x="3.5" y="4.5" width="17" height="15" rx="1.5" /><circle cx="8.5" cy="9.5" r="1.7" /><path d="M4.5 16.5l5-5 3.5 3.5 3-3 4 4" /></svg>,
+  pasteDoc: <svg {...TOOLBAR_ICON_COMMON}><path d="M7 3h7l4 4v14H7z" /><path d="M14 3v4h4" /><line x1="9.5" y1="12" x2="16" y2="12" /><line x1="9.5" y1="15.5" x2="16" y2="15.5" /><line x1="9.5" y1="19" x2="13" y2="19" /></svg>,
   importGraph: <svg {...TOOLBAR_ICON_COMMON}><ellipse cx="12" cy="6" rx="8" ry="3" /><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6" />
     <path d="M12 15v5.5M9 18l3 2.5 3-2.5" /></svg>,
   save: <svg {...TOOLBAR_ICON_COMMON}><path d="M5 4h11l3 3v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z" /><rect x="7.5" y="4" width="6" height="4.5" /><rect x="6.5" y="13.5" width="11" height="6" /></svg>,
@@ -3552,6 +3555,9 @@ function APMDashboardLive() {
   // against. Scoped to whichever canvas is currently open (cleared on switch).
   const [canvasChatLog, setCanvasChatLog] = useState([]);
   const canvasChatScrollRef = useRef(null);
+  // { text, sourceLabel } while the "paste a document to interpret" modal is
+  // open (e.g. a Confluence page) — null when closed.
+  const [pasteInterpretDialog, setPasteInterpretDialog] = useState(null);
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
   const [editingAppId, setEditingAppId] = useState(null);
@@ -7250,6 +7256,60 @@ function APMDashboardLive() {
     }
   };
 
+  // The unstructured-data counterpart to runCanvasChatRequest above — reads
+  // an image or pasted text via /canvas-interpret instead of a typed
+  // request via /canvas-chat, but lands in the exact same chat thread and
+  // runs through the exact same executeCanvasPlan, so "what did the
+  // assistant just do to my canvas" always has one place to look regardless
+  // of which of the two endpoints produced it. One-shot: no history is sent
+  // (see canvas_interpret's own docstring for why), and there is no
+  // "recolor" action for freshly-extracted content.
+  const runCanvasInterpretRequest = async (body, logLabel) => {
+    setCanvasChatLog((prev) => [...prev, { role: "user", content: logLabel }]);
+    setCanvasChatOpen(true);
+    setCanvasChatLoading(true);
+    try {
+      const res = await fetch("http://localhost:5050/canvas-interpret", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...body, canvas: buildCanvasSnapshot() }),
+      });
+      if (!res.ok) throw new Error(`Chat backend returned ${res.status}`);
+      const data = await res.json();
+      if (data.error) { setCanvasChatLog((prev) => [...prev, { role: "assistant", content: data.error, error: true }]); return; }
+      await executeCanvasPlan(data);
+      const meta = {
+        pulled: (data.pulled || []).reduce((sum, p) => sum + (p.rows ? p.rows.length : 0), 0),
+        created: (data.create || []).length,
+        connected: (data.connections || []).length,
+        recolored: 0,
+      };
+      const hasChanges = meta.pulled || meta.created || meta.connected;
+      setCanvasChatLog((prev) => [...prev, { role: "assistant", content: data.reply || "Done.", meta: hasChanges ? meta : null }]);
+    } catch (e) {
+      setCanvasChatLog((prev) => [...prev, { role: "assistant",
+        content: `Couldn't reach the chat backend: ${e.message}. Is chat_server.py running on port 5050?`, error: true }]);
+    } finally {
+      setCanvasChatLoading(false);
+    }
+  };
+  const interpretImage = (im) => {
+    if (!im || canvasChatLoading) return;
+    runCanvasInterpretRequest(
+      { image: im.content, sourceLabel: im.fileName || "" },
+      `🔍 Interpret image: ${im.fileName || "reference image"}`
+    );
+  };
+  const confirmPasteInterpret = () => {
+    const text = (pasteInterpretDialog.text || "").trim();
+    if (!text) return;
+    const sourceLabel = (pasteInterpretDialog.sourceLabel || "").trim();
+    setPasteInterpretDialog(null);
+    runCanvasInterpretRequest(
+      { text, sourceLabel },
+      `📄 Interpret pasted text${sourceLabel ? `: ${sourceLabel}` : ""}`
+    );
+  };
+
   const sendCanvasChatMessage = async () => {
     const requestText = canvasChatInput.trim();
     if (!requestText || canvasChatLoading) return;
@@ -8209,6 +8269,43 @@ function APMDashboardLive() {
       })()}
 
       <ConfirmDialog dialog={confirmDialog} onResolve={resolveConfirmDialog} />
+
+      {pasteInterpretDialog && (
+        <div onClick={() => setPasteInterpretDialog(null)} style={{ position: "fixed", inset: 0, background: "rgba(20,31,48,0.55)", zIndex: 400,
+          display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, width: "min(560px, 100%)",
+            padding: 24, boxShadow: "0 24px 60px rgba(10,14,26,0.38)" }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: COLORS.ink, marginBottom: 6 }}>Interpret a document</div>
+            <div style={{ fontSize: 13, color: COLORS.inkSecondary, lineHeight: 1.55, marginBottom: 16 }}>
+              Paste the text of a Confluence page, meeting notes, or a requirements doc — it'll be read the same
+              way as a chat request, and lands as draft concepts/stickies on the canvas for you to review.
+            </div>
+            <input value={pasteInterpretDialog.sourceLabel}
+              onChange={(e) => setPasteInterpretDialog((d) => ({ ...d, sourceLabel: e.target.value }))}
+              placeholder="Source name (optional) — e.g. 'Payments Platform — Confluence'"
+              style={{ width: "100%", boxSizing: "border-box", marginBottom: 10, padding: "8px 10px",
+                border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 13, outline: "none" }} />
+            <textarea autoFocus value={pasteInterpretDialog.text}
+              onChange={(e) => setPasteInterpretDialog((d) => ({ ...d, text: e.target.value }))}
+              placeholder="Paste the document text here…" rows={10}
+              style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", border: `1px solid ${COLORS.border}`,
+                borderRadius: 8, fontSize: 13, fontFamily: "inherit", resize: "vertical", outline: "none" }} />
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16 }}>
+              <button onClick={() => setPasteInterpretDialog(null)}
+                style={{ padding: "8px 16px", background: "transparent", color: COLORS.ink, border: `1px solid ${COLORS.border}`,
+                  borderRadius: 8, fontSize: 12.5, cursor: "pointer" }}>
+                Cancel
+              </button>
+              <button onClick={confirmPasteInterpret} disabled={!pasteInterpretDialog.text.trim()}
+                style={{ padding: "8px 16px", background: COLORS.ink, color: "#fff", border: "none", borderRadius: 8,
+                  fontSize: 12.5, fontWeight: 600, cursor: pasteInterpretDialog.text.trim() ? "pointer" : "default",
+                  opacity: pasteInterpretDialog.text.trim() ? 1 : 0.5 }}>
+                Interpret
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {fixWizard && (
         <FixItWizard
@@ -12643,6 +12740,10 @@ function APMDashboardLive() {
                 </button>
                 <input ref={canvasImageInputRef} type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml"
                   style={{ display: "none" }} onChange={handleImageFileChange} />
+                <button onClick={() => setPasteInterpretDialog({ text: "", sourceLabel: "" })}
+                  title="Paste a document to interpret — a Confluence page, meeting notes, etc." style={iconToolBtnStyle}>
+                  {TOOLBAR_ICONS.pasteDoc}
+                </button>
 
                 <div style={{ width: 1, height: 26, background: COLORS.border, margin: "0 4px" }} />
 
@@ -13297,6 +13398,9 @@ function APMDashboardLive() {
                     )}
                     {contextMenu.kind === "image" && (
                       <>
+                        <button style={menuItemStyle} onClick={() => { interpretImage(canvasImages.find((im) => im.id === contextMenu.id)); closeContextMenu(); }}>
+                          🔍 Interpret this board
+                        </button>
                         <button style={menuItemStyle} onClick={() => { toggleImageLock(contextMenu.id); closeContextMenu(); }}>
                           {(canvasImages.find((im) => im.id === contextMenu.id) || {}).locked ? "🔓 Unlock" : "🔒 Lock in place"}
                         </button>

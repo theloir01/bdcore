@@ -201,6 +201,28 @@ def extract_cypher(text):
     return (match.group(1) if match else text).strip()
 
 
+SUPPORTED_IMAGE_MEDIA_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
+
+
+def parse_data_url(data_url):
+    """
+    Splits a "data:image/png;base64,AAAA..." string (exactly what the
+    dashboard's canvas image upload already produces and stores) into
+    (media_type, base64_data) for Anthropic's image content block. Returns
+    (None, None) if it isn't a data URL the vision API can actually accept —
+    notably SVG, which the canvas image tool allows but Claude's vision
+    input does not (it only takes raster formats), so that has to be caught
+    here rather than failing opaquely inside the API call.
+    """
+    match = re.match(r"^data:([\w./+-]+);base64,(.+)$", data_url, re.DOTALL)
+    if not match:
+        return None, None
+    media_type = match.group(1)
+    if media_type not in SUPPORTED_IMAGE_MEDIA_TYPES:
+        return None, None
+    return media_type, match.group(2)
+
+
 def extract_json(text):
     # Same idea as extract_cypher, but for JSON responses — reusing
     # extract_cypher here would leave a stray "json" language tag as literal
@@ -456,107 +478,16 @@ BPM: start, end, intermediate, task, gateway-x, gateway-and, gateway-or, dataobj
 """
 
 
-@app.route("/canvas-chat", methods=["POST", "OPTIONS"])
-def canvas_chat():
+def plan_create_guidance(schema_context, canvas_snapshot):
     """
-    Turns a plain-English drawing request into a structured plan the
-    dashboard can execute on the Modelling Canvas — not a text answer like
-    /chat. Two genuinely different things can happen per request, and the
-    model decides which (or both) apply:
-
-      - PULL: something plausibly already exists in the real portfolio —
-        write a real, schema-validated Cypher query to find it (same
-        guardrails as /chat: live schema, no invented relationship types).
-      - CREATE: something doesn't exist yet — a new concept (lands as an
-        unpushed draft, never auto-written to the graph), a shape (for
-        illustrating steps/flow), or a sticky (for an informal note).
-
-    The dashboard executes the returned plan using the same placement,
-    import, and layout functions a person uses when building a canvas by
-    hand — this endpoint only decides *what* to create, never touches
-    Neo4j for anything in "create" (only for resolving "pull" queries).
+    Shared by /canvas-chat and /canvas-interpret: which "create" kind to use,
+    the pull-vs-create split, worked examples, the real shape library, the
+    live schema, and current canvas contents. Factored out once so both
+    endpoints work from the exact same rules about what a valid plan looks
+    like, rather than two hand-maintained copies that can quietly drift
+    apart — the same reasoning build_schema_context() itself exists for.
     """
-    if request.method == "OPTIONS":
-        return "", 204
-
-    request_text = request.json.get("request", "").strip()
-    if not request_text:
-        return jsonify({"error": "No request provided"}), 400
-    canvas_snapshot = request.json.get("canvas", [])
-    # Prior turns in this canvas's chat thread — {role: "user"|"assistant", content}
-    # — so a follow-up like "out of those options which would you recommend?"
-    # resolves "those options" against what was actually just said, on top of
-    # CURRENT CANVAS CONTENTS below already carrying their full text. Capped
-    # to keep the prompt bounded on a long-running session.
-    history = [h for h in request.json.get("history", []) if h.get("role") in ("user", "assistant") and h.get("content")][-16:]
-
-    schema_context, valid_rel_types = build_schema_context()
-
-    plan_system = (
-        "You help someone build a diagram on a visual canvas by describing what they "
-        "want in plain English, and answer questions about what's on it — this is a "
-        "running conversation, not a one-shot command line. Respond with ONLY a JSON "
-        "object — no markdown fences, no explanation before or after — matching "
-        "exactly this shape:\n\n"
-        "{\n"
-        '  "reply": "what you say back in the chat thread — see below for the two '
-        'cases this covers",\n'
-        '  "pull": [ { "cypher": "a real Cypher query, schema-validated, that RETURNS '
-        'id, name, and a literal type string per match, e.g. RETURN c.id AS id, c.name '
-        'AS name, \\"Capability\\" AS type" } ],\n'
-        '  "create": [\n'
-        '    { "tempId": "n1", "kind": "concept", "conceptType": "<real concept type>", '
-        '"name": "...", "attributes": { "<real attribute name>": "<value>" } },\n'
-        '    { "tempId": "n2", "kind": "shape", "category": "<Basic|Cloud|Network|Security|'
-        'Generic|BPM>", "shapeKey": "<real shape key>", "label": "..." },\n'
-        '    { "tempId": "n3", "kind": "sticky", "text": "..." }\n'
-        "  ],\n"
-        '  "connections": [\n'
-        '    { "from": "<tempId, or pull:QUERY_INDEX:ROW_INDEX for a pulled entity>", '
-        '"to": "<same>", "kind": "concept", "verb": "<only for kind=concept — a real '
-        'verb valid for that exact type pair>" },\n'
-        '    { "from": "...", "to": "...", "kind": "shape", "label": "<only for '
-        'kind=shape — any free text, or omit>" }\n'
-        "  ],\n"
-        '  "recolor": [\n'
-        '    { "id": "<a real id from CURRENT CANVAS CONTENTS below — never a tempId, '
-        'this only ever applies to objects already on the canvas>", '
-        '"color": "<a hex color, or null to clear a highlight back to default>", '
-        '"label": "<a short badge word/phrase, e.g. \'High Risk\' — optional, omit for none>" }\n'
-        "  ]\n"
-        "}\n\n"
-        "Any section can be an empty array if not needed. \"reply\" covers two different "
-        "situations — decide which one this request is before writing it:\n"
-        "- The request asks for something to be drawn/changed (the pull/create/"
-        "connections/recolor sections below do the actual work): write 1-3 sentences "
-        "describing what you CREATED — new concepts, shapes, or stickies, and how "
-        "things connect. When you sketched multiple options or alternatives (e.g. "
-        "several stickies laying out different approaches), name each one and its key "
-        "feature/tradeoff in a sentence, so the reply alone tells the whole story "
-        "without having to read every sticky — e.g. \"I sketched three DR options: a "
-        "cloud-native rebuild (fastest RTO, highest cost), a warm standby on a "
-        "secondary site (moderate cost and speed), and a backup-and-restore runbook "
-        "(cheapest, slowest to recover).\" Do not describe HOW you found things (which "
-        "queries ran, etc) — that's shown separately in the UI. Critically: do NOT "
-        "claim anything about whether a \"pull\" query actually found or added "
-        "something — you're writing this before that query has even run against the "
-        "real database, so you cannot know yet whether it matched anything. A "
-        "separate, truthful line reporting exactly what was and wasn't found gets "
-        "added automatically in front of your reply — write only about the part you "
-        "actually control (what you created).\n"
-        "- The request is a question — about what's already on the canvas, or a "
-        "follow-up on the conversation so far (\"which of those would you recommend?\", "
-        "\"what's the risk with option 2?\", \"how does this compare to our other CRM "
-        "apps?\") — answer it directly and substantively in \"reply\", grounded in "
-        "CURRENT CANVAS CONTENTS below (which carries the full text/attributes of "
-        "everything already there, including real portfolio data for anything "
-        "pulled in) and the conversation history you've been given. Give a real "
-        "answer with real reasoning — \"which would you recommend\" deserves an actual "
-        "pick and why, not a recap of the options back at them. Leave pull/create/"
-        "connections/recolor all empty for a pure question — don't invent something "
-        "to draw just because those sections exist.\n"
-        "- A request can combine both — e.g. \"add a fourth option and tell me which of "
-        "all four you'd pick\" both creates something and answers in the same reply.\n\n"
+    return (
         "Guidance on which kind to use for the drawing sections themselves:\n"
         "- \"pull\": when the request plausibly refers to something that already exists "
         "in their real portfolio — write a real query to find it, using fuzzy name "
@@ -665,6 +596,111 @@ def canvas_chat():
         + (json.dumps(canvas_snapshot) if canvas_snapshot else "The canvas is currently empty.")
     )
 
+
+@app.route("/canvas-chat", methods=["POST", "OPTIONS"])
+def canvas_chat():
+    """
+    Turns a plain-English drawing request into a structured plan the
+    dashboard can execute on the Modelling Canvas — not a text answer like
+    /chat. Two genuinely different things can happen per request, and the
+    model decides which (or both) apply:
+
+      - PULL: something plausibly already exists in the real portfolio —
+        write a real, schema-validated Cypher query to find it (same
+        guardrails as /chat: live schema, no invented relationship types).
+      - CREATE: something doesn't exist yet — a new concept (lands as an
+        unpushed draft, never auto-written to the graph), a shape (for
+        illustrating steps/flow), or a sticky (for an informal note).
+
+    The dashboard executes the returned plan using the same placement,
+    import, and layout functions a person uses when building a canvas by
+    hand — this endpoint only decides *what* to create, never touches
+    Neo4j for anything in "create" (only for resolving "pull" queries).
+    """
+    if request.method == "OPTIONS":
+        return "", 204
+
+    request_text = request.json.get("request", "").strip()
+    if not request_text:
+        return jsonify({"error": "No request provided"}), 400
+    canvas_snapshot = request.json.get("canvas", [])
+    # Prior turns in this canvas's chat thread — {role: "user"|"assistant", content}
+    # — so a follow-up like "out of those options which would you recommend?"
+    # resolves "those options" against what was actually just said, on top of
+    # CURRENT CANVAS CONTENTS below already carrying their full text. Capped
+    # to keep the prompt bounded on a long-running session.
+    history = [h for h in request.json.get("history", []) if h.get("role") in ("user", "assistant") and h.get("content")][-16:]
+
+    schema_context, valid_rel_types = build_schema_context()
+
+    plan_system = (
+        "You help someone build a diagram on a visual canvas by describing what they "
+        "want in plain English, and answer questions about what's on it — this is a "
+        "running conversation, not a one-shot command line. Respond with ONLY a JSON "
+        "object — no markdown fences, no explanation before or after — matching "
+        "exactly this shape:\n\n"
+        "{\n"
+        '  "reply": "what you say back in the chat thread — see below for the two '
+        'cases this covers",\n'
+        '  "pull": [ { "cypher": "a real Cypher query, schema-validated, that RETURNS '
+        'id, name, and a literal type string per match, e.g. RETURN c.id AS id, c.name '
+        'AS name, \\"Capability\\" AS type" } ],\n'
+        '  "create": [\n'
+        '    { "tempId": "n1", "kind": "concept", "conceptType": "<real concept type>", '
+        '"name": "...", "attributes": { "<real attribute name>": "<value>" } },\n'
+        '    { "tempId": "n2", "kind": "shape", "category": "<Basic|Cloud|Network|Security|'
+        'Generic|BPM>", "shapeKey": "<real shape key>", "label": "..." },\n'
+        '    { "tempId": "n3", "kind": "sticky", "text": "..." }\n'
+        "  ],\n"
+        '  "connections": [\n'
+        '    { "from": "<tempId, or pull:QUERY_INDEX:ROW_INDEX for a pulled entity>", '
+        '"to": "<same>", "kind": "concept", "verb": "<only for kind=concept — a real '
+        'verb valid for that exact type pair>" },\n'
+        '    { "from": "...", "to": "...", "kind": "shape", "label": "<only for '
+        'kind=shape — any free text, or omit>" }\n'
+        "  ],\n"
+        '  "recolor": [\n'
+        '    { "id": "<a real id from CURRENT CANVAS CONTENTS below — never a tempId, '
+        'this only ever applies to objects already on the canvas>", '
+        '"color": "<a hex color, or null to clear a highlight back to default>", '
+        '"label": "<a short badge word/phrase, e.g. \'High Risk\' — optional, omit for none>" }\n'
+        "  ]\n"
+        "}\n\n"
+        "Any section can be an empty array if not needed. \"reply\" covers two different "
+        "situations — decide which one this request is before writing it:\n"
+        "- The request asks for something to be drawn/changed (the pull/create/"
+        "connections/recolor sections below do the actual work): write 1-3 sentences "
+        "describing what you CREATED — new concepts, shapes, or stickies, and how "
+        "things connect. When you sketched multiple options or alternatives (e.g. "
+        "several stickies laying out different approaches), name each one and its key "
+        "feature/tradeoff in a sentence, so the reply alone tells the whole story "
+        "without having to read every sticky — e.g. \"I sketched three DR options: a "
+        "cloud-native rebuild (fastest RTO, highest cost), a warm standby on a "
+        "secondary site (moderate cost and speed), and a backup-and-restore runbook "
+        "(cheapest, slowest to recover).\" Do not describe HOW you found things (which "
+        "queries ran, etc) — that's shown separately in the UI. Critically: do NOT "
+        "claim anything about whether a \"pull\" query actually found or added "
+        "something — you're writing this before that query has even run against the "
+        "real database, so you cannot know yet whether it matched anything. A "
+        "separate, truthful line reporting exactly what was and wasn't found gets "
+        "added automatically in front of your reply — write only about the part you "
+        "actually control (what you created).\n"
+        "- The request is a question — about what's already on the canvas, or a "
+        "follow-up on the conversation so far (\"which of those would you recommend?\", "
+        "\"what's the risk with option 2?\", \"how does this compare to our other CRM "
+        "apps?\") — answer it directly and substantively in \"reply\", grounded in "
+        "CURRENT CANVAS CONTENTS below (which carries the full text/attributes of "
+        "everything already there, including real portfolio data for anything "
+        "pulled in) and the conversation history you've been given. Give a real "
+        "answer with real reasoning — \"which would you recommend\" deserves an actual "
+        "pick and why, not a recap of the options back at them. Leave pull/create/"
+        "connections/recolor all empty for a pure question — don't invent something "
+        "to draw just because those sections exist.\n"
+        "- A request can combine both — e.g. \"add a fourth option and tell me which of "
+        "all four you'd pick\" both creates something and answers in the same reply.\n\n"
+        + plan_create_guidance(schema_context, canvas_snapshot)
+    )
+
     messages = [{"role": h["role"], "content": h["content"]} for h in history]
     messages.append({"role": "user", "content": request_text})
     plan, raw_plan, total_usage = get_validated_plan(plan_system, messages)
@@ -703,6 +739,147 @@ def canvas_chat():
         "create": plan.get("create", []),
         "connections": plan.get("connections", []),
         "recolor": plan.get("recolor", []),
+        "tokens": {**total_usage, "total": total_usage["input"] + total_usage["output"]},
+    })
+
+
+@app.route("/canvas-interpret", methods=["POST", "OPTIONS"])
+def canvas_interpret():
+    """
+    The unstructured-data entry point /canvas-chat alone doesn't reach:
+    reads an image (a photo or screenshot of a whiteboard, a Miro/Mural-style
+    board, a hand-drawn diagram) or pasted text (a Confluence page, meeting
+    notes, a requirements doc) and proposes a plan to represent what it
+    finds as real BDCore concepts, stickies, and shapes — landing as
+    unpushed drafts on the canvas, same as /canvas-chat's own "create", for
+    a person to review before anything is real. Reuses the exact same plan
+    shape and create/pull rules (plan_create_guidance) so the dashboard
+    executes the result with the exact same executeCanvasPlan code, unchanged
+    — this endpoint only differs in what it reads and how it's prompted, not
+    in what it's allowed to produce or how that gets applied.
+
+    One-shot by design, unlike /canvas-chat: there's no running conversation
+    to have about a single image or document, so no history is accepted and
+    there's no "recolor" (nothing exists yet to recolor) or the dual-case
+    "reply" (question vs. drawing) logic /canvas-chat needs for its own
+    back-and-forth chat thread.
+    """
+    if request.method == "OPTIONS":
+        return "", 204
+
+    image_data_url = (request.json.get("image") or "").strip()
+    pasted_text = (request.json.get("text") or "").strip()
+    source_label = (request.json.get("sourceLabel") or "").strip()
+    if not image_data_url and not pasted_text:
+        return jsonify({"error": "No image or text provided"}), 400
+
+    canvas_snapshot = request.json.get("canvas", [])
+    schema_context, valid_rel_types = build_schema_context()
+    source_desc = f' ("{source_label}")' if source_label else ""
+
+    content_blocks = []
+    if image_data_url:
+        media_type, b64_data = parse_data_url(image_data_url)
+        if not media_type:
+            return jsonify({"error": "That image can't be read for interpretation — Claude's vision "
+                                      "input only accepts JPEG, PNG, GIF, or WEBP (not SVG)."}), 400
+        task_intro = (
+            f"You are looking at an image{source_desc} — a photo or screenshot of a "
+            "whiteboard, a Miro/Mural-style board, a hand-drawn diagram, or similar — and "
+            "converting what's actually depicted in it into real BDCore concepts, "
+            "stickies, and shapes on a visual canvas. This is a one-shot extraction, not a "
+            "conversation: read everything legible in the image — boxes, sticky notes, "
+            "labels, groupings, and any arrows or lines connecting them — and propose a "
+            "plan that captures it faithfully. Don't invent anything that isn't reasonably "
+            "inferable from what's actually in the image."
+        )
+        content_blocks.append({"type": "image", "source": {"type": "base64", "media_type": media_type, "data": b64_data}})
+        content_blocks.append({"type": "text", "text": "Read this image and propose the plan described in your instructions."})
+    else:
+        task_intro = (
+            f"You are reading pasted text{source_desc} — a Confluence page, meeting "
+            "notes, a requirements doc, or similar — and converting what it describes "
+            "into real BDCore concepts, stickies, and shapes on a visual canvas. This is "
+            "a one-shot extraction, not a conversation: identify the distinct entities, "
+            "ideas, and relationships the text actually describes, and propose a plan "
+            "that captures them faithfully. Don't invent anything the text doesn't "
+            "support."
+        )
+        content_blocks.append({"type": "text", "text": pasted_text})
+
+    plan_system = (
+        task_intro + "\n\nRespond with ONLY a JSON object — no markdown fences, no "
+        "explanation before or after — matching exactly this shape:\n\n"
+        "{\n"
+        '  "reply": "1-3 sentences describing what you found and created — named '
+        'concepts, shapes, or stickies, and how they connect. If the source is too '
+        'unclear or illegible to confidently extract anything, say so plainly here and '
+        'leave pull/create/connections empty rather than guessing.",\n'
+        '  "pull": [ { "cypher": "a real Cypher query, schema-validated, that RETURNS '
+        'id, name, and a literal type string per match, e.g. RETURN c.id AS id, c.name '
+        'AS name, \\"Capability\\" AS type — use this when something depicted plausibly '
+        'already exists in the real portfolio, instead of creating a duplicate draft" } ],\n'
+        '  "create": [\n'
+        '    { "tempId": "n1", "kind": "concept", "conceptType": "<real concept type>", '
+        '"name": "...", "attributes": { "<real attribute name>": "<value>" } },\n'
+        '    { "tempId": "n2", "kind": "shape", "category": "<Basic|Cloud|Network|Security|'
+        'Generic|BPM>", "shapeKey": "<real shape key>", "label": "..." },\n'
+        '    { "tempId": "n3", "kind": "sticky", "text": "..." }\n'
+        "  ],\n"
+        '  "connections": [\n'
+        '    { "from": "<tempId, or pull:QUERY_INDEX:ROW_INDEX for a pulled entity>", '
+        '"to": "<same>", "kind": "concept", "verb": "<only for kind=concept — a real '
+        'verb valid for that exact type pair>" },\n'
+        '    { "from": "...", "to": "...", "kind": "shape", "label": "<only for '
+        'kind=shape — any free text, or omit>" }\n'
+        "  ]\n"
+        "}\n\n"
+        "There is no \"recolor\" option here — nothing exists on the canvas yet for this "
+        "extraction to recolor, so always leave it out entirely. Use \"sticky\" for "
+        "anything that reads as an informal note or idea rather than a named, governed "
+        "entity — most sticky-note-shaped things on a Miro-style board belong here, not "
+        "as a \"concept\". Only promote something to a real \"concept\" when it's clearly a "
+        "named, well-defined thing of a real BDCore type (an application, a capability, a "
+        "process, etc). When genuinely unsure, prefer \"sticky\" — it's a far easier "
+        "correction for a person to promote a sticky into a concept afterwards than to "
+        "untangle an over-eager wrong concept.\n\n"
+        + plan_create_guidance(schema_context, canvas_snapshot)
+    )
+
+    messages = [{"role": "user", "content": content_blocks}]
+    plan, raw_plan, total_usage = get_validated_plan(plan_system, messages, max_tokens=3072)
+
+    if plan is None:
+        return jsonify({"error": "I wasn't able to read that into a plan — please try again.",
+                         "raw": raw_plan,
+                         "tokens": {**total_usage, "total": total_usage["input"] + total_usage["output"]}}), 200
+
+    pulled = []
+    for pull_item in plan.get("pull", []):
+        cypher = pull_item.get("cypher", "")
+        invalid = find_invalid_relationship_types(cypher, valid_rel_types)
+        if invalid:
+            pulled.append({"cypher": cypher, "error": f"invalid relationship type(s): {invalid}", "rows": []})
+            continue
+        try:
+            rows = run_cypher(cypher)
+            pulled.append({"cypher": cypher, "rows": rows})
+        except Exception as e:
+            pulled.append({"cypher": cypher, "error": str(e), "rows": []})
+
+    print(f"[canvas-interpret: {source_label or ('image' if image_data_url else 'pasted text')}] "
+          f"tokens — input: {total_usage['input']}, output: {total_usage['output']}")
+
+    pull_status = describe_pull_outcome(plan.get("pull"), pulled)
+    model_reply = plan.get("reply", "").strip()
+    reply = f"{pull_status} {model_reply}".strip() if pull_status else model_reply
+
+    return jsonify({
+        "reply": reply,
+        "pulled": pulled,
+        "create": plan.get("create", []),
+        "connections": plan.get("connections", []),
+        "recolor": [],
         "tokens": {**total_usage, "total": total_usage["input"] + total_usage["output"]},
     })
 
