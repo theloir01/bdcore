@@ -614,16 +614,22 @@ def plan_create_guidance(schema_context, canvas_snapshot, custom_palettes=None):
         "set them when you're recreating something whose source had a real, known layout "
         "(a whiteboard photo, a pasted board, a fetched external board's own items) and you "
         "want that relative arrangement preserved (don't invent or estimate a position for "
-        "something with no known layout). Set them to the item's true CENTER point, not "
-        "necessarily its raw position field verbatim — a source commonly reports a wide or "
-        "tall item's position as its top-left corner plus a width/height, not its center, and "
-        "copying that corner as-is systematically drags bigger items away from where they "
-        "actually visually sit relative to smaller ones next to them. If the source gives you "
-        "width/height (or any size field) alongside a position, work out which convention it's "
-        "using from the field names/values and compute the real center yourself (typically "
-        "x + width/2, y + height/2 for a top-left convention) before setting x/y here. "
-        "Leaving x/y out entirely (the normal case) lets placement pick a sensible spot "
-        "automatically.\n"
+        "something with no known layout). Set them to the item's true CENTER point, computed "
+        "from whatever position/size data the source actually gives you — never copy a raw "
+        "position field verbatim without checking what it means, since a source's position "
+        "field is frequently a TOP-LEFT corner (not a center) paired with a separate "
+        "width/height, and copying that corner as-is systematically drags bigger items away "
+        "from where they actually visually sit relative to smaller ones next to them. If the "
+        "source's data includes an already-absolute, already-normalized bounding box for an "
+        "item (Miro's canvas-composer format, for example, gives every element a read-only "
+        "data-rendered-bounds=\"x y width height\" — absolute board coordinates — alongside "
+        "its own native x/y, which for Miro varies by element type: top-left for a rect/sticky/"
+        "shape, center for a circle/ellipse, baseline-anchor for text, and relative to its "
+        "parent frame's own translate when nested inside one), prefer that normalized box over "
+        "the element's own native field and compute center as box_x + box_width/2, "
+        "box_y + box_height/2. Otherwise work out the convention the source is actually using "
+        "from its field names/semantics and compute the center yourself. Leaving x/y out "
+        "entirely (the normal case) lets placement pick a sensible spot automatically.\n"
         "- When the request asks for a MAP or HIERARCHY of things that already exist and "
         "are related to each other (e.g. \"draw a capability map\"), don't just pull a flat "
         "list — pull the relationship itself and connect the specific pulled rows to each "
@@ -867,6 +873,14 @@ def canvas_chat():
         # attempts, surfacing as a flat "I wasn't able to put together a
         # response for that" with no indication it was a length problem.
         max_tokens=4096 if mcp_tools else 2048,
+        # Just reaching real content through a server like Miro's can take
+        # several tool calls on its own (its workflow is: fetch a format
+        # skill, fetch it again with a chosen step, search to narrow scope,
+        # then finally read) before Claude has even seen what it's meant to
+        # recreate — the default cap (4) leaves no room left to actually use
+        # that content afterward. Give the MCP path real headroom for a
+        # multi-step server protocol, not just a single list-then-fetch call.
+        max_tool_rounds=10 if mcp_tools else 4,
     )
 
     if plan is None:
