@@ -3467,13 +3467,13 @@ function APMDashboardLive() {
       id: "skill-capability-gap",
       name: "Capability Gap Analysis",
       description: "Finds which applications support a capability, flags overlap/redundancy, and sketches a target-state recommendation",
-      prompt: "When asked to analyze a business capability (e.g. \"what's the gap in our Order Management capability\" or \"review our Customer Onboarding capability\"), first pull every real Application currently supporting that Capability from the graph, along with each one's status, 6R disposition, and technical health. Identify genuine overlap (multiple applications covering the same sub-function) and genuine gaps (no application covering a function the capability implies). In your reply, give a real assessment: which applications are redundant and should be consolidated, which are healthy and should remain, and what's missing entirely. Then sketch the target state on the canvas: keep the applications recommended to remain, recolor any redundant ones in risk red labelled \"Consolidate\", and add any missing capability as a new Capability concept connected to a placeholder \"TBD\" Application concept representing the gap to be filled. Always ground the recommendation in the real data pulled, never a generic answer.",
+      prompt: "When asked to analyze a business capability (e.g. \"what's the gap in our Order Management capability\" or \"review our Customer Onboarding capability\"), use query_portfolio to pull that Capability and every real Application currently supporting it — including each one's status, 6R disposition, and technical health — and read the actual results before deciding anything. From what you actually found, identify genuine overlap (multiple applications covering the same sub-function) and genuine gaps (no application covering a function the capability implies). In your reply, give a real assessment grounded in that real data: which applications are redundant and should be consolidated, which are healthy and should remain, and what's missing entirely. Then sketch the target state on the canvas: add the capability and the applications that should remain via \"pull\" so they land as real nodes, recolor any redundant ones in risk red labelled \"Consolidate\", and add any missing capability as a new Capability concept connected to a placeholder \"TBD\" Application concept representing the gap to be filled.",
     },
     {
       id: "skill-6r-advisor",
       name: "6R Rationalization Advisor",
       description: "Walks through a real 6R disposition recommendation for an application, reasoning from its actual business value, technical health, and hosting data",
-      prompt: "When asked to recommend a 6R disposition (Retain, Retire, Replace, Rehost, Replatform, Refactor) for a named application, pull that application's real attributes from the graph — business value, technical health, hosting model, status, and any dependencies or risks connected to it. Reason through the 6R decision explicitly in your reply: state what the data shows for each relevant dimension, then give one clear recommended disposition with the reasoning that leads to it — don't just restate the data, make the actual judgment call an architect would. If the recommendation implies downstream impact (e.g. retiring an application other systems depend on), say so explicitly. Only sketch something on the canvas if explicitly asked to — a disposition question is answered in the reply, not drawn, unless the request also asks for a visual.",
+      prompt: "When asked to recommend a 6R disposition (Retain, Retire, Replace, Rehost, Replatform, Refactor) for a named application, use query_portfolio to pull that application's real attributes — business value, technical health, hosting model, status, and any dependencies or risks connected to it — and read the actual results before deciding anything. Reason through the 6R decision explicitly in your reply: state what the data shows for each relevant dimension, then give one clear recommended disposition with the reasoning that leads to it — don't just restate the data, make the actual judgment call an architect would. If the recommendation implies downstream impact (e.g. retiring an application other systems depend on), say so explicitly. Only sketch something on the canvas if explicitly asked to — a disposition question is answered in the reply, not drawn, unless the request also asks for a visual.",
     },
     {
       id: "skill-reference-architecture",
@@ -12819,7 +12819,7 @@ function APMDashboardLive() {
                                 return (
                                   <div style={{ fontSize: 10.5, color: COLORS.inkSecondary, marginTop: 4 }}>
                                     {m.tokens.total.toLocaleString()} tokens ({sum("input").toLocaleString()} in, {sum("output").toLocaleString()} out
-                                    {sum("cacheRead") > 0 ? `, ${sum("cacheRead").toLocaleString()} cached` : ""})
+                                    {sum("cacheRead") > 0 ? `, ${sum("cacheRead").toLocaleString()} cache read` : ""}{sum("cacheWrite") > 0 ? `, ${sum("cacheWrite").toLocaleString()} cache write` : ""})
                                     {costLabel && <> · {costLabel}</>}
                                   </div>
                                 );
@@ -14801,7 +14801,7 @@ function APMDashboardLive() {
                         return (
                           <div style={{ marginTop: 4, fontSize: 10, color: COLORS.inkSecondary }}>
                             {msg.tokens.total.toLocaleString()} tokens ({sum("input").toLocaleString()} in, {sum("output").toLocaleString()} out
-                            {sum("cacheRead") > 0 ? `, ${sum("cacheRead").toLocaleString()} cached` : ""})
+                            {sum("cacheRead") > 0 ? `, ${sum("cacheRead").toLocaleString()} cache read` : ""}{sum("cacheWrite") > 0 ? `, ${sum("cacheWrite").toLocaleString()} cache write` : ""})
                             {costLabel && <> · {costLabel}</>}
                           </div>
                         );
