@@ -908,6 +908,10 @@ def canvas_chat():
             pulled.append({"cypher": cypher, "error": str(e), "rows": []})
 
     print(f"[canvas-chat: {request_text[:60]!r}] tokens — input: {total_usage['input']}, output: {total_usage['output']}")
+    if mcp_tools:
+        positioned = [c.get("tempId") for c in plan.get("create", []) if isinstance(c.get("x"), (int, float))]
+        unpositioned = [c.get("tempId") for c in plan.get("create", []) if not isinstance(c.get("x"), (int, float))]
+        print(f"[canvas-chat: mcp plan] create items with x/y: {positioned} — without: {unpositioned}")
 
     pull_status = describe_pull_outcome(plan.get("pull"), pulled)
     model_reply = plan.get("reply", "").strip()
@@ -1368,6 +1372,15 @@ def make_mcp_tool_executor(lookup, refreshed_auths):
             budget = max(MAX_TOOL_RESULT_CHARS - len(summary), 1000)
             if len(text) > budget:
                 text = text[:budget] + "... [truncated]"
+            # Printed rather than silently trusted: every attempt at this
+            # specific feature (layout fidelity recreating an MCP-fetched
+            # board) that looked right in isolation has still failed against
+            # the real server, with nothing in this file saying what Claude
+            # actually called or saw — this is the one place that can show
+            # whether it called the right tool, with what arguments, and
+            # whether there was any position data in the result to find.
+            print(f"[mcp-tool-call] {tool_name!r} on {server.get('name', '?')!r} args={arguments} "
+                  f"result_len={len(text)} rendered_bounds_found={len(extracted)}")
             return text + summary, False
         except Exception as e:
             return f'Error calling "{tool_name}" on "{server.get("name", "?")}": {e}', True
