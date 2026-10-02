@@ -3800,7 +3800,7 @@ function APMDashboardLive() {
     if (!q) return;
     updateAsk(key, { loading: true, answer: "" });
     try {
-      const res = await fetch("http://localhost:5050/chat", {
+      const res = await fetch("/chat", {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question: q, models: aiModels }),
       });
       const data = await res.json();
@@ -3940,7 +3940,7 @@ function APMDashboardLive() {
     setChatMessages((prev) => [...prev, { role: "user", content: question }]);
     setChatLoading(true);
     try {
-      const res = await fetch("http://localhost:5050/chat", {
+      const res = await fetch("/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question, history, models: aiModels }),
@@ -7699,7 +7699,7 @@ function APMDashboardLive() {
     setCanvasChatOpen(true);
     setCanvasChatLoading(true);
     try {
-      const res = await fetch("http://localhost:5050/canvas-chat", {
+      const res = await fetch("/canvas-chat", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ request: requestText, canvas: canvasSnapshot, history: historyForRequest,
           customPalettes: buildCustomPaletteSummary(), mcpServers: buildConnectedMcpServersSummary(), models: aiModels,
@@ -7750,7 +7750,7 @@ function APMDashboardLive() {
     setCanvasChatOpen(true);
     setCanvasChatLoading(true);
     try {
-      const res = await fetch("http://localhost:5050/canvas-interpret", {
+      const res = await fetch("/canvas-interpret", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...body, canvas: buildCanvasSnapshot(), customPalettes: buildCustomPaletteSummary(), models: aiModels }),
       });
@@ -7817,7 +7817,7 @@ function APMDashboardLive() {
     const auth = authOverride !== undefined ? authOverride : myMcpAuth(server.id);
     setMcpServerStatus((prev) => ({ ...prev, [server.id]: { ...(prev[server.id] || {}), testing: true, error: "" } }));
     try {
-      const res = await fetch("http://localhost:5050/mcp/tools", {
+      const res = await fetch("/mcp/tools", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: server.url, auth: auth || null }),
       });
@@ -7877,7 +7877,7 @@ function APMDashboardLive() {
   const connectMcpServerOAuth = (server) => {
     setMcpOAuthError("");
     const popup = window.open(
-      `http://localhost:5050/mcp/oauth/start?url=${encodeURIComponent(server.url)}`,
+      `/mcp/oauth/start?url=${encodeURIComponent(server.url)}`,
       "bdcore-mcp-oauth", "width=520,height=680"
     );
     if (!popup) setMcpOAuthError("Pop-up blocked — allow pop-ups for this page and try again.");
@@ -7891,7 +7891,7 @@ function APMDashboardLive() {
     setMcpCallBusy(true);
     setMcpCallResult(null);
     try {
-      const res = await fetch("http://localhost:5050/mcp/call", {
+      const res = await fetch("/mcp/call", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: server.url, auth: myMcpAuth(server.id), tool: toolName, args }),
       });
