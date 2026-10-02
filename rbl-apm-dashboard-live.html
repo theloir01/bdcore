@@ -3450,6 +3450,74 @@ function APMDashboardLive() {
     try { localStorage.setItem("bdcore_ai_models", JSON.stringify(next)); } catch {}
     return next;
   });
+  // Skills — reusable prompts an Admin defines once in Admin -> Skills
+  // Creator (name, short description, full prompt text) that anyone can
+  // then opt into for a given Canvas Assistant chat, same opt-in-per-chat
+  // pattern as MCP tools above: defining one here makes it available, not
+  // automatically used everywhere. When active, a skill's prompt is sent
+  // alongside the request and folded into the Assistant's own instructions
+  // for that turn — effectively a saved, shareable way of saying "when I
+  // ask for X, always do Y" without retyping it every time.
+  //
+  // Seeded with starter examples on a genuinely first-ever load only (no
+  // "bdcore_skills" key at all) — if the key exists, even as "[]" after
+  // deleting every seeded example, that deliberate choice is respected.
+  const DEFAULT_SKILLS = [
+    {
+      id: "skill-capability-gap",
+      name: "Capability Gap Analysis",
+      description: "Finds which applications support a capability, flags overlap/redundancy, and sketches a target-state recommendation",
+      prompt: "When asked to analyze a business capability (e.g. \"what's the gap in our Order Management capability\" or \"review our Customer Onboarding capability\"), first pull every real Application currently supporting that Capability from the graph, along with each one's status, 6R disposition, and technical health. Identify genuine overlap (multiple applications covering the same sub-function) and genuine gaps (no application covering a function the capability implies). In your reply, give a real assessment: which applications are redundant and should be consolidated, which are healthy and should remain, and what's missing entirely. Then sketch the target state on the canvas: keep the applications recommended to remain, recolor any redundant ones in risk red labelled \"Consolidate\", and add any missing capability as a new Capability concept connected to a placeholder \"TBD\" Application concept representing the gap to be filled. Always ground the recommendation in the real data pulled, never a generic answer.",
+    },
+    {
+      id: "skill-6r-advisor",
+      name: "6R Rationalization Advisor",
+      description: "Walks through a real 6R disposition recommendation for an application, reasoning from its actual business value, technical health, and hosting data",
+      prompt: "When asked to recommend a 6R disposition (Retain, Retire, Replace, Rehost, Replatform, Refactor) for a named application, pull that application's real attributes from the graph — business value, technical health, hosting model, status, and any dependencies or risks connected to it. Reason through the 6R decision explicitly in your reply: state what the data shows for each relevant dimension, then give one clear recommended disposition with the reasoning that leads to it — don't just restate the data, make the actual judgment call an architect would. If the recommendation implies downstream impact (e.g. retiring an application other systems depend on), say so explicitly. Only sketch something on the canvas if explicitly asked to — a disposition question is answered in the reply, not drawn, unless the request also asks for a visual.",
+    },
+    {
+      id: "skill-reference-architecture",
+      name: "Reference Architecture Sketch",
+      description: "Draws a standard reference architecture pattern (e.g. event-driven integration, API gateway) using BDCore's shape vocabulary",
+      prompt: "When asked to sketch a reference architecture or integration pattern (e.g. \"draw an event-driven integration pattern\", \"show me a typical API gateway setup\"), use the shape palette (category Basic/Cloud/Network/Security as appropriate) to lay out the standard components of that pattern as connected shapes — e.g. for event-driven integration: producer services, a message broker/event bus, consumer services, and a dead-letter queue, connected in the correct data-flow direction with labelled connections. Keep it as shapes, not concepts, since this is an illustrative pattern rather than real portfolio data — unless the request explicitly ties it to a real existing Application already on the canvas or in the portfolio, in which case connect that real concept to the illustrative shapes so the pattern is anchored to something real. Briefly explain in your reply what the pattern solves and the role of each component.",
+    },
+  ];
+  const [skills, setSkillsRaw] = useState(() => {
+    try {
+      const raw = localStorage.getItem("bdcore_skills");
+      return raw === null ? DEFAULT_SKILLS : JSON.parse(raw);
+    } catch { return DEFAULT_SKILLS; }
+  });
+  const setSkills = (updater) => setSkillsRaw((prev) => {
+    const next = typeof updater === "function" ? updater(prev) : updater;
+    try { localStorage.setItem("bdcore_skills", JSON.stringify(next)); } catch {}
+    return next;
+  });
+  const [skillDraft, setSkillDraft] = useState({ name: "", description: "", prompt: "" });
+  // Which skills THIS chat has opted into — same reasoning as
+  // mcpChatActiveIds: defining a skill makes it available, not active
+  // everywhere, so this starts empty for any newly-added skill.
+  const [skillsChatActiveIds, setSkillsChatActiveIdsRaw] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("bdcore_skills_chat_active") || "[]"); } catch { return []; }
+  });
+  const setSkillsChatActiveIds = (updater) => setSkillsChatActiveIdsRaw((prev) => {
+    const next = typeof updater === "function" ? updater(prev) : updater;
+    try { localStorage.setItem("bdcore_skills_chat_active", JSON.stringify(next)); } catch {}
+    return next;
+  });
+  const [skillToolPickerOpen, setSkillToolPickerOpen] = useState(false);
+  const addSkill = () => {
+    const name = skillDraft.name.trim();
+    const prompt = skillDraft.prompt.trim();
+    if (!name || !prompt) return;
+    setSkills((prev) => [...prev, { id: newCanvasId("skill"), name, description: skillDraft.description.trim(), prompt }]);
+    setSkillDraft({ name: "", description: "", prompt: "" });
+  };
+  const deleteSkill = async (skill) => {
+    if (!(await askConfirm(`Remove the "${skill.name}" skill? Any chat currently using it will stop as soon as it's reloaded.`, { danger: true, confirmLabel: "Remove" }))) return;
+    setSkills((prev) => prev.filter((s) => s.id !== skill.id));
+    setSkillsChatActiveIds((prev) => prev.filter((id) => id !== skill.id));
+  };
   const agentScanRunningRef = useRef(false);
   const [datasetFileName, setDatasetFileName] = useState("");
   const [datasetPreview, setDatasetPreview] = useState(null); // parsed + validated upload, or null
@@ -6315,8 +6383,9 @@ function APMDashboardLive() {
     ["customrules", "Custom Watch Rules", "customrules"],
     ["integrations", "Integrations", "integrations"],
     ["aimodels", "AI Models", "aimodels"],
+    ["skills", "Skills Creator", "skills"],
   ];
-  const ADMIN_KEYS = new Set(["dataload", "agentwatch", "customrules", "integrations", "aimodels"]);
+  const ADMIN_KEYS = new Set(["dataload", "agentwatch", "customrules", "integrations", "aimodels", "skills"]);
   // Standalone top-level sidebar items (their own row, no parent group to
   // expand) — jumping to one of these via goToView (e.g. Help's "Open →")
   // must NOT force the "APM" section open, since they live outside it.
@@ -6394,6 +6463,7 @@ function APMDashboardLive() {
     workspaces: <svg {...ICON_COMMON}><circle cx="6" cy="6" r="2.2" /><circle cx="18" cy="6" r="2.2" /><circle cx="12" cy="18" r="2.2" /><line x1="7.6" y1="7.6" x2="10.7" y2="16.1" /><line x1="16.4" y1="7.6" x2="13.3" y2="16.1" /><line x1="8.2" y1="6" x2="15.8" y2="6" /></svg>,
     ontology: <svg {...ICON_COMMON}><rect x="4" y="4" width="16" height="16" rx="3" /><path d="M4 10h16M10 4v16" /></svg>,
     aimodels: <svg {...ICON_COMMON}><rect x="7" y="7" width="10" height="10" rx="1.5" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.5 4.5l2 2M17.5 17.5l2 2M19.5 4.5l-2 2M6.5 17.5l-2 2" /></svg>,
+    skills: <svg {...ICON_COMMON}><path d="M12 2.5 L20.5 7 V17 L12 21.5 L3.5 17 V7 Z" /><path d="M12 2.5V21.5M3.5 7l8.5 4.5 8.5-4.5M3.5 17l8.5-4.5 8.5 4.5" /></svg>,
   };
 
   // --- Modelling Canvas functions ---
@@ -7506,6 +7576,12 @@ function APMDashboardLive() {
       .filter((s) => (mcpServerStatus[s.id] || {}).ok && mcpChatActiveIds.includes(s.id))
       .map((s) => ({ id: s.id, name: s.name, url: s.url, auth: s.auth || null, tools: (mcpServerStatus[s.id] || {}).tools || [] }));
 
+  // Only skills explicitly added to this chat (see skillsChatActiveIds) —
+  // just name + prompt, the only two fields chat_server.py's guidance
+  // actually needs.
+  const buildActiveSkillsSummary = () =>
+    skills.filter((s) => skillsChatActiveIds.includes(s.id)).map((s) => ({ name: s.name, prompt: s.prompt }));
+
   // Shared by the manual "Draw on canvas" box and escalateToCanvas's
   // auto-fired ideation prompt — snapshot is passed in rather than always
   // read fresh, since a just-created canvas's state hasn't necessarily
@@ -7526,7 +7602,8 @@ function APMDashboardLive() {
       const res = await fetch("http://localhost:5050/canvas-chat", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ request: requestText, canvas: canvasSnapshot, history: historyForRequest,
-          customPalettes: buildCustomPaletteSummary(), mcpServers: buildConnectedMcpServersSummary(), models: aiModels }),
+          customPalettes: buildCustomPaletteSummary(), mcpServers: buildConnectedMcpServersSummary(), models: aiModels,
+          skills: buildActiveSkillsSummary() }),
       });
       if (!res.ok) throw new Error(`Chat backend returned ${res.status}`);
       const data = await res.json();
@@ -12135,6 +12212,84 @@ function APMDashboardLive() {
               </div>
             );
           })()}
+          {view === "skills" && (() => {
+            return (
+              <div>
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)",
+                  borderRadius: 16, padding: 22, marginBottom: 22, maxWidth: 820 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 6 }}>What is this page?</div>
+                  <div style={{ fontSize: 13, color: COLORS.inkSecondary, lineHeight: 1.6 }}>
+                    A skill is a reusable prompt — write the instruction once here ("when I ask for X, always do Y"),
+                    and anyone can then opt it into a given Canvas Assistant chat with "+ Add skill", the same way a
+                    connected MCP tool gets added. Defining a skill here makes it available, not active everywhere —
+                    each chat chooses which skills it wants, and they show up as connected chips right there in the
+                    chat panel. Skills are prompt text only (no code, no tool access of their own) — they steer how
+                    the Assistant reasons and what it draws, using the same pull/create/connect/recolor abilities it
+                    always has.
+                  </div>
+                </div>
+
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)",
+                  borderRadius: 16, padding: 22, marginBottom: 22, maxWidth: 820 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 14 }}>New skill</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+                    <div>
+                      <div style={{ fontSize: 11.5, fontWeight: 600, color: COLORS.inkSecondary, marginBottom: 5 }}>Name</div>
+                      <input value={skillDraft.name} onChange={(e) => setSkillDraft((d) => ({ ...d, name: e.target.value }))}
+                        placeholder="e.g. Capability Gap Analysis"
+                        style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 13 }} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 11.5, fontWeight: 600, color: COLORS.inkSecondary, marginBottom: 5 }}>Description <span style={{ fontWeight: 400 }}>— shown in the "+ Add skill" picker</span></div>
+                      <input value={skillDraft.description} onChange={(e) => setSkillDraft((d) => ({ ...d, description: e.target.value }))}
+                        placeholder="One line describing what it does"
+                        style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 13 }} />
+                    </div>
+                  </div>
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={{ fontSize: 11.5, fontWeight: 600, color: COLORS.inkSecondary, marginBottom: 5 }}>
+                      Prompt <span style={{ fontWeight: 400 }}>— the actual instruction the Assistant follows when this skill is active</span>
+                    </div>
+                    <textarea value={skillDraft.prompt} onChange={(e) => setSkillDraft((d) => ({ ...d, prompt: e.target.value }))}
+                      rows={6} placeholder='e.g. "When asked to assess an application for migration, always pull its real business value, technical health, and hosting model, then recommend one of the 6 Rs with the reasoning that leads to it."'
+                      style={{ width: "100%", boxSizing: "border-box", padding: "10px", border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 13, fontFamily: "inherit", resize: "vertical" }} />
+                  </div>
+                  <button onClick={addSkill} disabled={!skillDraft.name.trim() || !skillDraft.prompt.trim()}
+                    style={{ padding: "8px 18px", background: COLORS.accent, color: "#fff", border: "none",
+                      borderRadius: 8, fontSize: 12.5, fontWeight: 600,
+                      cursor: !skillDraft.name.trim() || !skillDraft.prompt.trim() ? "default" : "pointer",
+                      opacity: !skillDraft.name.trim() || !skillDraft.prompt.trim() ? 0.5 : 1 }}>
+                    + Add Skill
+                  </button>
+                </div>
+
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18, overflow: "hidden" }}>
+                  <div style={{ padding: "16px 18px 4px", fontSize: 15, fontWeight: 600 }}>
+                    {skills.length} skill{skills.length === 1 ? "" : "s"}
+                  </div>
+                  <SortableTable
+                    rowKey={(s) => s.id}
+                    emptyMessage="No skills yet — add one above."
+                    columns={[
+                      { key: "name", label: "Name", render: (s) => <span style={{ fontWeight: 600 }}>{s.name}</span> },
+                      { key: "description", label: "Description", sortable: false, render: (s) => (
+                          <span style={{ color: COLORS.inkSecondary }}>{s.description || "—"}</span>
+                        ) },
+                      { key: "prompt", label: "Prompt", sortable: false, render: (s) => (
+                          <span style={{ color: COLORS.inkSecondary, fontSize: 12 }}>
+                            {s.prompt.length > 90 ? s.prompt.slice(0, 90) + "…" : s.prompt}
+                          </span>
+                        ) },
+                      { key: "actions", label: "", sortable: false, render: (s) => (
+                          <span onClick={() => deleteSkill(s)} style={{ color: COLORS.risk, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>Delete</span>
+                        ) },
+                    ]}
+                    rows={skills}
+                  />
+                </div>
+              </div>
+            );
+          })()}
           {view === "dataload" && (() => {
             const preview = datasetPreview;
             const typeCounts = preview ? Object.entries(preview.nodesByType).map(([t, ns]) => [t, ns.length]).sort((a, b) => b[1] - a[1]) : [];
@@ -14492,6 +14647,64 @@ function APMDashboardLive() {
                                     onMouseEnter={(e) => { e.currentTarget.style.background = "#F3F4F7"; }}
                                     onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
                                     {s.name}
+                                  </div>
+                                ))}
+                              </div>
+                            </>
+                          )}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {(() => {
+                  // Mirrors the MCP tools row above exactly — a skill
+                  // defined in Admin -> Skills Creator is available, not
+                  // active in this chat until explicitly added here.
+                  if (skills.length === 0) return null;
+                  const active = skills.filter((s) => skillsChatActiveIds.includes(s.id));
+                  const available = skills.filter((s) => !skillsChatActiveIds.includes(s.id));
+                  return (
+                    <div style={{ padding: "9px 16px", borderBottom: `1px solid ${COLORS.border}`, flexShrink: 0,
+                      display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6 }}>
+                      {active.length === 0 && (
+                        <span style={{ fontSize: 11, color: COLORS.inkSecondary }}>No skills added to this chat</span>
+                      )}
+                      {active.map((s) => (
+                        <span key={s.id} title={s.description || s.name}
+                          style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 600,
+                            color: "#8A6B82", background: "#F2E9F0", border: "1px solid #8A6B8233",
+                            padding: "3px 7px 3px 8px", borderRadius: 999 }}>
+                          <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#8A6B82", flexShrink: 0 }} />
+                          {s.name}
+                          <span onClick={() => setSkillsChatActiveIds((prev) => prev.filter((id) => id !== s.id))}
+                            title={`Remove ${s.name} from this chat`}
+                            style={{ cursor: "pointer", color: COLORS.inkSecondary, marginLeft: 1, fontWeight: 400 }}>×</span>
+                        </span>
+                      ))}
+                      {available.length > 0 && (
+                        <span style={{ position: "relative" }}>
+                          <span onClick={() => setSkillToolPickerOpen((v) => !v)} title="Add a skill to this chat"
+                            style={{ cursor: "pointer", fontSize: 11, fontWeight: 600, color: COLORS.inkSecondary,
+                              border: `1px dashed ${COLORS.border}`, padding: "3px 9px", borderRadius: 999,
+                              display: "inline-flex", alignItems: "center", gap: 4 }}>
+                            + Add skill
+                          </span>
+                          {skillToolPickerOpen && (
+                            <>
+                              <div onClick={() => setSkillToolPickerOpen(false)}
+                                style={{ position: "fixed", inset: 0, zIndex: 19 }} />
+                              <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, background: "#fff",
+                                border: `1px solid ${COLORS.border}`, borderRadius: 8, boxShadow: "0 6px 18px rgba(10,14,26,0.12)",
+                                zIndex: 20, minWidth: 220, overflow: "hidden" }}>
+                                {available.map((s) => (
+                                  <div key={s.id} onClick={() => { setSkillsChatActiveIds((prev) => [...prev, s.id]); setSkillToolPickerOpen(false); }}
+                                    style={{ padding: "8px 12px", cursor: "pointer" }}
+                                    onMouseEnter={(e) => { e.currentTarget.style.background = "#F3F4F7"; }}
+                                    onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
+                                    <div style={{ fontSize: 12, color: COLORS.ink, fontWeight: 600 }}>{s.name}</div>
+                                    {s.description && <div style={{ fontSize: 10.5, color: COLORS.inkSecondary, marginTop: 1 }}>{s.description}</div>}
                                   </div>
                                 ))}
                               </div>
