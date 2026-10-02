@@ -619,17 +619,19 @@ def plan_create_guidance(schema_context, canvas_snapshot, custom_palettes=None):
         "position field verbatim without checking what it means, since a source's position "
         "field is frequently a TOP-LEFT corner (not a center) paired with a separate "
         "width/height, and copying that corner as-is systematically drags bigger items away "
-        "from where they actually visually sit relative to smaller ones next to them. If the "
-        "source's data includes an already-absolute, already-normalized bounding box for an "
-        "item (Miro's canvas-composer format, for example, gives every element a read-only "
-        "data-rendered-bounds=\"x y width height\" — absolute board coordinates — alongside "
-        "its own native x/y, which for Miro varies by element type: top-left for a rect/sticky/"
-        "shape, center for a circle/ellipse, baseline-anchor for text, and relative to its "
-        "parent frame's own translate when nested inside one), prefer that normalized box over "
-        "the element's own native field and compute center as box_x + box_width/2, "
-        "box_y + box_height/2. Otherwise work out the convention the source is actually using "
-        "from its field names/semantics and compute the center yourself. Leaving x/y out "
-        "entirely (the normal case) lets placement pick a sensible spot automatically.\n"
+        "from where they actually visually sit relative to smaller ones next to them. A tool "
+        "result that contains Miro canvas-composer elements comes with an "
+        "\"[Extracted absolute center positions...]\" block appended to it — a ready-made "
+        "miroId -> centerX/centerY lookup, already computed from each element's real "
+        "data-rendered-bounds for exactly this purpose. When that block is present, READ THE "
+        "CENTERX/CENTERY VALUES DIRECTLY FROM IT and copy them as a \"create\" item's x/y for "
+        "the matching miroId — do not parse the raw SVG's own x/y/cx/cy yourself (Miro's native "
+        "convention varies by element type: top-left for a rect/sticky/shape, center for a "
+        "circle/ellipse, baseline-anchor for text, relative to its parent frame's own translate "
+        "when nested — the extracted block has already resolved all of that). Without that "
+        "block, work out whatever convention the source's own data is actually using and "
+        "compute each item's true center yourself. Leaving x/y out entirely (the normal case, "
+        "no known layout to preserve) lets placement pick a sensible spot automatically.\n"
         "- When the request asks for a MAP or HIERARCHY of things that already exist and "
         "are related to each other (e.g. \"draw a capability map\"), don't just pull a flat "
         "list — pull the relationship itself and connect the specific pulled rows to each "
@@ -1271,6 +1273,62 @@ def mcp_tools_to_anthropic(mcp_servers):
     return anthropic_tools, lookup
 
 
+_RENDERED_BOUNDS_TAG_RE = re.compile(r"<[a-zA-Z][^<>]*>")
+_RENDERED_BOUNDS_ATTR_RES = {
+    "miroId": re.compile(r'data-miro-id=\\*"([^"\\]*)'),
+    "bounds": re.compile(r'data-rendered-bounds=\\*"([^"\\]*)'),
+    "content": re.compile(r'data-content=\\*"([^"\\]*)'),
+}
+
+
+def extract_rendered_bounds(raw_result_text):
+    """
+    Best-effort extraction of Miro canvas-composer's data-rendered-bounds
+    (plus data-content, for correlation) straight out of a raw MCP tool
+    result — asking Claude to reliably parse a whole SVG document's
+    per-element geometry (which itself varies by tag: top-left for a rect,
+    center for a circle, frame-relative when nested, ...) inline while also
+    deciding what to create turned out to not be reliable in practice
+    (confirmed: a recreated board kept landing as a flat row indistinguishable
+    from having no position data at all, across several guidance rewrites).
+    Doing the one well-specified, unambiguous part — data-rendered-bounds is
+    a single already-absolute "x y width height" the server itself stamps on
+    each measured element — in code removes that step from Claude's plate
+    entirely, leaving it a lookup instead of an SVG-parsing-plus-arithmetic
+    task. Regex over the raw text (not real XML parsing) on purpose: the
+    exact envelope shape around the SVG text varies by tool and is often
+    JSON-escaped, so this never assumes a specific result shape, only the
+    attribute itself — anything that doesn't match this exact Miro attribute
+    returns [], a safe no-op for any other MCP server's result.
+
+    Deduplicated by miroId: a tool's own JSON envelope commonly mirrors the
+    same SVG text in more than one field (e.g. once inside a content[].text
+    JSON string and again in a structuredContent copy), which would
+    otherwise report every element twice over.
+    """
+    out = []
+    seen_ids = set()
+    for tag in _RENDERED_BOUNDS_TAG_RE.findall(raw_result_text):
+        id_match = _RENDERED_BOUNDS_ATTR_RES["miroId"].search(tag)
+        bounds_match = _RENDERED_BOUNDS_ATTR_RES["bounds"].search(tag)
+        if not (id_match and bounds_match) or id_match.group(1) in seen_ids:
+            continue
+        parts = bounds_match.group(1).split()
+        if len(parts) != 4:
+            continue
+        try:
+            x, y, w, h = (float(p) for p in parts)
+        except ValueError:
+            continue
+        seen_ids.add(id_match.group(1))
+        entry = {"miroId": id_match.group(1), "centerX": round(x + w / 2, 1), "centerY": round(y + h / 2, 1)}
+        content_match = _RENDERED_BOUNDS_ATTR_RES["content"].search(tag)
+        if content_match:
+            entry["content"] = content_match.group(1)
+        out.append(entry)
+    return out
+
+
 def make_mcp_tool_executor(lookup, refreshed_auths):
     """
     Builds the tool_executor callback get_validated_plan's tool-use loop
@@ -1281,6 +1339,8 @@ def make_mcp_tool_executor(lookup, refreshed_auths):
     refreshed along the way, keyed by server id, so the route handler can
     hand them all back to the frontend to persist at the end.
     """
+    MAX_TOOL_RESULT_CHARS = 8000
+
     def executor(anthropic_tool_name, arguments):
         entry = lookup.get(anthropic_tool_name)
         if not entry:
@@ -1293,7 +1353,22 @@ def make_mcp_tool_executor(lookup, refreshed_auths):
             session_id = mcp_handshake(server["url"], token)
             result, _ = mcp_request(server["url"], token, "tools/call", {"name": tool_name, "arguments": arguments}, session_id=session_id)
             text = json.dumps(result)
-            return (text[:8000] + "... [truncated]") if len(text) > 8000 else text, False
+
+            # Reserved separately from the raw-text budget below so a large
+            # board's SVG getting truncated never also costs the one piece
+            # of this result most worth keeping intact.
+            extracted = extract_rendered_bounds(text)
+            summary = ""
+            if extracted:
+                summary = ("\n\n[Extracted absolute center positions, already computed from each element's "
+                           "data-rendered-bounds — use centerX/centerY directly as a \"create\" item's x/y for "
+                           "the matching miroId, instead of parsing the raw SVG geometry yourself]: "
+                           + json.dumps(extracted))
+
+            budget = max(MAX_TOOL_RESULT_CHARS - len(summary), 1000)
+            if len(text) > budget:
+                text = text[:budget] + "... [truncated]"
+            return text + summary, False
         except Exception as e:
             return f'Error calling "{tool_name}" on "{server.get("name", "?")}": {e}', True
     return executor
