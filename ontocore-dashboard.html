@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>BDCore Application Portfolio</title>
+<title>OntoCore Application Portfolio</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
@@ -260,7 +260,7 @@ const ROLE_VIEWS = {
   workspace: new Set(["workspaces", "canvas", "help"]),
 };
 
-// Modelling Canvas: the real BDCore concept types (whitelist — anything
+// Modelling Canvas: the real OntoCore concept types (whitelist — anything
 // pushed to Neo4j must be one of these, no arbitrary labels) and the
 // controlled verb vocabulary, mirrored from chat_server.py's SCHEMA_CONTEXT.
 const CANVAS_CONCEPT_TYPES = [
@@ -722,7 +722,7 @@ const PERSONAS = [
   },
   {
     key: "admin", label: "Platform Admin",
-    summary: "Runs BDCore itself — the schema, the demo data, who can do what.",
+    summary: "Runs OntoCore itself — the schema, the demo data, who can do what.",
     dayToDay: "Standing up a new customer demo, keeping the ontology's schema and enum options correct, and being the one who can see the full audit trail.",
     views: [
       { key: "dataload", why: "Swap the entire instance layer for a different customer's data in one action — under Admin in the sidebar." },
@@ -3559,7 +3559,7 @@ function APMDashboardLive() {
     {
       id: "skill-reference-architecture",
       name: "Reference Architecture Sketch",
-      description: "Draws a standard reference architecture pattern (e.g. event-driven integration, API gateway) using BDCore's shape vocabulary",
+      description: "Draws a standard reference architecture pattern (e.g. event-driven integration, API gateway) using OntoCore's shape vocabulary",
       prompt: "When asked to sketch a reference architecture or integration pattern (e.g. \"draw an event-driven integration pattern\", \"show me a typical API gateway setup\"), use the shape palette (category Basic/Cloud/Network/Security as appropriate) to lay out the standard components of that pattern as connected shapes — e.g. for event-driven integration: producer services, a message broker/event bus, consumer services, and a dead-letter queue, connected in the correct data-flow direction with labelled connections. Keep it as shapes, not concepts, since this is an illustrative pattern rather than real portfolio data — unless the request explicitly ties it to a real existing Application already on the canvas or in the portfolio, in which case connect that real concept to the illustrative shapes so the pattern is anchored to something real. Briefly explain in your reply what the pattern solves and the role of each component.",
     },
   ];
@@ -9006,7 +9006,7 @@ function APMDashboardLive() {
               </div>
               {!sidebarCollapsed && (
                 <div style={{ color: COLORS.ink, fontSize: 14, fontWeight: 700, letterSpacing: "0.01em", fontFamily: "var(--font-display)",
-                  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Bizzdesign Unify</div>
+                  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>OntoCore</div>
               )}
             </div>
             {!sidebarCollapsed && (
@@ -9323,9 +9323,6 @@ function APMDashboardLive() {
                   style={{ fontSize: 11, color: COLORS.inkSecondary, cursor: "pointer", textDecoration: "underline", flexShrink: 0 }}>
                   Switch
                 </span>
-              </div>
-              <div style={{ fontSize: 10.5, color: "#9AA5B1", padding: "0 8px", letterSpacing: "0.02em" }}>
-                Powered by Bizzdesign
               </div>
             </div>
           )}
@@ -13770,7 +13767,7 @@ function APMDashboardLive() {
             <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginBottom: 14, maxWidth: 820, lineHeight: 1.6 }}>
-                Sketch freely or model real BDCore data on the same canvas — a sticky note can become a real concept
+                Sketch freely or model real OntoCore data on the same canvas — a sticky note can become a real concept
                 type with attributes; shapes and arrows stay purely visual and are never pushed to Neo4j. Nothing
                 touches your real data until you hit "Push to Graph." Hover any connection line to bend it around
                 something. Drag the background to pan, scroll to zoom.
