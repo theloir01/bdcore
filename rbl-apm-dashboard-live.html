@@ -3340,14 +3340,16 @@ function APMDashboardLive() {
   const [watchRuleStatus, setWatchRuleStatus] = useState("");
   // MCP ("Model Context Protocol") integrations — lets the dashboard act as
   // an MCP *client* and pull content in from any MCP server (Miro's board
-  // tools, etc.) via chat_server.py's /mcp/* proxy. The server list lives
-  // client-side in localStorage, same trust model as the Neo4j credentials
-  // above — chat_server.py only ever relays a call, it never stores a
-  // credential itself. Each server's `auth` is null (no auth), { type:
-  // "bearer", token } for a plain static-token server, or { type: "oauth",
-  // accessToken, refreshToken, expiresAt, tokenEndpoint, clientId } for one
-  // that only accepts a real OAuth sign-in (Miro's official MCP server
-  // among them) — see connectMcpServerOAuth below.
+  // tools, etc.) via chat_server.py's /mcp/* proxy. mcpServers below is
+  // just the server DEFINITION (id, name, url) — who's allowed to reach it
+  // at all, managed in Admin -> Integrations. The actual credential (a
+  // token, or an OAuth session) is a separate, per-PERSON concern: see
+  // mcpAuthByUser just below. Splitting these two is the whole point —
+  // an Admin wiring up "Miro" here makes the server reachable, it does
+  // NOT mean everyone who opens the Canvas Assistant acts as the Admin's
+  // own Miro account. Same client-side trust model as the Neo4j
+  // credentials above either way — chat_server.py only ever relays a
+  // call, it never stores a credential itself.
   const [mcpServers, setMcpServersRaw] = useState(() => {
     try { return JSON.parse(localStorage.getItem("bdcore_mcp_servers") || "[]"); } catch { return []; }
   });
@@ -3356,13 +3358,45 @@ function APMDashboardLive() {
     try { localStorage.setItem("bdcore_mcp_servers", JSON.stringify(next)); } catch {}
     return next;
   });
+  // Per-person credential store: { [userKey]: { [serverId]: auth } }, auth
+  // shaped null (none yet), { type: "bearer", token }, or { type: "oauth",
+  // accessToken, refreshToken, expiresAt, tokenEndpoint, clientId } — same
+  // shapes as before, just scoped by who's actually signed in rather than
+  // shared across the whole browser. userKey is the login name, lowercased
+  // and trimmed — this app has no real account system (see LoginScreen),
+  // so that free-text name is the only identity signal there is; keeping
+  // it simple rather than inventing a heavier identity model for a demo
+  // login screen.
+  const currentUserKey = (currentUser?.name || "").trim().toLowerCase() || "anonymous";
+  const [mcpAuthByUser, setMcpAuthByUserRaw] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("bdcore_mcp_auth") || "{}"); } catch { return {}; }
+  });
+  const setMcpAuthByUser = (updater) => setMcpAuthByUserRaw((prev) => {
+    const next = typeof updater === "function" ? updater(prev) : updater;
+    try { localStorage.setItem("bdcore_mcp_auth", JSON.stringify(next)); } catch {}
+    return next;
+  });
+  const myMcpAuth = (serverId) => (mcpAuthByUser[currentUserKey] || {})[serverId] || null;
+  const setMyMcpAuth = (serverId, auth) => setMcpAuthByUser((prev) => ({
+    ...prev, [currentUserKey]: { ...(prev[currentUserKey] || {}), [serverId]: auth },
+  }));
+  // Mirrors currentUserKey for the OAuth postMessage listener below, which
+  // is registered once on mount and would otherwise only ever credit a
+  // connection to whichever key was current at that first render — same
+  // reasoning as mcpServersRef just above for its own mount-only listener.
+  const currentUserKeyRef = useRef(currentUserKey);
+  useEffect(() => { currentUserKeyRef.current = currentUserKey; });
+  // Per-row draft text for "paste a personal access token" — keyed by
+  // server id so several rows/picker entries can each hold their own
+  // in-progress token without clobbering each other.
+  const [mcpMyTokenDraft, setMcpMyTokenDraft] = useState({});
   // Mirrors mcpServers for the postMessage listener below, which is
   // registered once on mount and would otherwise only ever see the empty
   // array it closed over at that first render — same reasoning as
   // datasetBusyRef above for its own setInterval callback.
   const mcpServersRef = useRef(mcpServers);
   useEffect(() => { mcpServersRef.current = mcpServers; }, [mcpServers]);
-  const [mcpServerDraft, setMcpServerDraft] = useState({ name: "", url: "", token: "" });
+  const [mcpServerDraft, setMcpServerDraft] = useState({ name: "", url: "" });
   // { [serverId]: { testing, ok, error, tools } } — kept per server so
   // switching between several configured servers doesn't lose each one's
   // own last-tested state.
@@ -3385,6 +3419,20 @@ function APMDashboardLive() {
     return next;
   });
   const [mcpToolPickerOpen, setMcpToolPickerOpen] = useState(false);
+  // Set when someone connects their own account for a server right from
+  // the "+ Add tool" picker (rather than via Admin -> Integrations) — once
+  // that connection tests ok, it's added to this chat automatically, so
+  // connecting and using it is one motion instead of two separate steps.
+  const [mcpPendingAutoAdd, setMcpPendingAutoAdd] = useState(null);
+  useEffect(() => {
+    if (!mcpPendingAutoAdd) return;
+    const status = mcpServerStatus[mcpPendingAutoAdd];
+    if (status && status.ok) {
+      setMcpChatActiveIds((prev) => prev.includes(mcpPendingAutoAdd) ? prev : [...prev, mcpPendingAutoAdd]);
+      setMcpPendingAutoAdd(null);
+      setMcpToolPickerOpen(false);
+    }
+  }, [mcpServerStatus, mcpPendingAutoAdd]);
   const [mcpToolDraft, setMcpToolDraft] = useState({ tool: "", argsText: "{}" });
   const [mcpCallBusy, setMcpCallBusy] = useState(false);
   const [mcpCallResult, setMcpCallResult] = useState(null); // { toolName, ok, text, error }
@@ -3405,9 +3453,13 @@ function APMDashboardLive() {
         expiresAt: Date.now() + (data.tokens.expiresIn || 3600) * 1000,
         tokenEndpoint: data.tokens.tokenEndpoint, clientId: data.tokens.clientId,
       };
-      setMcpServers((prev) => prev.map((s) => s.url === data.serverUrl ? { ...s, auth: newAuth } : s));
       const target = mcpServersRef.current.find((s) => s.url === data.serverUrl);
-      if (target) testMcpServer({ ...target, auth: newAuth });
+      if (!target) return;
+      setMcpAuthByUser((prev) => {
+        const key = currentUserKeyRef.current;
+        return { ...prev, [key]: { ...(prev[key] || {}), [target.id]: newAuth } };
+      });
+      testMcpServer(target, newAuth);
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
@@ -3420,10 +3472,39 @@ function APMDashboardLive() {
   // even though the connection itself is still perfectly valid. Reads the
   // mcpServers value from this first render only (deliberately empty deps
   // — this is a once-per-load reconciliation, not a live subscription).
+  // Depends on currentUser (not just mount) now that each server's auth is
+  // looked up per-person: this component's hooks all run once at true page
+  // load, before anyone has logged in, so a mount-only effect would
+  // permanently test as the pre-login "anonymous" identity. Re-running
+  // when currentUser changes also means switching persona (this demo's
+  // own login screen allows logging out and back in as someone else in
+  // the same browser) correctly retests under the new person's own
+  // credentials instead of leaving stale results from whoever was
+  // signed in before.
+  //
+  // Also does the one-time migration for anyone who connected a server
+  // before the per-person split existed (mcpServers entries used to carry
+  // their own `auth` directly) — computed into a local `myAuth` map and
+  // used immediately for the retest below, rather than only dispatched via
+  // setMcpAuthByUser: that update wouldn't be visible yet to this same
+  // effect run (React doesn't re-render synchronously mid-effect), so
+  // testMcpServer would otherwise read the pre-migration (empty) auth on
+  // this exact pass and report everyone as disconnected right after a
+  // real, working legacy connection was just carried over.
   useEffect(() => {
-    mcpServers.forEach((s) => testMcpServer(s));
+    if (!currentUser) return;
+    const legacy = mcpServers.filter((s) => s.auth);
+    let myAuth = mcpAuthByUser[currentUserKey] || {};
+    if (legacy.length > 0) {
+      const mine = { ...myAuth };
+      legacy.forEach((s) => { if (!(s.id in mine)) mine[s.id] = s.auth; });
+      myAuth = mine;
+      setMcpAuthByUser((prev) => ({ ...prev, [currentUserKey]: mine }));
+      setMcpServers((prev) => prev.map((s) => { const { auth, ...rest } = s; return rest; }));
+    }
+    mcpServers.forEach((s) => testMcpServer(s, myAuth[s.id] || null));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [currentUser]);
   // Which Anthropic model id backs each cost tier — configured in Admin ->
   // AI Models, sent on every /chat, /canvas-chat, and /canvas-interpret
   // request so chat_server.py can route each task to the right one (e.g.
@@ -7593,7 +7674,7 @@ function APMDashboardLive() {
   const buildConnectedMcpServersSummary = () =>
     mcpServers
       .filter((s) => (mcpServerStatus[s.id] || {}).ok && mcpChatActiveIds.includes(s.id))
-      .map((s) => ({ id: s.id, name: s.name, url: s.url, auth: s.auth || null, tools: (mcpServerStatus[s.id] || {}).tools || [] }));
+      .map((s) => ({ id: s.id, name: s.name, url: s.url, auth: myMcpAuth(s.id), tools: (mcpServerStatus[s.id] || {}).tools || [] }));
 
   // Only skills explicitly added to this chat (see skillsChatActiveIds) —
   // just name + prompt, the only two fields chat_server.py's guidance
@@ -7631,7 +7712,10 @@ function APMDashboardLive() {
       // an MCP tool mid-conversation — it hands the new tokens back here
       // rather than keeping them itself, same as /mcp/tools and /mcp/call.
       if (data.refreshedAuth) {
-        setMcpServers((prev) => prev.map((s) => data.refreshedAuth[s.id] ? { ...s, auth: data.refreshedAuth[s.id] } : s));
+        setMcpAuthByUser((prev) => ({
+          ...prev,
+          [currentUserKey]: { ...(prev[currentUserKey] || {}), ...data.refreshedAuth },
+        }));
       }
       await executeCanvasPlan(data, seed);
       // A compact "what actually happened" chip, separate from the reply's own
@@ -7722,14 +7806,20 @@ function APMDashboardLive() {
   // that writes them into the persisted server list.
   const applyRefreshedAuth = (server, refreshedAuth) => {
     if (!refreshedAuth) return;
-    setMcpServers((prev) => prev.map((s) => s.id === server.id ? { ...s, auth: refreshedAuth } : s));
+    setMyMcpAuth(server.id, refreshedAuth);
   };
-  const testMcpServer = async (server) => {
+  // authOverride lets a caller that just obtained a fresh credential (OAuth
+  // just completed, a token was just saved) test with it immediately,
+  // rather than reading myMcpAuth() back out of state that may not have
+  // re-rendered yet — same reasoning as mcpServersRef elsewhere in this
+  // file for avoiding a stale read right after a write.
+  const testMcpServer = async (server, authOverride) => {
+    const auth = authOverride !== undefined ? authOverride : myMcpAuth(server.id);
     setMcpServerStatus((prev) => ({ ...prev, [server.id]: { ...(prev[server.id] || {}), testing: true, error: "" } }));
     try {
       const res = await fetch("http://localhost:5050/mcp/tools", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: server.url, auth: server.auth || null }),
+        body: JSON.stringify({ url: server.url, auth: auth || null }),
       });
       const data = await res.json();
       applyRefreshedAuth(server, data.refreshedAuth);
@@ -7740,21 +7830,42 @@ function APMDashboardLive() {
       setMcpServerStatus((prev) => ({ ...prev, [server.id]: { testing: false, ok: false, tools: [], error: e.message } }));
     }
   };
+  // Just the server definition now — name + URL, nothing credential-shaped.
+  // Whoever adds it still has to connect their own account afterward, same
+  // as anyone else; there's no implicit "creator's token" anymore.
   const addMcpServer = () => {
     const name = mcpServerDraft.name.trim();
     const url = mcpServerDraft.url.trim();
     if (!name || !url) return;
-    const token = mcpServerDraft.token.trim();
-    const server = { id: newCanvasId("mcp"), name, url, auth: token ? { type: "bearer", token } : null };
+    const server = { id: newCanvasId("mcp"), name, url };
     setMcpServers((prev) => [...prev, server]);
-    setMcpServerDraft({ name: "", url: "", token: "" });
-    testMcpServer(server);
+    setMcpServerDraft({ name: "", url: "" });
+    testMcpServer(server, null);
+  };
+  const saveMyMcpToken = (server) => {
+    const token = (mcpMyTokenDraft[server.id] || "").trim();
+    if (!token) return;
+    const auth = { type: "bearer", token };
+    setMyMcpAuth(server.id, auth);
+    setMcpMyTokenDraft((d) => ({ ...d, [server.id]: "" }));
+    testMcpServer(server, auth);
   };
   const deleteMcpServer = async (server) => {
     if (!(await askConfirm(`Remove the "${server.name}" MCP connection? This only forgets it locally — nothing changes on ${server.name}'s side.`, { danger: true, confirmLabel: "Remove" }))) return;
     setMcpServers((prev) => prev.filter((s) => s.id !== server.id));
     setMcpServerStatus((prev) => { const next = { ...prev }; delete next[server.id]; return next; });
     setMcpChatActiveIds((prev) => prev.filter((id) => id !== server.id));
+    // Removing the server definition entirely also clears everyone's own
+    // stored credential for it — an orphaned per-user token for a server
+    // that no longer exists serves no purpose and would just sit there.
+    setMcpAuthByUser((prev) => {
+      const next = {};
+      for (const [key, byServer] of Object.entries(prev)) {
+        const { [server.id]: _drop, ...rest } = byServer;
+        next[key] = rest;
+      }
+      return next;
+    });
     if (mcpActiveServerId === server.id) setMcpActiveServerId(null);
   };
   // Opens chat_server.py's /mcp/oauth/start in a popup, which runs the
@@ -7782,7 +7893,7 @@ function APMDashboardLive() {
     try {
       const res = await fetch("http://localhost:5050/mcp/call", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: server.url, auth: server.auth || null, tool: toolName, args }),
+        body: JSON.stringify({ url: server.url, auth: myMcpAuth(server.id), tool: toolName, args }),
       });
       const data = await res.json();
       applyRefreshedAuth(server, data.refreshedAuth);
@@ -12013,21 +12124,18 @@ function APMDashboardLive() {
                     agent chat tools. Removing it here also removes it from every chat it was added to.
                   </div>
                   <div style={{ fontSize: 12, color: COLORS.inkSecondary, marginTop: 10, lineHeight: 1.6 }}>
-                    <b>Where credentials live:</b> a server's URL and any token or OAuth session are kept only in
-                    this browser's local storage, the same trust model as your Neo4j connection — chat_server.py
-                    relays each call but never stores one.
-                  </div>
-                  <div style={{ fontSize: 12, color: COLORS.inkSecondary, marginTop: 10, lineHeight: 1.6 }}>
-                    <b>Two ways to authenticate:</b> some servers take a plain access token pasted below. Others —
-                    Miro's official MCP server among them — only accept a real sign-in; for those, add the
-                    connection with just a name and URL, then use "Connect via OAuth" in the table below, which
-                    opens a sign-in popup and comes back connected on its own.
+                    <b>This page only defines which servers exist — not who's signed into them.</b> Adding "Miro"
+                    here makes it reachable; it does NOT mean everyone who uses it is acting as your account. Each
+                    person — including you — connects their own credential below, under "My connection", the same
+                    way everyone else does. That credential is kept only in this browser's local storage, scoped to
+                    the name you logged in as (this app has no real account system beyond that), same trust model
+                    as your Neo4j connection — chat_server.py relays each call but never stores one.
                   </div>
                 </div>
 
                 <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)",
                   borderRadius: 16, padding: 22, marginBottom: 22, maxWidth: 820 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 14 }}>Add a connection</div>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 14 }}>Add a server</div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
                     <div>
                       <div style={{ fontSize: 11.5, fontWeight: 600, color: COLORS.inkSecondary, marginBottom: 5 }}>Name</div>
@@ -12036,11 +12144,6 @@ function APMDashboardLive() {
                         style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 13 }} />
                     </div>
                     <div>
-                      <div style={{ fontSize: 11.5, fontWeight: 600, color: COLORS.inkSecondary, marginBottom: 5 }}>Access token (leave blank for OAuth, e.g. Miro)</div>
-                      <input type="password" value={mcpServerDraft.token} onChange={(e) => setMcpServerDraft((d) => ({ ...d, token: e.target.value }))}
-                        style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 13 }} />
-                    </div>
-                    <div style={{ gridColumn: "1 / -1" }}>
                       <div style={{ fontSize: 11.5, fontWeight: 600, color: COLORS.inkSecondary, marginBottom: 5 }}>Server URL</div>
                       <input value={mcpServerDraft.url} onChange={(e) => setMcpServerDraft((d) => ({ ...d, url: e.target.value }))}
                         placeholder="https://mcp.example.com/..."
@@ -12052,8 +12155,12 @@ function APMDashboardLive() {
                       borderRadius: 8, fontSize: 12.5, fontWeight: 600,
                       cursor: (!mcpServerDraft.name.trim() || !mcpServerDraft.url.trim()) ? "default" : "pointer",
                       opacity: (!mcpServerDraft.name.trim() || !mcpServerDraft.url.trim()) ? 0.5 : 1 }}>
-                    + Add Connection
+                    + Add Server
                   </button>
+                  <div style={{ fontSize: 11.5, color: COLORS.inkSecondary, marginTop: 10 }}>
+                    Just the server itself — no credential here. You (and everyone else) connect your own account
+                    for it below, same as anyone would.
+                  </div>
                   {mcpOAuthError && (
                     <div style={{ fontSize: 12.5, color: COLORS.risk, marginTop: 12 }}>{mcpOAuthError}</div>
                   )}
@@ -12061,26 +12168,44 @@ function APMDashboardLive() {
 
                 <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18, overflow: "hidden", marginBottom: 22 }}>
                   <div style={{ padding: "16px 18px 4px", fontSize: 15, fontWeight: 600 }}>
-                    {mcpServers.length} connection{mcpServers.length === 1 ? "" : "s"}
+                    {mcpServers.length} server{mcpServers.length === 1 ? "" : "s"}
                   </div>
                   <SortableTable
                     rowKey={(r) => r.id}
-                    emptyMessage="No MCP connections yet — add one above."
+                    emptyMessage="No MCP servers yet — add one above."
                     columns={[
                       { key: "name", label: "Name", render: (r) => <span style={{ fontWeight: 600 }}>{r.name}</span> },
                       { key: "url", label: "Server URL", render: (r) => <span style={{ color: COLORS.inkSecondary, fontFamily: "monospace", fontSize: 11.5 }}>{r.url}</span> },
-                      { key: "status", label: "Status", sortable: false, render: (r) => {
+                      { key: "myConnection", label: "My connection", sortable: false, render: (r) => {
                           const s = mcpServerStatus[r.id] || {};
-                          if (s.testing) return <span style={{ color: COLORS.inkSecondary }}>Testing…</span>;
-                          if (s.ok) return <span style={{ color: COLORS.accent, fontWeight: 600 }}>● Connected · {s.tools.length} tool{s.tools.length === 1 ? "" : "s"}</span>;
-                          if (s.error) return <span style={{ color: COLORS.risk }} title={s.error}>● {s.error.length > 44 ? s.error.slice(0, 44) + "…" : s.error}</span>;
-                          return <span style={{ color: COLORS.inkSecondary }}>Not tested</span>;
+                          return (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 5, minWidth: 220 }}>
+                              <div>
+                                {s.testing ? <span style={{ color: COLORS.inkSecondary }}>Testing…</span>
+                                  : s.ok ? <span style={{ color: COLORS.accent, fontWeight: 600 }}>● Connected as you · {s.tools.length} tool{s.tools.length === 1 ? "" : "s"}</span>
+                                  : s.error ? <span style={{ color: COLORS.risk }} title={s.error}>● Not connected</span>
+                                  : <span style={{ color: COLORS.inkSecondary }}>Not connected</span>}
+                              </div>
+                              {!s.ok && (
+                                <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                                  <span onClick={() => connectMcpServerOAuth(r)}
+                                    style={{ color: COLORS.accent2, cursor: "pointer", fontSize: 11.5, fontWeight: 600 }}
+                                    title="Opens a sign-in popup — for servers (like Miro's) that don't take a plain token">
+                                    Connect via OAuth
+                                  </span>
+                                  <span style={{ color: COLORS.inkSecondary, fontSize: 11 }}>or</span>
+                                  <input type="password" placeholder="your personal access token" value={mcpMyTokenDraft[r.id] || ""}
+                                    onChange={(e) => setMcpMyTokenDraft((d) => ({ ...d, [r.id]: e.target.value }))}
+                                    style={{ padding: "4px 7px", border: `1px solid ${COLORS.border}`, borderRadius: 6, fontSize: 11.5, width: 140 }} />
+                                  <span onClick={() => saveMyMcpToken(r)} style={{ color: COLORS.accent, cursor: "pointer", fontSize: 11.5, fontWeight: 600 }}>Save</span>
+                                </div>
+                              )}
+                            </div>
+                          );
                         } },
                       { key: "actions", label: "", sortable: false, render: (r) => (
                           <span style={{ display: "flex", gap: 12, alignItems: "center" }}>
                             <span onClick={() => testMcpServer(r)} style={{ color: COLORS.accent, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>Test</span>
-                            <span onClick={() => connectMcpServerOAuth(r)} style={{ color: COLORS.accent2, cursor: "pointer", fontSize: 12, fontWeight: 600 }}
-                              title="Opens a sign-in popup — for servers (like Miro's) that don't take a plain token">Connect via OAuth</span>
                             {(mcpServerStatus[r.id] || {}).ok && (
                               <span onClick={() => { setMcpActiveServerId(r.id); setMcpToolDraft({ tool: "", argsText: "{}" }); setMcpCallResult(null); }}
                                 style={{ color: COLORS.accent, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>Browse tools</span>
@@ -14650,15 +14775,25 @@ function APMDashboardLive() {
                 </div>
 
                 {(() => {
-                  // Only servers an Admin has actually connected show up here
-                  // at all — this row is about choosing which of those this
-                  // particular chat can use, not about connecting one (that's
-                  // still Admin -> Integrations). Nothing to show, nothing
-                  // rendered, for anyone with no MCP servers configured.
-                  const connected = mcpServers.filter((s) => (mcpServerStatus[s.id] || {}).ok);
-                  if (connected.length === 0) return null;
-                  const active = connected.filter((s) => mcpChatActiveIds.includes(s.id));
-                  const available = connected.filter((s) => !mcpChatActiveIds.includes(s.id));
+                  // Shown whenever ANY server is defined (Admin -> Integrations),
+                  // regardless of whether *I* have connected to it myself yet —
+                  // this is where I both pick which already-connected tools this
+                  // chat can use AND connect my own account for one I haven't,
+                  // without needing Admin access to do either.
+                  if (mcpServers.length === 0) return null;
+                  // mcpChatActiveIds is a property of the CHAT (shared, like
+                  // which skills are on) — once anyone adds a tool, it stays
+                  // part of this chat's toolkit. But it only actually shows as
+                  // an active chip, and only actually gets used, for someone
+                  // whose OWN credential for it currently tests ok (see
+                  // buildConnectedMcpServersSummary) — so a server added to
+                  // the chat by someone else still needs to offer ME a way to
+                  // connect my own account, not disappear because it's
+                  // already "on" for whoever added it. That's why
+                  // needsMyConnection doesn't also exclude chat-active ids.
+                  const active = mcpServers.filter((s) => mcpChatActiveIds.includes(s.id) && (mcpServerStatus[s.id] || {}).ok);
+                  const readyToAdd = mcpServers.filter((s) => !mcpChatActiveIds.includes(s.id) && (mcpServerStatus[s.id] || {}).ok);
+                  const needsMyConnection = mcpServers.filter((s) => !(mcpServerStatus[s.id] || {}).ok);
                   return (
                     <div style={{ padding: "9px 16px", borderBottom: `1px solid ${COLORS.border}`, flexShrink: 0,
                       display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6 }}>
@@ -14677,9 +14812,9 @@ function APMDashboardLive() {
                             style={{ cursor: "pointer", color: COLORS.inkSecondary, marginLeft: 1, fontWeight: 400 }}>×</span>
                         </span>
                       ))}
-                      {available.length > 0 && (
+                      {(readyToAdd.length > 0 || needsMyConnection.length > 0) && (
                         <span style={{ position: "relative" }}>
-                          <span onClick={() => setMcpToolPickerOpen((v) => !v)} title="Add a connected tool to this chat"
+                          <span onClick={() => setMcpToolPickerOpen((v) => !v)} title="Add a tool to this chat"
                             style={{ cursor: "pointer", fontSize: 11, fontWeight: 600, color: COLORS.inkSecondary,
                               border: `1px dashed ${COLORS.border}`, padding: "3px 9px", borderRadius: 999,
                               display: "inline-flex", alignItems: "center", gap: 4 }}>
@@ -14691,8 +14826,8 @@ function APMDashboardLive() {
                                 style={{ position: "fixed", inset: 0, zIndex: 19 }} />
                               <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, background: "#fff",
                                 border: `1px solid ${COLORS.border}`, borderRadius: 8, boxShadow: "0 6px 18px rgba(10,14,26,0.12)",
-                                zIndex: 20, minWidth: 150, overflow: "hidden" }}>
-                                {available.map((s) => (
+                                zIndex: 20, minWidth: 220, overflow: "hidden" }}>
+                                {readyToAdd.map((s) => (
                                   <div key={s.id} onClick={() => { setMcpChatActiveIds((prev) => [...prev, s.id]); setMcpToolPickerOpen(false); }}
                                     style={{ padding: "8px 12px", fontSize: 12, cursor: "pointer", color: COLORS.ink }}
                                     onMouseEnter={(e) => { e.currentTarget.style.background = "#F3F4F7"; }}
@@ -14700,6 +14835,30 @@ function APMDashboardLive() {
                                     {s.name}
                                   </div>
                                 ))}
+                                {needsMyConnection.map((s) => {
+                                  const status = mcpServerStatus[s.id] || {};
+                                  return (
+                                    <div key={s.id} style={{ padding: "8px 12px", borderTop: readyToAdd.length > 0 || s !== needsMyConnection[0] ? `1px solid ${COLORS.border}` : "none" }}>
+                                      <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.ink, marginBottom: 1 }}>{s.name}</div>
+                                      <div style={{ fontSize: 10.5, color: COLORS.inkSecondary, marginBottom: 5 }}>
+                                        {status.testing ? "Testing…" : "Not connected — connect your own account"}
+                                      </div>
+                                      <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                                        <span onClick={() => { setMcpPendingAutoAdd(s.id); connectMcpServerOAuth(s); }}
+                                          style={{ color: COLORS.accent2, cursor: "pointer", fontSize: 11, fontWeight: 600 }}>
+                                          Connect via OAuth
+                                        </span>
+                                        <span style={{ color: COLORS.inkSecondary, fontSize: 10.5 }}>or</span>
+                                        <input type="password" placeholder="your token" value={mcpMyTokenDraft[s.id] || ""}
+                                          onChange={(e) => setMcpMyTokenDraft((d) => ({ ...d, [s.id]: e.target.value }))}
+                                          onClick={(e) => e.stopPropagation()}
+                                          style={{ padding: "3px 6px", border: `1px solid ${COLORS.border}`, borderRadius: 6, fontSize: 11, width: 90 }} />
+                                        <span onClick={() => { setMcpPendingAutoAdd(s.id); saveMyMcpToken(s); }}
+                                          style={{ color: COLORS.accent, cursor: "pointer", fontSize: 11, fontWeight: 600 }}>Save</span>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
                               </div>
                             </>
                           )}
