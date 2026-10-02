@@ -7245,8 +7245,14 @@ function APMDashboardLive() {
       if (item.kind === "concept" && CANVAS_CONCEPT_TYPES.includes(item.conceptType)) {
         const name = item.name || `New ${item.conceptType}`;
         const h = estimateConceptHeight(name, CONCEPT_W, CONCEPT_H);
-        const desired = hintedPos(item, CONCEPT_W, h) || { x: center.x - CONCEPT_W / 2, y: center.y - h / 2 };
-        const pos = findFreePosition(desired.x, desired.y, occupied(), CONCEPT_W, h);
+        const conceptHinted = hintedPos(item, CONCEPT_W, h);
+        // A hinted position is used exactly as given, with no collision
+        // avoidance — findFreePosition's ring search is for a sensible
+        // default spot when there's no real position data; applying it to a
+        // real one would push items that are legitimately meant to overlap
+        // (e.g. two smaller boxes nested inside a larger container) apart,
+        // destroying the very layout being recreated.
+        const pos = conceptHinted || findFreePosition(center.x - CONCEPT_W / 2, center.y - h / 2, occupied(), CONCEPT_W, h);
         const attrs = {};
         Object.entries(item.attributes || {}).forEach(([k, v]) => { attrs[toSnakeCase(k)] = v; });
         const concept = { id: newCanvasId("concept"), x: pos.x, y: pos.y, width: CONCEPT_W, height: h,
@@ -7259,17 +7265,29 @@ function APMDashboardLive() {
         // "Installed custom icon packs" section), and those only resolve
         // through getShapeDef, the same lookup the manual shape palette uses.
         const def = getShapeDef(item.shapeKey);
-        const hinted = hintedPos(item, SHAPE_W, SHAPE_H);
+        // A hinted item can also carry its own real width/height (e.g. an
+        // MCP-extracted Miro frame vs. a small box inside it) — scaled by
+        // the same hintedScale as position, with a floor so nothing shrinks
+        // to the point of being unreadable/unselectable. Falls back to the
+        // fixed default size exactly like before when no real size is known.
+        const hasRealSize = typeof item.width === "number" && typeof item.height === "number";
+        const w = hasRealSize ? Math.max(60, item.width * hintedScale) : SHAPE_W;
+        const h = hasRealSize ? Math.max(40, item.height * hintedScale) : SHAPE_H;
+        const hinted = hintedPos(item, w, h);
         let pos;
         if (item.category === "BPM" && !hinted) {
           if (bpmX === null) { const s = findFreePosition(center.x - SHAPE_W / 2, center.y - SHAPE_H / 2, occupied(), SHAPE_W, SHAPE_H); bpmX = s.x; bpmY = s.y; }
           else { bpmX += SHAPE_W + 60; }
           pos = { x: bpmX, y: bpmY };
+        } else if (hinted) {
+          // Used exactly as given, with no collision avoidance — see the
+          // concept branch above for why: a real layout can legitimately
+          // have one shape overlapping/containing another.
+          pos = hinted;
         } else {
-          const desired = hinted || { x: center.x - SHAPE_W / 2, y: center.y - SHAPE_H / 2 };
-          pos = findFreePosition(desired.x, desired.y, occupied(), SHAPE_W, SHAPE_H);
+          pos = findFreePosition(center.x - w / 2, center.y - h / 2, occupied(), w, h);
         }
-        const shape = { id: newCanvasId("shape"), x: pos.x, y: pos.y, width: SHAPE_W, height: SHAPE_H,
+        const shape = { id: newCanvasId("shape"), x: pos.x, y: pos.y, width: w, height: h,
           zIndex: zCounterRef.current++, category: item.category, shapeKey: item.shapeKey, label: item.label || def.label };
         localShapes.push(shape);
         idMap[item.tempId] = shape.id; kindMap[item.tempId] = "shape";
@@ -7283,19 +7301,19 @@ function APMDashboardLive() {
         // A hinted position (see above) always wins over this stacking —
         // it already encodes a real intended arrangement of its own.
         const hinted = hintedPos(item, 160, 120);
-        let desiredX, desiredY;
+        let pos;
         if (hinted) {
-          desiredX = hinted.x; desiredY = hinted.y;
+          // Used exactly as given, with no collision avoidance — see the
+          // concept branch above.
+          pos = hinted;
         } else if (stickyStackOrigin === null) {
           const seed = findFreePosition(center.x + 420, center.y - 200, occupied(), 160, 120);
           stickyStackOrigin = seed;
-          desiredX = seed.x; desiredY = seed.y;
+          pos = seed;
         } else {
           stickyStackCount += 1;
-          desiredX = stickyStackOrigin.x;
-          desiredY = stickyStackOrigin.y + stickyStackCount * 140;
+          pos = findFreePosition(stickyStackOrigin.x, stickyStackOrigin.y + stickyStackCount * 140, occupied(), 160, 120);
         }
-        const pos = findFreePosition(desiredX, desiredY, occupied(), 160, 120);
         const sticky = { id: newCanvasId("sticky"), x: pos.x, y: pos.y, width: 160, height: 120,
           zIndex: zCounterRef.current++, text: item.text || "New idea", color: STICKY_COLORS[localStickies.length % STICKY_COLORS.length] };
         localStickies.push(sticky);

@@ -786,7 +786,7 @@ def canvas_chat():
         '    { "tempId": "n2", "kind": "shape", "category": "<Basic|Cloud|Network|Security|'
         'Generic|BPM, OR an installed custom pack\'s own id — see below>", "shapeKey": '
         '"<real shape key — a built-in one below, or an installed custom pack\'s own icon key>", "label": "...", '
-        '"x": <optional number>, "y": <optional number> },\n'
+        '"x": <optional number>, "y": <optional number>, "width": <optional number>, "height": <optional number> },\n'
         '    { "tempId": "n3", "kind": "sticky", "text": "...", "x": <optional number>, "y": <optional number> }\n'
         "  ],\n"
         '  "connections": [\n'
@@ -857,7 +857,11 @@ def canvas_chat():
            "becomes a \"concept\" regardless of its Miro widget type. The tool result also carries each item's "
            "real position (x/y, however that source names them) — set \"x\" and \"y\" on every item you create "
            "from it to that real position, so the layout you recreate here actually resembles the source "
-           "instead of every item landing in an arbitrary row. Only if a tool call genuinely errors, or "
+           "instead of every item landing in an arbitrary row. For kind=shape specifically, when that same "
+           "position data also carries a real width/height for the matching element, set the create item's own "
+           "\"width\" and \"height\" to that too — a large frame and a small box need to stay different sizes "
+           "relative to each other, not both collapse to the same default size; leaving width/height out is only "
+           "correct when the source genuinely has no size data for that element. Only if a tool call genuinely errors, or "
            "nothing you found actually matches what was asked for, say so plainly in \"reply\" instead — never "
            "invent content and never create a generic stand-in object to paper over not having checked." if mcp_tools else "")
     )
@@ -1289,7 +1293,7 @@ _RENDERED_BOUNDS_ATTR_RES = {
 }
 
 
-def _tag_center(tag):
+def _tag_box(tag):
     """
     An element's own box as (x, y, width, height) read directly from its
     native x/y/width/height attributes — correct ONLY for the top-left
@@ -1307,22 +1311,29 @@ def _tag_center(tag):
         h = float(_RENDERED_BOUNDS_ATTR_RES["height"].search(tag).group(1))
     except (AttributeError, ValueError):
         return None
-    return x + w / 2, y + h / 2
+    return x, y, w, h
 
 
 def extract_rendered_bounds(raw_result_text):
     """
-    Best-effort extraction of each element's real center straight out of a
-    raw MCP tool result — asking Claude to reliably parse a whole SVG
-    document's per-element geometry (which itself varies by tag: top-left
-    for a rect, center for a circle, frame-relative when nested, ...)
-    inline while also deciding what to create turned out to not be reliable
-    in practice (confirmed over several rounds: a recreated board kept
-    landing as a flat row indistinguishable from having no position data at
-    all, even once the guidance named the exact right attribute). Doing the
-    well-specified, unambiguous part in code removes that step from
-    Claude's plate entirely, leaving it a lookup instead of an
+    Best-effort extraction of each element's real center AND size straight
+    out of a raw MCP tool result — asking Claude to reliably parse a whole
+    SVG document's per-element geometry (which itself varies by tag:
+    top-left for a rect, center for a circle, frame-relative when nested,
+    ...) inline while also deciding what to create turned out to not be
+    reliable in practice (confirmed over several rounds: a recreated board
+    kept landing as a flat row indistinguishable from having no position
+    data at all, even once the guidance named the exact right attribute).
+    Doing the well-specified, unambiguous part in code removes that step
+    from Claude's plate entirely, leaving it a lookup instead of an
     SVG-parsing-plus-arithmetic task.
+
+    Size matters here as much as position: a large frame and a small box
+    that both lose their real width/height collapse to the same default
+    shape size on the canvas, which erases the "big thing containing small
+    things" relationship a frame's children are usually drawn to show —
+    recreating centers correctly but at uniform size still doesn't
+    resemble the source.
 
     Two sources, tried in order per element: Miro's own
     data-rendered-bounds="x y width height" when present (already absolute,
@@ -1352,23 +1363,27 @@ def extract_rendered_bounds(raw_result_text):
         if not id_match or id_match.group(1) in seen_ids:
             continue
 
-        center = None
+        box = None
         bounds_match = _RENDERED_BOUNDS_ATTR_RES["bounds"].search(tag)
         if bounds_match:
             parts = bounds_match.group(1).split()
             if len(parts) == 4:
                 try:
-                    x, y, w, h = (float(p) for p in parts)
-                    center = (x + w / 2, y + h / 2)
+                    box = tuple(float(p) for p in parts)
                 except ValueError:
-                    center = None
-        if center is None:
-            center = _tag_center(tag)
-        if center is None:
+                    box = None
+        if box is None:
+            box = _tag_box(tag)
+        if box is None:
             continue
+        x, y, w, h = box
 
         seen_ids.add(id_match.group(1))
-        entry = {"miroId": id_match.group(1), "centerX": round(center[0], 1), "centerY": round(center[1], 1)}
+        entry = {
+            "miroId": id_match.group(1),
+            "centerX": round(x + w / 2, 1), "centerY": round(y + h / 2, 1),
+            "width": round(w, 1), "height": round(h, 1),
+        }
         content_match = _RENDERED_BOUNDS_ATTR_RES["content"].search(tag)
         if content_match:
             entry["content"] = content_match.group(1)
@@ -1407,9 +1422,11 @@ def make_mcp_tool_executor(lookup, refreshed_auths):
             extracted = extract_rendered_bounds(text)
             summary = ""
             if extracted:
-                summary = ("\n\n[Extracted absolute center positions, already computed server-side from each "
-                           "element's own geometry — use centerX/centerY directly as a \"create\" item's x/y for "
-                           "the matching miroId, instead of parsing the raw SVG geometry yourself]: "
+                summary = ("\n\n[Extracted absolute center positions and real sizes, already computed "
+                           "server-side from each element's own geometry — use centerX/centerY directly as a "
+                           "\"create\" item's x/y for the matching miroId, instead of parsing the raw SVG "
+                           "geometry yourself; for kind=shape items also copy width/height directly across the "
+                           "same way, so a large element doesn't shrink to the same size as a small one]: "
                            + json.dumps(extracted))
 
             budget = max(MAX_TOOL_RESULT_CHARS - len(summary), 1000)
