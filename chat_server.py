@@ -470,7 +470,21 @@ def get_validated_plan(system, messages, max_tokens=2048, tools=None, tool_execu
     return plan, raw_plan, total_usage
 
 
+_WRITE_CYPHER_RE = re.compile(r"(?i)\b(CREATE|MERGE|DELETE|SET|REMOVE|DROP|DETACH)\b")
+
+
 def run_cypher(statement):
+    """
+    Every Cypher statement actually reaching Neo4j from this file — whether
+    model-written (a "pull" entry, or now the live query_portfolio tool) or
+    not — passes through here, so this is the one place to enforce
+    read-only. Nothing upstream validates for this today beyond prompt
+    instructions asking for RETURN-only queries; giving the model a live,
+    mid-turn tool to call this more freely (see make_pull_tool_executor)
+    is exactly the reason to stop relying on instructions alone.
+    """
+    if _WRITE_CYPHER_RE.search(statement):
+        raise ValueError("Only read-only queries are allowed here — no CREATE/MERGE/DELETE/SET/REMOVE/DROP.")
     with driver.session() as session:
         result = session.run(statement)
         return [dict(record) for record in result]
@@ -894,6 +908,22 @@ def canvas_chat():
 
     schema_context, valid_rel_types = build_schema_context()
 
+    # query_portfolio (PULL_TOOL) is offered on every request, not just
+    # when an MCP server is connected — it's what lets a "pull the real
+    # data, then reason about it" skill (6R rationalization, capability
+    # gap analysis) actually see results mid-turn instead of writing its
+    # reply blind, before a plain "pull" entry even runs. See PULL_TOOL's
+    # own description for how it relates to "pull".
+    pull_tool_executor = make_pull_tool_executor(valid_rel_types)
+    tools = [PULL_TOOL] + mcp_tools
+
+    def tool_executor(name, arguments):
+        if name == PULL_TOOL_NAME:
+            return pull_tool_executor(name, arguments)
+        if mcp_tool_executor:
+            return mcp_tool_executor(name, arguments)
+        return f"Unknown tool {name!r}.", True
+
     plan_system = (
         "You help someone build a diagram on a visual canvas by describing what they "
         "want in plain English, and answer questions about what's on it — this is a "
@@ -962,6 +992,19 @@ def canvas_chat():
         "- A request can combine both — e.g. \"add a fourth option and tell me which of "
         "all four you'd pick\" both creates something and answers in the same reply.\n\n"
         + plan_create_guidance(schema_context, canvas_snapshot, custom_palettes)
+        + ("\n\nYou also have a live, read-only tool called \"query_portfolio\" that runs a real Cypher query "
+           "against the portfolio graph and returns the actual rows — use it whenever a request needs you to "
+           "reason about real data (comparing applications, an application's actual attributes, what supports "
+           "a capability, tracing a dependency or risk) before you can honestly answer or decide what to draw, "
+           "instead of writing a \"pull\" entry and reasoning about data you haven't actually seen. Call it, "
+           "read what comes back, and only THEN write your \"reply\" and the rest of your plan — the warning "
+           "above about not claiming things from a \"pull\" that hasn't run yet does not apply to data you've "
+           "actually seen this way: once you've called query_portfolio and read its real results, you "
+           "genuinely know what they contain and can reason about them for real, right in this same reply. "
+           "This tool only lets you see data for your own reasoning — it never places anything on the canvas "
+           "by itself. If the entities you found this way should also actually appear on the canvas (not just "
+           "inform what you say or draw), still add them to \"pull\" in your final plan the normal way — the "
+           "two serve different purposes and often both apply to the same request.")
         + ("\n\nYou also have live tools connected to these outside sources: "
            + ", ".join(sorted({s.get("name", "?") for s in mcp_servers})) + ". Any request that names or "
            "refers to a specific board, page, document, or item that could live in one of them — \"add X from "
@@ -1002,24 +1045,24 @@ def canvas_chat():
     messages = [{"role": h["role"], "content": h["content"]} for h in history]
     messages.append({"role": "user", "content": request_text})
     plan, raw_plan, total_usage = get_validated_plan(
-        plan_system, messages, tools=mcp_tools or None, tool_executor=mcp_tool_executor,
-        # A request that pulled in a real MCP tool result (e.g. a whole
-        # Miro board's items) needs real room to both read that content and
-        # write out a full create[] array reproducing it — the same reason
-        # canvas-interpret already uses more than the plain-chat default
-        # below. Without this, a board with more than a handful of items
+        plan_system, messages, tools=tools, tool_executor=tool_executor,
+        # query_portfolio is now offered on every request (not just when an
+        # MCP server is connected), so tool use is the default path here,
+        # not a special case — always give it room to both read real data
+        # and write out a full create[] array reproducing/reasoning about
+        # it. Without this, a reply with more than a handful of items
         # reliably gets cut off mid-JSON and fails to parse on both
         # attempts, surfacing as a flat "I wasn't able to put together a
         # response for that" with no indication it was a length problem.
-        max_tokens=4096 if mcp_tools else 2048,
-        # Just reaching real content through a server like Miro's can take
+        max_tokens=4096,
+        # Reaching real content through an MCP server like Miro's can take
         # several tool calls on its own (its workflow is: fetch a format
         # skill, fetch it again with a chosen step, search to narrow scope,
         # then finally read) before Claude has even seen what it's meant to
-        # recreate — the default cap (4) leaves no room left to actually use
-        # that content afterward. Give the MCP path real headroom for a
-        # multi-step server protocol, not just a single list-then-fetch call.
-        max_tool_rounds=10 if mcp_tools else 4,
+        # recreate — give that path extra headroom; a pure query_portfolio
+        # flow (pull real data, reason, answer) rarely needs more than a
+        # handful of rounds.
+        max_tool_rounds=10 if mcp_tools else 6,
         model=high_model,
     )
 
@@ -1387,6 +1430,62 @@ def resolve_token(auth):
     return None, None
 
 
+MAX_TOOL_RESULT_CHARS = 8000
+
+PULL_TOOL_NAME = "query_portfolio"
+PULL_TOOL = {
+    "name": PULL_TOOL_NAME,
+    "description": (
+        "Run a real, read-only Cypher query against the live portfolio graph and see its actual results "
+        "before you decide what to say or draw. Use this whenever a request needs you to reason about real "
+        "data — overlap between applications, an application's actual business value/technical health/"
+        "hosting, what supports a capability, dependency or risk impact — instead of writing a blind guess. "
+        "This only lets you SEE data for your own reasoning; it does not by itself put anything on the "
+        "canvas. If the real entities you find here should also appear on the canvas for the person to see, "
+        "still add them to your final plan's own \"pull\" array the normal way — this tool and that field "
+        "serve different purposes and often both apply to the same request."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "cypher": {
+                "type": "string",
+                "description": "A real, read-only Cypher query (RETURN only — no CREATE/MERGE/DELETE/SET/REMOVE/DROP), "
+                                "using only relationship types and properties that actually exist per the schema you were given.",
+            },
+        },
+        "required": ["cypher"],
+    },
+}
+
+
+def make_pull_tool_executor(valid_rel_types):
+    """
+    The tool_executor for PULL_TOOL — validates the model's Cypher the same
+    way an actual "pull" entry already is (find_invalid_relationship_types)
+    before running it, so a live mid-turn query is held to the same bar as
+    the existing post-hoc one, then returns the real rows as JSON. Reuses
+    run_cypher, which is itself the one place read-only is now enforced.
+    """
+    def executor(tool_name, arguments):
+        if tool_name != PULL_TOOL_NAME:
+            return f"Unknown tool {tool_name!r}.", True
+        cypher = (arguments or {}).get("cypher", "")
+        invalid = find_invalid_relationship_types(cypher, valid_rel_types)
+        if invalid:
+            return f"This query uses relationship type(s) {invalid} which don't exist in this schema. Valid relationship types are only: {sorted(valid_rel_types)}", True
+        try:
+            rows = run_cypher(cypher)
+        except Exception as e:
+            return f"Query failed: {e}", True
+        text = json.dumps(rows, default=str)
+        if len(text) > MAX_TOOL_RESULT_CHARS:
+            text = text[:MAX_TOOL_RESULT_CHARS] + "... [truncated]"
+        print(f"[pull-tool-call] cypher={cypher!r} rows={len(rows)}")
+        return text, False
+    return executor
+
+
 def mcp_tools_to_anthropic(mcp_servers):
     """
     Maps each connected MCP server's already-discovered tools (the frontend
@@ -1539,8 +1638,6 @@ def make_mcp_tool_executor(lookup, refreshed_auths):
     refreshed along the way, keyed by server id, so the route handler can
     hand them all back to the frontend to persist at the end.
     """
-    MAX_TOOL_RESULT_CHARS = 8000
-
     def executor(anthropic_tool_name, arguments):
         entry = lookup.get(anthropic_tool_name)
         if not entry:

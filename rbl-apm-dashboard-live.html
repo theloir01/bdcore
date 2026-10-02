@@ -3467,13 +3467,13 @@ function APMDashboardLive() {
       id: "skill-capability-gap",
       name: "Capability Gap Analysis",
       description: "Finds which applications support a capability, flags overlap/redundancy, and sketches a target-state recommendation",
-      prompt: "When asked to analyze a business capability (e.g. \"what's the gap in our Order Management capability\" or \"review our Customer Onboarding capability\"), first pull every real Application currently supporting that Capability from the graph, along with each one's status, 6R disposition, and technical health. Identify genuine overlap (multiple applications covering the same sub-function) and genuine gaps (no application covering a function the capability implies). In your reply, give a real assessment: which applications are redundant and should be consolidated, which are healthy and should remain, and what's missing entirely. Then sketch the target state on the canvas: keep the applications recommended to remain, recolor any redundant ones in risk red labelled \"Consolidate\", and add any missing capability as a new Capability concept connected to a placeholder \"TBD\" Application concept representing the gap to be filled. Always ground the recommendation in the real data pulled, never a generic answer.",
+      prompt: "When asked to analyze a business capability (e.g. \"what's the gap in our Order Management capability\" or \"review our Customer Onboarding capability\"), use query_portfolio to pull that Capability and every real Application currently supporting it — including each one's status, 6R disposition, and technical health — and read the actual results before deciding anything. From what you actually found, identify genuine overlap (multiple applications covering the same sub-function) and genuine gaps (no application covering a function the capability implies). In your reply, give a real assessment grounded in that real data: which applications are redundant and should be consolidated, which are healthy and should remain, and what's missing entirely. Then sketch the target state on the canvas: add the capability and the applications that should remain via \"pull\" so they land as real nodes, recolor any redundant ones in risk red labelled \"Consolidate\", and add any missing capability as a new Capability concept connected to a placeholder \"TBD\" Application concept representing the gap to be filled.",
     },
     {
       id: "skill-6r-advisor",
       name: "6R Rationalization Advisor",
       description: "Walks through a real 6R disposition recommendation for an application, reasoning from its actual business value, technical health, and hosting data",
-      prompt: "When asked to recommend a 6R disposition (Retain, Retire, Replace, Rehost, Replatform, Refactor) for a named application, pull that application's real attributes from the graph — business value, technical health, hosting model, status, and any dependencies or risks connected to it. Reason through the 6R decision explicitly in your reply: state what the data shows for each relevant dimension, then give one clear recommended disposition with the reasoning that leads to it — don't just restate the data, make the actual judgment call an architect would. If the recommendation implies downstream impact (e.g. retiring an application other systems depend on), say so explicitly. Only sketch something on the canvas if explicitly asked to — a disposition question is answered in the reply, not drawn, unless the request also asks for a visual.",
+      prompt: "When asked to recommend a 6R disposition (Retain, Retire, Replace, Rehost, Replatform, Refactor) for a named application, use query_portfolio to pull that application's real attributes — business value, technical health, hosting model, status, and any dependencies or risks connected to it — and read the actual results before deciding anything. Reason through the 6R decision explicitly in your reply: state what the data shows for each relevant dimension, then give one clear recommended disposition with the reasoning that leads to it — don't just restate the data, make the actual judgment call an architect would. If the recommendation implies downstream impact (e.g. retiring an application other systems depend on), say so explicitly. Only sketch something on the canvas if explicitly asked to — a disposition question is answered in the reply, not drawn, unless the request also asks for a visual.",
     },
     {
       id: "skill-reference-architecture",
@@ -8486,14 +8486,30 @@ function APMDashboardLive() {
     initiatives: "Initiatives Roadmap", dataflow: "Data Flow", transitionroadmap: "Transition Roadmap", businessunits: "Business Units",
     valuedelivered: "Value Delivered",
     journeytrace: "Journey Trace", maturity: "Capability Maturity", decisionlog: "Decision Log",
-    help: "Help",
+    help: "Help", stakeholdermap: "Stakeholder Map",
+    customrules: "Custom Watch Rules", aimodels: "AI Models", skills: "Skills Creator",
   };
   const profileApp = view === "profile" ? apps.find((a) => a.id === profileAppId) : null;
   const activeCanvasMeta = activeCanvasId ? canvasList.find((c) => c.id === activeCanvasId) : null;
   const pageTitle = view === "profile" ? (profileApp ? profileApp.name : "Application Profile")
     : view === "canvas" ? (activeCanvasMeta ? activeCanvasMeta.name : "Modelling Canvas")
     : view === "ontology" ? `Ontology Manager — ${omSelectedType}`
-    : (VIEW_TITLES[view] || "APM");
+    // Every real nav view has a VIEW_TITLES entry — this only fires if
+    // one's missing, and shows the raw key rather than silently mislabeling
+    // the page as something else, so a future gap is obvious, not confusing.
+    : (VIEW_TITLES[view] || (view.charAt(0).toUpperCase() + view.slice(1)));
+  // Parent trail shown above the page title, so a sub-page (an Admin tool,
+  // an APM sub-group item) always says which section it's reached through
+  // — mirrors the sidebar's own nesting exactly, rather than inventing a
+  // separate hierarchy. Empty for anything that's already its own
+  // top-level sidebar row (Portfolio Overview itself, Workspaces, the
+  // Modelling Canvas, Ontology Manager, Audit Log, Help) — those need no
+  // "you are here" help beyond the title already showing.
+  const breadcrumbTrail =
+    ADMIN_KEYS.has(view) ? ["Admin"]
+    : EXECUTIVE_KEYS.has(view) ? ["Executive Overview"]
+    : VIEW_GROUP[view] ? ["APM", (NAV_GROUPS.find((g) => g.key === VIEW_GROUP[view]) || {}).label]
+    : [];
 
   // Placed after every hook above (Rules of Hooks — an early return can
   // never sit between them), so this is the only thing that changes when
@@ -9212,8 +9228,14 @@ function APMDashboardLive() {
           borderBottom: `2px solid ${COLORS.ink}`, paddingBottom: 18, marginBottom: 28 }}>
           <div>
             <div style={{ fontSize: 12.5, color: COLORS.inkSecondary, marginBottom: 6, fontWeight: 500,
-              textTransform: "uppercase", letterSpacing: "0.05em" }}>
-              {brand.name}
+              textTransform: "uppercase", letterSpacing: "0.05em", display: "flex", alignItems: "center", gap: 6 }}>
+              <span>{brand.name}</span>
+              {breadcrumbTrail.map((segment, i) => (
+                <span key={i} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ opacity: 0.45, fontWeight: 400 }}>/</span>
+                  <span>{segment}</span>
+                </span>
+              ))}
             </div>
             <h1 style={{ fontSize: 28, fontWeight: 600, margin: 0, letterSpacing: "-0.015em" }}>
               {pageTitle}
@@ -12797,7 +12819,7 @@ function APMDashboardLive() {
                                 return (
                                   <div style={{ fontSize: 10.5, color: COLORS.inkSecondary, marginTop: 4 }}>
                                     {m.tokens.total.toLocaleString()} tokens ({sum("input").toLocaleString()} in, {sum("output").toLocaleString()} out
-                                    {sum("cacheRead") > 0 ? `, ${sum("cacheRead").toLocaleString()} cached` : ""})
+                                    {sum("cacheRead") > 0 ? `, ${sum("cacheRead").toLocaleString()} cache read` : ""}{sum("cacheWrite") > 0 ? `, ${sum("cacheWrite").toLocaleString()} cache write` : ""})
                                     {costLabel && <> · {costLabel}</>}
                                   </div>
                                 );
@@ -14779,7 +14801,7 @@ function APMDashboardLive() {
                         return (
                           <div style={{ marginTop: 4, fontSize: 10, color: COLORS.inkSecondary }}>
                             {msg.tokens.total.toLocaleString()} tokens ({sum("input").toLocaleString()} in, {sum("output").toLocaleString()} out
-                            {sum("cacheRead") > 0 ? `, ${sum("cacheRead").toLocaleString()} cached` : ""})
+                            {sum("cacheRead") > 0 ? `, ${sum("cacheRead").toLocaleString()} cache read` : ""}{sum("cacheWrite") > 0 ? `, ${sum("cacheWrite").toLocaleString()} cache write` : ""})
                             {costLabel && <> · {costLabel}</>}
                           </div>
                         );
