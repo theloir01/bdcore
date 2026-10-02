@@ -7339,6 +7339,18 @@ function APMDashboardLive() {
   const buildCustomPaletteSummary = () =>
     customPalettes.map((p) => ({ id: p.id, name: p.name, icons: (p.icons || []).map((ic) => ({ key: ic.key, label: ic.label })) }));
 
+  // Only servers actually connected (Admin -> Integrations), with whatever
+  // tools were last discovered for each — lets the Assistant call out to
+  // them itself (e.g. "bring in My First Frame from Miro") via real tool
+  // use on the backend, instead of this needing a dedicated UI flow. Only
+  // used by runCanvasChatRequest (the conversational endpoint) — the
+  // one-shot image/paste interpret below has nothing to hold a multi-step
+  // tool conversation with.
+  const buildConnectedMcpServersSummary = () =>
+    mcpServers
+      .filter((s) => (mcpServerStatus[s.id] || {}).ok)
+      .map((s) => ({ id: s.id, name: s.name, url: s.url, auth: s.auth || null, tools: (mcpServerStatus[s.id] || {}).tools || [] }));
+
   // Shared by the manual "Draw on canvas" box and escalateToCanvas's
   // auto-fired ideation prompt — snapshot is passed in rather than always
   // read fresh, since a just-created canvas's state hasn't necessarily
@@ -7359,11 +7371,17 @@ function APMDashboardLive() {
       const res = await fetch("http://localhost:5050/canvas-chat", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ request: requestText, canvas: canvasSnapshot, history: historyForRequest,
-          customPalettes: buildCustomPaletteSummary() }),
+          customPalettes: buildCustomPaletteSummary(), mcpServers: buildConnectedMcpServersSummary() }),
       });
       if (!res.ok) throw new Error(`Chat backend returned ${res.status}`);
       const data = await res.json();
       if (data.error) { setCanvasChatLog((prev) => [...prev, { role: "assistant", content: data.error, error: true }]); return; }
+      // The backend may have had to silently refresh an OAuth token to call
+      // an MCP tool mid-conversation — it hands the new tokens back here
+      // rather than keeping them itself, same as /mcp/tools and /mcp/call.
+      if (data.refreshedAuth) {
+        setMcpServers((prev) => prev.map((s) => data.refreshedAuth[s.id] ? { ...s, auth: data.refreshedAuth[s.id] } : s));
+      }
       await executeCanvasPlan(data, seed);
       // A compact "what actually happened" chip, separate from the reply's own
       // prose — the mechanical tally, not the narrative, so the reply can stay
