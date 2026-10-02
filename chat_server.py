@@ -179,7 +179,17 @@ def add_cors_headers(response):
     return response
 
 
-def call_claude(system, messages, max_tokens=1024):
+def call_claude_raw(system, messages, tools=None, max_tokens=1024):
+    """
+    The full Messages API call, returning the raw content blocks and stop
+    reason rather than just concatenated text — call_claude below collapses
+    this to the common case, but a tool-use loop (see get_validated_plan's
+    tools/tool_executor) needs to see tool_use blocks and know whether
+    Claude stopped to call one or actually finished.
+    """
+    payload = {"model": CLAUDE_MODEL, "max_tokens": max_tokens, "system": system, "messages": messages}
+    if tools:
+        payload["tools"] = tools
     resp = requests.post(
         ANTHROPIC_URL,
         headers={
@@ -187,19 +197,19 @@ def call_claude(system, messages, max_tokens=1024):
             "anthropic-version": "2023-06-01",
             "content-type": "application/json",
         },
-        json={
-            "model": CLAUDE_MODEL,
-            "max_tokens": max_tokens,
-            "system": system,
-            "messages": messages,
-        },
+        json=payload,
         timeout=30,
     )
     resp.raise_for_status()
     data = resp.json()
-    text = "".join(block["text"] for block in data["content"] if block["type"] == "text")
     usage = data.get("usage", {})
-    return text, {"input": usage.get("input_tokens", 0), "output": usage.get("output_tokens", 0)}
+    return data.get("content", []), data.get("stop_reason"), {"input": usage.get("input_tokens", 0), "output": usage.get("output_tokens", 0)}
+
+
+def call_claude(system, messages, max_tokens=1024):
+    content_blocks, _, usage = call_claude_raw(system, messages, max_tokens=max_tokens)
+    text = "".join(block["text"] for block in content_blocks if block["type"] == "text")
+    return text, usage
 
 
 def extract_cypher(text):
@@ -269,7 +279,7 @@ def describe_pull_outcome(pull_requested, pulled):
     return "I couldn't find a match in the portfolio for what you asked me to pull in — double-check the exact names and try again."
 
 
-def get_validated_plan(system, messages, max_tokens=2048):
+def get_validated_plan(system, messages, max_tokens=2048, tools=None, tool_executor=None, max_tool_rounds=4):
     """
     Calls Claude and parses its JSON plan, retrying once if the response
     comes back empty or unparseable. The Anthropic API occasionally returns
@@ -280,14 +290,44 @@ def get_validated_plan(system, messages, max_tokens=2048):
     clears it almost every time; only surface an error to the person if it
     fails twice in a row.
 
+    With tools + tool_executor given (canvas-chat's connected MCP servers),
+    Claude can stop mid-turn to call one or more of them — e.g. searching a
+    Miro board by name, then fetching its contents — before producing the
+    final plan. Each tool_use block is handed to tool_executor(name, input),
+    which must return (result_text, is_error); the loop feeds tool_result
+    turns back and continues until Claude stops asking for tools or
+    max_tool_rounds is hit, at which point it's nudged to answer with
+    whatever it has rather than looping forever. The conversation (including
+    any tool exchanges) carries over into the one JSON-parse retry below,
+    so a retry doesn't have to re-fetch the same tool results again.
+
     Returns (plan_dict_or_None, raw_text_of_last_attempt, total_usage_dict).
     """
     total_usage = {"input": 0, "output": 0}
     plan, raw_plan = None, ""
+    convo = list(messages)
     for attempt in range(2):
-        raw_plan, usage = call_claude(system, messages, max_tokens=max_tokens)
-        total_usage["input"] += usage["input"]
-        total_usage["output"] += usage["output"]
+        rounds = 0
+        while True:
+            content_blocks, stop_reason, usage = call_claude_raw(system, convo, tools=tools, max_tokens=max_tokens)
+            total_usage["input"] += usage["input"]
+            total_usage["output"] += usage["output"]
+            if stop_reason == "tool_use" and tool_executor and rounds < max_tool_rounds:
+                convo.append({"role": "assistant", "content": content_blocks})
+                tool_results = []
+                for block in content_blocks:
+                    if block.get("type") != "tool_use":
+                        continue
+                    result_text, is_error = tool_executor(block["name"], block.get("input") or {})
+                    tool_result = {"type": "tool_result", "tool_use_id": block["id"], "content": result_text}
+                    if is_error:
+                        tool_result["is_error"] = True
+                    tool_results.append(tool_result)
+                convo.append({"role": "user", "content": tool_results})
+                rounds += 1
+                continue
+            raw_plan = "".join(b.get("text", "") for b in content_blocks if b.get("type") == "text")
+            break
         try:
             plan = json.loads(extract_json(raw_plan))
             break
@@ -678,6 +718,16 @@ def canvas_chat():
     # CURRENT CANVAS CONTENTS below already carrying their full text. Capped
     # to keep the prompt bounded on a long-running session.
     history = [h for h in request.json.get("history", []) if h.get("role") in ("user", "assistant") and h.get("content")][-16:]
+    # The connected MCP servers the frontend already knows about (Admin ->
+    # Integrations), with whatever tools it last discovered for each — lets
+    # a request like "bring in My First Frame from Miro" actually reach out
+    # and fetch it, by giving Claude real tool-calling access rather than
+    # us trying to detect that intent by matching text. See
+    # get_validated_plan's tools/tool_executor for the actual loop.
+    mcp_servers = request.json.get("mcpServers", [])
+    mcp_tools, mcp_tool_lookup = mcp_tools_to_anthropic(mcp_servers)
+    refreshed_auths = {}
+    mcp_tool_executor = make_mcp_tool_executor(mcp_tool_lookup, refreshed_auths) if mcp_tools else None
 
     schema_context, valid_rel_types = build_schema_context()
 
@@ -748,11 +798,22 @@ def canvas_chat():
         "- A request can combine both — e.g. \"add a fourth option and tell me which of "
         "all four you'd pick\" both creates something and answers in the same reply.\n\n"
         + plan_create_guidance(schema_context, canvas_snapshot, custom_palettes)
+        + ("\n\nYou also have live tools connected to these outside sources: "
+           + ", ".join(sorted({s.get("name", "?") for s in mcp_servers})) + ". When the request plausibly "
+           "means something from one of them (e.g. \"bring in X from Miro\", \"what's on the Y board\"), call "
+           "the matching tool(s) yourself before writing your plan — search/list first if you're not sure of "
+           "an exact id or exact name match, then fetch the specific item's content. Treat whatever comes back "
+           "the same way you'd treat a pasted Miro-style board: most sticky-note-shaped items become "
+           "\"sticky\", not \"concept\", unless clearly a named, well-defined thing of a real BDCore type. If "
+           "a tool call errors, or nothing you found actually matches what was asked for, say so plainly in "
+           "\"reply\" rather than inventing content or silently creating nothing." if mcp_tools else "")
     )
 
     messages = [{"role": h["role"], "content": h["content"]} for h in history]
     messages.append({"role": "user", "content": request_text})
-    plan, raw_plan, total_usage = get_validated_plan(plan_system, messages)
+    plan, raw_plan, total_usage = get_validated_plan(
+        plan_system, messages, tools=mcp_tools or None, tool_executor=mcp_tool_executor
+    )
 
     if plan is None:
         return jsonify({"error": "I wasn't able to put together a response for that — please try asking again.",
@@ -782,14 +843,17 @@ def canvas_chat():
     model_reply = plan.get("reply", "").strip()
     reply = f"{pull_status} {model_reply}".strip() if pull_status else model_reply
 
-    return jsonify({
+    response = {
         "reply": reply,
         "pulled": pulled,
         "create": plan.get("create", []),
         "connections": plan.get("connections", []),
         "recolor": plan.get("recolor", []),
         "tokens": {**total_usage, "total": total_usage["input"] + total_usage["output"]},
-    })
+    }
+    if refreshed_auths:
+        response["refreshedAuth"] = refreshed_auths
+    return jsonify(response)
 
 
 @app.route("/canvas-interpret", methods=["POST", "OPTIONS"])
@@ -1104,6 +1168,66 @@ def resolve_token(auth):
         refreshed = _refresh_oauth_token(auth)
         return refreshed["accessToken"], refreshed
     return None, None
+
+
+def mcp_tools_to_anthropic(mcp_servers):
+    """
+    Maps each connected MCP server's already-discovered tools (the frontend
+    sends whatever it has cached from its own "Test"/"Browse tools" calls —
+    this never does a fresh tools/list itself) onto real Anthropic tool
+    definitions, so canvas-chat's Claude can decide for itself when a
+    request needs to reach one of them ("bring in X from Miro") instead of
+    us trying to pattern-match server names out of the request text. An MCP
+    tool's inputSchema is already JSON Schema, so it's reused verbatim as
+    Anthropic's own input_schema rather than translated.
+
+    Returns (anthropic_tools, lookup) where lookup maps each generated
+    Anthropic tool name back to (server_dict, real_mcp_tool_name), since
+    Anthropic tool names must be unique across every connected server.
+    """
+    anthropic_tools = []
+    lookup = {}
+    for server in mcp_servers or []:
+        for tool in server.get("tools") or []:
+            name = tool.get("name")
+            if not name or not server.get("url"):
+                continue
+            anthropic_name = f"mcp__{server['id']}__{name}"[:128]
+            lookup[anthropic_name] = (server, name)
+            anthropic_tools.append({
+                "name": anthropic_name,
+                "description": f'[Connected MCP server "{server.get("name", "?")}"] {tool.get("description") or ""}'.strip(),
+                "input_schema": tool.get("inputSchema") or {"type": "object", "properties": {}},
+            })
+    return anthropic_tools, lookup
+
+
+def make_mcp_tool_executor(lookup, refreshed_auths):
+    """
+    Builds the tool_executor callback get_validated_plan's tool-use loop
+    calls for each tool_use block — looks up which real server/tool an
+    Anthropic tool name maps to and actually calls it, reusing the exact
+    same resolve_token/mcp_handshake/mcp_request machinery as /mcp/call.
+    refreshed_auths (a dict the caller owns) collects any OAuth token
+    refreshed along the way, keyed by server id, so the route handler can
+    hand them all back to the frontend to persist at the end.
+    """
+    def executor(anthropic_tool_name, arguments):
+        entry = lookup.get(anthropic_tool_name)
+        if not entry:
+            return f"Unknown tool {anthropic_tool_name!r}.", True
+        server, tool_name = entry
+        try:
+            token, refreshed = resolve_token(server.get("auth"))
+            if refreshed:
+                refreshed_auths[server["id"]] = refreshed
+            session_id = mcp_handshake(server["url"], token)
+            result, _ = mcp_request(server["url"], token, "tools/call", {"name": tool_name, "arguments": arguments}, session_id=session_id)
+            text = json.dumps(result)
+            return (text[:8000] + "... [truncated]") if len(text) > 8000 else text, False
+        except Exception as e:
+            return f'Error calling "{tool_name}" on "{server.get("name", "?")}": {e}', True
+    return executor
 
 
 @app.route("/mcp/tools", methods=["POST", "OPTIONS"])
