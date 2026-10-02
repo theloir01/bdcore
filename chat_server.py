@@ -179,6 +179,43 @@ def add_cors_headers(response):
     return response
 
 
+def _cache_last(blocks):
+    """
+    Marks the last item of a content-block (or tool-definition) list as an
+    Anthropic prompt-cache breakpoint, so everything up to and including it
+    can be reused on the next call instead of being re-billed at full price.
+    Returns a new list/dict — never mutates the caller's own data, since
+    get_validated_plan's `convo` needs to stay exactly what it appended,
+    not a copy with cache bookkeeping baked in.
+    """
+    if not blocks:
+        return blocks
+    blocks = list(blocks)
+    blocks[-1] = {**blocks[-1], "cache_control": {"type": "ephemeral"}}
+    return blocks
+
+
+def _messages_with_trailing_cache(messages):
+    """
+    Marks a cache breakpoint at the end of the LAST message only. Within
+    get_validated_plan's tool-use loop, each call's message list is the
+    previous call's list plus one newly-appended tool exchange — so caching
+    the prior boundary means every round after the first only pays full
+    price for what's actually new, instead of the entire accumulated
+    conversation (tool results included) being rebilled every round.
+    """
+    if not messages:
+        return messages
+    messages = list(messages)
+    last = dict(messages[-1])
+    content = last["content"]
+    content = [{"type": "text", "text": content}] if isinstance(content, str) else list(content)
+    content[-1] = {**content[-1], "cache_control": {"type": "ephemeral"}}
+    last["content"] = content
+    messages[-1] = last
+    return messages
+
+
 def call_claude_raw(system, messages, tools=None, max_tokens=1024):
     """
     The full Messages API call, returning the raw content blocks and stop
@@ -186,10 +223,20 @@ def call_claude_raw(system, messages, tools=None, max_tokens=1024):
     this to the common case, but a tool-use loop (see get_validated_plan's
     tools/tool_executor) needs to see tool_use blocks and know whether
     Claude stopped to call one or actually finished.
+
+    Marks cache breakpoints on the system prompt, the tool definitions, and
+    the trailing edge of the conversation — the system prompt in particular
+    (live schema + full canvas contents) is by far the largest, most
+    repeated part of every call this file makes, and was previously sent
+    and billed in full on every single round of a multi-step tool-use loop.
     """
-    payload = {"model": CLAUDE_MODEL, "max_tokens": max_tokens, "system": system, "messages": messages}
+    payload = {
+        "model": CLAUDE_MODEL, "max_tokens": max_tokens,
+        "system": _cache_last([{"type": "text", "text": system}]),
+        "messages": _messages_with_trailing_cache(messages),
+    }
     if tools:
-        payload["tools"] = tools
+        payload["tools"] = _cache_last(tools)
     resp = requests.post(
         ANTHROPIC_URL,
         headers={
@@ -203,13 +250,37 @@ def call_claude_raw(system, messages, tools=None, max_tokens=1024):
     resp.raise_for_status()
     data = resp.json()
     usage = data.get("usage", {})
-    return data.get("content", []), data.get("stop_reason"), {"input": usage.get("input_tokens", 0), "output": usage.get("output_tokens", 0)}
+    return data.get("content", []), data.get("stop_reason"), {
+        "input": usage.get("input_tokens", 0), "output": usage.get("output_tokens", 0),
+        "cacheRead": usage.get("cache_read_input_tokens", 0), "cacheWrite": usage.get("cache_creation_input_tokens", 0),
+    }
 
 
 def call_claude(system, messages, max_tokens=1024):
     content_blocks, _, usage = call_claude_raw(system, messages, max_tokens=max_tokens)
     text = "".join(block["text"] for block in content_blocks if block["type"] == "text")
     return text, usage
+
+
+USAGE_KEYS = ("input", "output", "cacheRead", "cacheWrite")
+
+
+def empty_usage():
+    return {k: 0 for k in USAGE_KEYS}
+
+
+def add_usage(total, usage):
+    for k in USAGE_KEYS:
+        total[k] = total.get(k, 0) + usage.get(k, 0)
+
+
+def usage_with_total(usage):
+    return {**usage, "total": sum(usage.get(k, 0) for k in USAGE_KEYS)}
+
+
+def usage_log_str(usage):
+    return (f"input: {usage['input']}, output: {usage['output']}, "
+            f"cacheRead: {usage['cacheRead']}, cacheWrite: {usage['cacheWrite']}")
 
 
 def extract_cypher(text):
@@ -303,7 +374,7 @@ def get_validated_plan(system, messages, max_tokens=2048, tools=None, tool_execu
 
     Returns (plan_dict_or_None, raw_text_of_last_attempt, total_usage_dict).
     """
-    total_usage = {"input": 0, "output": 0}
+    total_usage = empty_usage()
     plan, raw_plan = None, ""
     convo = list(messages)
     for attempt in range(2):
@@ -325,8 +396,7 @@ def get_validated_plan(system, messages, max_tokens=2048, tools=None, tool_execu
                     "Stop calling tools now and answer with ONLY the final JSON plan, in the exact shape "
                     "described above, based on whatever you've already found."}]
             content_blocks, stop_reason, usage = call_claude_raw(system, convo_this_call, tools=offer_tools, max_tokens=max_tokens)
-            total_usage["input"] += usage["input"]
-            total_usage["output"] += usage["output"]
+            add_usage(total_usage, usage)
             if stop_reason == "tool_use" and tool_executor and offer_tools:
                 convo.append({"role": "assistant", "content": content_blocks})
                 tool_results = []
@@ -419,14 +489,13 @@ def chat():
     )
     cypher_user_content = f"Recent conversation:\n{history_text}\n\nCurrent question: {question}" if history_text else question
 
-    total_usage = {"input": 0, "output": 0}
+    total_usage = empty_usage()
 
     def track(usage):
-        total_usage["input"] += usage["input"]
-        total_usage["output"] += usage["output"]
+        add_usage(total_usage, usage)
 
     def token_summary():
-        return {**total_usage, "total": total_usage["input"] + total_usage["output"]}
+        return usage_with_total(total_usage)
 
     raw_cypher, usage = call_claude(cypher_system, [{"role": "user", "content": cypher_user_content}])
     track(usage)
@@ -518,8 +587,8 @@ def chat():
     answer, usage = call_claude(answer_system, [{"role": "user", "content": answer_prompt}])
     track(usage)
 
-    total_usage["total"] = total_usage["input"] + total_usage["output"]
-    print(f"[{question[:60]!r}] tokens — input: {total_usage['input']}, output: {total_usage['output']}, total: {total_usage['total']}")
+    total_usage["total"] = sum(total_usage[k] for k in USAGE_KEYS)
+    print(f"[{question[:60]!r}] tokens — {usage_log_str(total_usage)}, total: {total_usage['total']}")
 
     return jsonify({"answer": answer, "cypher": cypher, "rowCount": len(results) if results else 0,
                      "entities": entities, "tokens": token_summary()})
@@ -892,7 +961,7 @@ def canvas_chat():
     if plan is None:
         return jsonify({"error": "I wasn't able to put together a response for that — please try asking again.",
                          "raw": raw_plan,
-                         "tokens": {**total_usage, "total": total_usage["input"] + total_usage["output"]}}), 200
+                         "tokens": usage_with_total(total_usage)}), 200
 
     # Resolve every "pull" query against the real graph — same validation
     # guard as /chat, but no retry loop here (this endpoint returns the plan
@@ -911,7 +980,7 @@ def canvas_chat():
         except Exception as e:
             pulled.append({"cypher": cypher, "error": str(e), "rows": []})
 
-    print(f"[canvas-chat: {request_text[:60]!r}] tokens — input: {total_usage['input']}, output: {total_usage['output']}")
+    print(f"[canvas-chat: {request_text[:60]!r}] tokens — {usage_log_str(total_usage)}")
     if mcp_tools:
         positioned = [(c.get("tempId"), c.get("x"), c.get("y")) for c in plan.get("create", []) if isinstance(c.get("x"), (int, float))]
         unpositioned = [c.get("tempId") for c in plan.get("create", []) if not isinstance(c.get("x"), (int, float))]
@@ -927,7 +996,7 @@ def canvas_chat():
         "create": plan.get("create", []),
         "connections": plan.get("connections", []),
         "recolor": plan.get("recolor", []),
-        "tokens": {**total_usage, "total": total_usage["input"] + total_usage["output"]},
+        "tokens": usage_with_total(total_usage),
     }
     if refreshed_auths:
         response["refreshedAuth"] = refreshed_auths
@@ -1046,7 +1115,7 @@ def canvas_interpret():
     if plan is None:
         return jsonify({"error": "I wasn't able to read that into a plan — please try again.",
                          "raw": raw_plan,
-                         "tokens": {**total_usage, "total": total_usage["input"] + total_usage["output"]}}), 200
+                         "tokens": usage_with_total(total_usage)}), 200
 
     pulled = []
     for pull_item in plan.get("pull", []):
@@ -1062,7 +1131,7 @@ def canvas_interpret():
             pulled.append({"cypher": cypher, "error": str(e), "rows": []})
 
     print(f"[canvas-interpret: {source_label or ('image' if image_data_url else 'pasted text')}] "
-          f"tokens — input: {total_usage['input']}, output: {total_usage['output']}")
+          f"tokens — {usage_log_str(total_usage)}")
 
     pull_status = describe_pull_outcome(plan.get("pull"), pulled)
     model_reply = plan.get("reply", "").strip()
@@ -1074,7 +1143,7 @@ def canvas_interpret():
         "create": plan.get("create", []),
         "connections": plan.get("connections", []),
         "recolor": [],
-        "tokens": {**total_usage, "total": total_usage["input"] + total_usage["output"]},
+        "tokens": usage_with_total(total_usage),
     })
 
 
@@ -1115,7 +1184,7 @@ def refine_filters():
         f"hosting: {options.get('hosting', [])}"
     )
     raw, usage = call_claude(system, [{"role": "user", "content": req_text}], max_tokens=400)
-    total_usage = {"input": usage["input"], "output": usage["output"], "total": usage["input"] + usage["output"]}
+    total_usage = usage_with_total(usage)
 
     try:
         result = json.loads(extract_json(raw))
