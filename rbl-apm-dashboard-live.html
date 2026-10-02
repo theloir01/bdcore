@@ -3506,17 +3506,36 @@ function APMDashboardLive() {
     return next;
   });
   const [skillToolPickerOpen, setSkillToolPickerOpen] = useState(false);
-  const addSkill = () => {
+  // Set while the "New skill" form is actually editing an existing skill
+  // in place rather than drafting a new one — same form, same state,
+  // just a different save behavior and a Cancel way back out.
+  const [editingSkillId, setEditingSkillId] = useState(null);
+  const saveSkill = () => {
     const name = skillDraft.name.trim();
     const prompt = skillDraft.prompt.trim();
     if (!name || !prompt) return;
-    setSkills((prev) => [...prev, { id: newCanvasId("skill"), name, description: skillDraft.description.trim(), prompt }]);
+    if (editingSkillId) {
+      setSkills((prev) => prev.map((s) => s.id === editingSkillId ? { ...s, name, description: skillDraft.description.trim(), prompt } : s));
+      setEditingSkillId(null);
+    } else {
+      setSkills((prev) => [...prev, { id: newCanvasId("skill"), name, description: skillDraft.description.trim(), prompt }]);
+    }
+    setSkillDraft({ name: "", description: "", prompt: "" });
+  };
+  const startEditSkill = (skill) => {
+    setEditingSkillId(skill.id);
+    setSkillDraft({ name: skill.name, description: skill.description || "", prompt: skill.prompt });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+  const cancelEditSkill = () => {
+    setEditingSkillId(null);
     setSkillDraft({ name: "", description: "", prompt: "" });
   };
   const deleteSkill = async (skill) => {
     if (!(await askConfirm(`Remove the "${skill.name}" skill? Any chat currently using it will stop as soon as it's reloaded.`, { danger: true, confirmLabel: "Remove" }))) return;
     setSkills((prev) => prev.filter((s) => s.id !== skill.id));
     setSkillsChatActiveIds((prev) => prev.filter((id) => id !== skill.id));
+    if (editingSkillId === skill.id) cancelEditSkill();
   };
   const agentScanRunningRef = useRef(false);
   const [datasetFileName, setDatasetFileName] = useState("");
@@ -12231,7 +12250,14 @@ function APMDashboardLive() {
 
                 <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)",
                   borderRadius: 16, padding: 22, marginBottom: 22, maxWidth: 820 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 14 }}>New skill</div>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 600 }}>{editingSkillId ? "Edit skill" : "New skill"}</div>
+                    {editingSkillId && (
+                      <span onClick={cancelEditSkill} style={{ fontSize: 11.5, fontWeight: 600, color: COLORS.inkSecondary, cursor: "pointer" }}>
+                        Cancel
+                      </span>
+                    )}
+                  </div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
                     <div>
                       <div style={{ fontSize: 11.5, fontWeight: 600, color: COLORS.inkSecondary, marginBottom: 5 }}>Name</div>
@@ -12254,12 +12280,12 @@ function APMDashboardLive() {
                       rows={6} placeholder='e.g. "When asked to assess an application for migration, always pull its real business value, technical health, and hosting model, then recommend one of the 6 Rs with the reasoning that leads to it."'
                       style={{ width: "100%", boxSizing: "border-box", padding: "10px", border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 13, fontFamily: "inherit", resize: "vertical" }} />
                   </div>
-                  <button onClick={addSkill} disabled={!skillDraft.name.trim() || !skillDraft.prompt.trim()}
+                  <button onClick={saveSkill} disabled={!skillDraft.name.trim() || !skillDraft.prompt.trim()}
                     style={{ padding: "8px 18px", background: COLORS.accent, color: "#fff", border: "none",
                       borderRadius: 8, fontSize: 12.5, fontWeight: 600,
                       cursor: !skillDraft.name.trim() || !skillDraft.prompt.trim() ? "default" : "pointer",
                       opacity: !skillDraft.name.trim() || !skillDraft.prompt.trim() ? 0.5 : 1 }}>
-                    + Add Skill
+                    {editingSkillId ? "Save Changes" : "+ Add Skill"}
                   </button>
                 </div>
 
@@ -12281,7 +12307,10 @@ function APMDashboardLive() {
                           </span>
                         ) },
                       { key: "actions", label: "", sortable: false, render: (s) => (
-                          <span onClick={() => deleteSkill(s)} style={{ color: COLORS.risk, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>Delete</span>
+                          <span style={{ display: "flex", gap: 14 }}>
+                            <span onClick={() => startEditSkill(s)} style={{ color: COLORS.accent, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>Edit</span>
+                            <span onClick={() => deleteSkill(s)} style={{ color: COLORS.risk, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>Delete</span>
+                          </span>
                         ) },
                     ]}
                     rows={skills}
