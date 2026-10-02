@@ -3333,6 +3333,23 @@ function APMDashboardLive() {
   // own last-tested state.
   const [mcpServerStatus, setMcpServerStatus] = useState({});
   const [mcpActiveServerId, setMcpActiveServerId] = useState(null);
+  // Which connected MCP servers the Canvas Assistant is actually allowed to
+  // use right now — deliberately separate from "connected" (mcpServerStatus
+  // ok) above. An Admin wiring up a server in Integrations makes it
+  // available, not active everywhere by default: the Assistant only reaches
+  // for one after it's explicitly added to THIS chat, same opt-in-per-tool
+  // pattern as other agent-chat products. Persisted (not reset per visit)
+  // so a deliberate choice sticks, but starts empty for any newly-connected
+  // server — opt-in, never opt-out-by-default.
+  const [mcpChatActiveIds, setMcpChatActiveIdsRaw] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("bdcore_mcp_chat_active") || "[]"); } catch { return []; }
+  });
+  const setMcpChatActiveIds = (updater) => setMcpChatActiveIdsRaw((prev) => {
+    const next = typeof updater === "function" ? updater(prev) : updater;
+    try { localStorage.setItem("bdcore_mcp_chat_active", JSON.stringify(next)); } catch {}
+    return next;
+  });
+  const [mcpToolPickerOpen, setMcpToolPickerOpen] = useState(false);
   const [mcpToolDraft, setMcpToolDraft] = useState({ tool: "", argsText: "{}" });
   const [mcpCallBusy, setMcpCallBusy] = useState(false);
   const [mcpCallResult, setMcpCallResult] = useState(null); // { toolName, ok, text, error }
@@ -7410,16 +7427,20 @@ function APMDashboardLive() {
   const buildCustomPaletteSummary = () =>
     customPalettes.map((p) => ({ id: p.id, name: p.name, icons: (p.icons || []).map((ic) => ({ key: ic.key, label: ic.label })) }));
 
-  // Only servers actually connected (Admin -> Integrations), with whatever
-  // tools were last discovered for each — lets the Assistant call out to
-  // them itself (e.g. "bring in My First Frame from Miro") via real tool
-  // use on the backend, instead of this needing a dedicated UI flow. Only
-  // used by runCanvasChatRequest (the conversational endpoint) — the
-  // one-shot image/paste interpret below has nothing to hold a multi-step
-  // tool conversation with.
+  // Only servers both actually connected (Admin -> Integrations) AND
+  // explicitly added to this chat (mcpChatActiveIds — see its own comment
+  // above) — being wired up by an Admin makes a server available, not
+  // active by default; the Assistant only reaches for one the person
+  // running this chat chose to add, with whatever tools were last
+  // discovered for it. Lets the Assistant call out to it itself (e.g.
+  // "bring in My First Frame from Miro") via real tool use on the backend,
+  // instead of this needing a dedicated UI flow. Only used by
+  // runCanvasChatRequest (the conversational endpoint) — the one-shot
+  // image/paste interpret below has nothing to hold a multi-step tool
+  // conversation with.
   const buildConnectedMcpServersSummary = () =>
     mcpServers
-      .filter((s) => (mcpServerStatus[s.id] || {}).ok)
+      .filter((s) => (mcpServerStatus[s.id] || {}).ok && mcpChatActiveIds.includes(s.id))
       .map((s) => ({ id: s.id, name: s.name, url: s.url, auth: s.auth || null, tools: (mcpServerStatus[s.id] || {}).tools || [] }));
 
   // Shared by the manual "Draw on canvas" box and escalateToCanvas's
@@ -7574,6 +7595,7 @@ function APMDashboardLive() {
     if (!(await askConfirm(`Remove the "${server.name}" MCP connection? This only forgets it locally — nothing changes on ${server.name}'s side.`, { danger: true, confirmLabel: "Remove" }))) return;
     setMcpServers((prev) => prev.filter((s) => s.id !== server.id));
     setMcpServerStatus((prev) => { const next = { ...prev }; delete next[server.id]; return next; });
+    setMcpChatActiveIds((prev) => prev.filter((id) => id !== server.id));
     if (mcpActiveServerId === server.id) setMcpActiveServerId(null);
   };
   // Opens chat_server.py's /mcp/oauth/start in a popup, which runs the
@@ -11804,6 +11826,12 @@ function APMDashboardLive() {
                     until you choose to.
                   </div>
                   <div style={{ fontSize: 12, color: COLORS.inkSecondary, marginTop: 10, lineHeight: 1.6 }}>
+                    <b>Connecting here doesn't turn it on everywhere:</b> a server set up on this page becomes
+                    available, not active by default — in the Canvas Assistant panel, each person adds the specific
+                    tools they want that chat to be able to use ("+ Add tool"), the same opt-in pattern as other
+                    agent chat tools. Removing it here also removes it from every chat it was added to.
+                  </div>
+                  <div style={{ fontSize: 12, color: COLORS.inkSecondary, marginTop: 10, lineHeight: 1.6 }}>
                     <b>Where credentials live:</b> a server's URL and any token or OAuth session are kept only in
                     this browser's local storage, the same trust model as your Neo4j connection — chat_server.py
                     relays each call but never stores one.
@@ -14256,6 +14284,66 @@ function APMDashboardLive() {
                   <span onClick={() => setCanvasChatOpen(false)} title="Collapse"
                     style={{ cursor: "pointer", color: COLORS.inkSecondary, fontSize: 15, flexShrink: 0, padding: "0 2px" }}>»</span>
                 </div>
+
+                {(() => {
+                  // Only servers an Admin has actually connected show up here
+                  // at all — this row is about choosing which of those this
+                  // particular chat can use, not about connecting one (that's
+                  // still Admin -> Integrations). Nothing to show, nothing
+                  // rendered, for anyone with no MCP servers configured.
+                  const connected = mcpServers.filter((s) => (mcpServerStatus[s.id] || {}).ok);
+                  if (connected.length === 0) return null;
+                  const active = connected.filter((s) => mcpChatActiveIds.includes(s.id));
+                  const available = connected.filter((s) => !mcpChatActiveIds.includes(s.id));
+                  return (
+                    <div style={{ padding: "9px 16px", borderBottom: `1px solid ${COLORS.border}`, flexShrink: 0,
+                      display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6 }}>
+                      {active.length === 0 && (
+                        <span style={{ fontSize: 11, color: COLORS.inkSecondary }}>No tools added to this chat</span>
+                      )}
+                      {active.map((s) => (
+                        <span key={s.id} title={`${s.name} is available to the Assistant in this chat`}
+                          style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 600,
+                            color: COLORS.accent, background: "#E8F2EC", border: `1px solid ${COLORS.accent}33`,
+                            padding: "3px 7px 3px 8px", borderRadius: 999 }}>
+                          <span style={{ width: 6, height: 6, borderRadius: "50%", background: COLORS.accent, flexShrink: 0 }} />
+                          {s.name}
+                          <span onClick={() => setMcpChatActiveIds((prev) => prev.filter((id) => id !== s.id))}
+                            title={`Remove ${s.name} from this chat`}
+                            style={{ cursor: "pointer", color: COLORS.inkSecondary, marginLeft: 1, fontWeight: 400 }}>×</span>
+                        </span>
+                      ))}
+                      {available.length > 0 && (
+                        <span style={{ position: "relative" }}>
+                          <span onClick={() => setMcpToolPickerOpen((v) => !v)} title="Add a connected tool to this chat"
+                            style={{ cursor: "pointer", fontSize: 11, fontWeight: 600, color: COLORS.inkSecondary,
+                              border: `1px dashed ${COLORS.border}`, padding: "3px 9px", borderRadius: 999,
+                              display: "inline-flex", alignItems: "center", gap: 4 }}>
+                            + Add tool
+                          </span>
+                          {mcpToolPickerOpen && (
+                            <>
+                              <div onClick={() => setMcpToolPickerOpen(false)}
+                                style={{ position: "fixed", inset: 0, zIndex: 19 }} />
+                              <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, background: "#fff",
+                                border: `1px solid ${COLORS.border}`, borderRadius: 8, boxShadow: "0 6px 18px rgba(10,14,26,0.12)",
+                                zIndex: 20, minWidth: 150, overflow: "hidden" }}>
+                                {available.map((s) => (
+                                  <div key={s.id} onClick={() => { setMcpChatActiveIds((prev) => [...prev, s.id]); setMcpToolPickerOpen(false); }}
+                                    style={{ padding: "8px 12px", fontSize: 12, cursor: "pointer", color: COLORS.ink }}
+                                    onMouseEnter={(e) => { e.currentTarget.style.background = "#F3F4F7"; }}
+                                    onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
+                                    {s.name}
+                                  </div>
+                                ))}
+                              </div>
+                            </>
+                          )}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 <div ref={canvasChatScrollRef} style={{ flex: 1, overflowY: "auto", padding: "14px 16px" }}>
                   {canvasChatLog.length === 0 && !canvasChatLoading && (
