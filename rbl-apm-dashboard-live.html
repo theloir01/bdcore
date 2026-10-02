@@ -3389,6 +3389,23 @@ function APMDashboardLive() {
     mcpServers.forEach((s) => testMcpServer(s));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  // Which Anthropic model id backs each cost tier — configured in Admin ->
+  // AI Models, sent on every /chat, /canvas-chat, and /canvas-interpret
+  // request so chat_server.py can route each task to the right one (e.g.
+  // Cypher generation against an already-known schema doesn't need the
+  // same model as judgment-heavy canvas planning). Defaults match
+  // chat_server.py's own fallbacks (resolve_models) exactly, so a server
+  // that never receives this field still behaves the same as before it
+  // existed.
+  const DEFAULT_AI_MODELS = { lowCost: "claude-haiku-4-5-20251001", highCost: "claude-sonnet-4-5" };
+  const [aiModels, setAiModelsRaw] = useState(() => {
+    try { return { ...DEFAULT_AI_MODELS, ...JSON.parse(localStorage.getItem("bdcore_ai_models") || "{}") }; } catch { return DEFAULT_AI_MODELS; }
+  });
+  const setAiModels = (updater) => setAiModelsRaw((prev) => {
+    const next = typeof updater === "function" ? updater(prev) : updater;
+    try { localStorage.setItem("bdcore_ai_models", JSON.stringify(next)); } catch {}
+    return next;
+  });
   const agentScanRunningRef = useRef(false);
   const [datasetFileName, setDatasetFileName] = useState("");
   const [datasetPreview, setDatasetPreview] = useState(null); // parsed + validated upload, or null
@@ -3572,7 +3589,7 @@ function APMDashboardLive() {
     updateAsk(key, { loading: true, answer: "" });
     try {
       const res = await fetch("http://localhost:5050/chat", {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question: q }),
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question: q, models: aiModels }),
       });
       const data = await res.json();
       updateAsk(key, { loading: false, answer: data.answer });
@@ -3714,7 +3731,7 @@ function APMDashboardLive() {
       const res = await fetch("http://localhost:5050/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question, history }),
+        body: JSON.stringify({ question, history, models: aiModels }),
       });
       if (!res.ok) throw new Error(`Chat backend returned ${res.status}`);
       const data = await res.json();
@@ -6253,8 +6270,9 @@ function APMDashboardLive() {
     ["agentwatch", "Agent Watch", "agentwatch"],
     ["customrules", "Custom Watch Rules", "customrules"],
     ["integrations", "Integrations", "integrations"],
+    ["aimodels", "AI Models", "aimodels"],
   ];
-  const ADMIN_KEYS = new Set(["dataload", "agentwatch", "customrules", "integrations"]);
+  const ADMIN_KEYS = new Set(["dataload", "agentwatch", "customrules", "integrations", "aimodels"]);
   // Standalone top-level sidebar items (their own row, no parent group to
   // expand) — jumping to one of these via goToView (e.g. Help's "Open →")
   // must NOT force the "APM" section open, since they live outside it.
@@ -6331,6 +6349,7 @@ function APMDashboardLive() {
     help: <svg {...ICON_COMMON}><circle cx="12" cy="12" r="9" /><path d="M9.5 9.2a2.5 2.5 0 0 1 4.8 1c0 1.6-2.3 1.8-2.3 3.4" /><circle cx="12" cy="17" r="0.7" fill="currentColor" stroke="none" /></svg>,
     workspaces: <svg {...ICON_COMMON}><circle cx="6" cy="6" r="2.2" /><circle cx="18" cy="6" r="2.2" /><circle cx="12" cy="18" r="2.2" /><line x1="7.6" y1="7.6" x2="10.7" y2="16.1" /><line x1="16.4" y1="7.6" x2="13.3" y2="16.1" /><line x1="8.2" y1="6" x2="15.8" y2="6" /></svg>,
     ontology: <svg {...ICON_COMMON}><rect x="4" y="4" width="16" height="16" rx="3" /><path d="M4 10h16M10 4v16" /></svg>,
+    aimodels: <svg {...ICON_COMMON}><rect x="7" y="7" width="10" height="10" rx="1.5" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.5 4.5l2 2M17.5 17.5l2 2M19.5 4.5l-2 2M6.5 17.5l-2 2" /></svg>,
   };
 
   // --- Modelling Canvas functions ---
@@ -7463,7 +7482,7 @@ function APMDashboardLive() {
       const res = await fetch("http://localhost:5050/canvas-chat", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ request: requestText, canvas: canvasSnapshot, history: historyForRequest,
-          customPalettes: buildCustomPaletteSummary(), mcpServers: buildConnectedMcpServersSummary() }),
+          customPalettes: buildCustomPaletteSummary(), mcpServers: buildConnectedMcpServersSummary(), models: aiModels }),
       });
       if (!res.ok) throw new Error(`Chat backend returned ${res.status}`);
       const data = await res.json();
@@ -7509,7 +7528,7 @@ function APMDashboardLive() {
     try {
       const res = await fetch("http://localhost:5050/canvas-interpret", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...body, canvas: buildCanvasSnapshot(), customPalettes: buildCustomPaletteSummary() }),
+        body: JSON.stringify({ ...body, canvas: buildCanvasSnapshot(), customPalettes: buildCustomPaletteSummary(), models: aiModels }),
       });
       if (!res.ok) throw new Error(`Chat backend returned ${res.status}`);
       const data = await res.json();
@@ -11981,6 +12000,62 @@ function APMDashboardLive() {
                     )}
                   </div>
                 )}
+              </div>
+            );
+          })()}
+          {view === "aimodels" && (() => {
+            const setModel = (tier) => (e) => setAiModels((m) => ({ ...m, [tier]: e.target.value }));
+            const isDefault = aiModels.lowCost === DEFAULT_AI_MODELS.lowCost && aiModels.highCost === DEFAULT_AI_MODELS.highCost;
+            return (
+              <div>
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)",
+                  borderRadius: 16, padding: 22, marginBottom: 22, maxWidth: 820 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 6 }}>What is this page?</div>
+                  <div style={{ fontSize: 13, color: COLORS.inkSecondary, lineHeight: 1.6 }}>
+                    chat_server.py calls Anthropic's API for several genuinely different kinds of task — some
+                    mechanical and schema-constrained (writing a Cypher query against a schema that's already fully
+                    spelled out in the prompt, mapping a phrase onto a fixed list of filter values), others
+                    judgment-heavy (planning what to draw on a canvas, deciding how to use a connected MCP tool,
+                    reading an image). Rather than hard-code one model for everything, two tiers are defined here —
+                    a cheaper/faster model for the mechanical tasks, and a stronger one for everything that actually
+                    needs it — and the two model ids are sent with every request so the backend can route each task
+                    to the right tier. Changing either value here takes effect on your very next message, no restart
+                    needed.
+                  </div>
+                </div>
+
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)",
+                  borderRadius: 16, padding: 22, marginBottom: 22, maxWidth: 820 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 600 }}>Model tiers</div>
+                    {!isDefault && (
+                      <span onClick={() => setAiModels(DEFAULT_AI_MODELS)}
+                        style={{ fontSize: 11.5, fontWeight: 600, color: COLORS.inkSecondary, cursor: "pointer" }}>
+                        Reset to defaults
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                    <div>
+                      <div style={{ fontSize: 11.5, fontWeight: 600, color: COLORS.inkSecondary, marginBottom: 5 }}>
+                        Low-cost model <span style={{ fontWeight: 400 }}>— Cypher generation, filter mapping</span>
+                      </div>
+                      <input value={aiModels.lowCost} onChange={setModel("lowCost")} placeholder={DEFAULT_AI_MODELS.lowCost}
+                        style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 13, fontFamily: "monospace" }} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 11.5, fontWeight: 600, color: COLORS.inkSecondary, marginBottom: 5 }}>
+                        High-cost model <span style={{ fontWeight: 400 }}>— canvas planning, MCP tools, images</span>
+                      </div>
+                      <input value={aiModels.highCost} onChange={setModel("highCost")} placeholder={DEFAULT_AI_MODELS.highCost}
+                        style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 13, fontFamily: "monospace" }} />
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 11.5, color: COLORS.inkSecondary, marginTop: 10, lineHeight: 1.5 }}>
+                    Exact model ids, e.g. <code>claude-haiku-4-5-20251001</code> or <code>claude-sonnet-4-5</code>. An
+                    empty field falls back to chat_server.py's own default for that tier.
+                  </div>
+                </div>
               </div>
             );
           })()}
