@@ -1,5 +1,5 @@
 """
-BDCore chat backend — "chat to my portfolio".
+OntoCore chat backend — "chat to my portfolio".
 
 Sits between the dashboard (in your browser) and two other things it can't
 safely talk to directly: your Neo4j database's credentials, and an Anthropic
@@ -733,7 +733,7 @@ def plan_create_guidance(schema_context, canvas_snapshot, custom_palettes=None):
         "the person individually (see the reply guidance above), so one combined query "
         "makes it impossible to tell them which specific ones were and weren't actually "
         "found.\n"
-        "- \"create\" kind=concept: for a genuine new BDCore entity that doesn't exist "
+        "- \"create\" kind=concept: for a genuine new OntoCore entity that doesn't exist "
         "yet — only use real concept types and real attribute names from the schema "
         "below, and only enum values that are actually listed for that attribute. These "
         "land as drafts on the canvas, never automatically written to the graph.\n"
@@ -1022,7 +1022,7 @@ def canvas_chat():
            "directly rather than defaulting everything to one kind: an actual sticky-note-type item becomes "
            "\"sticky\"; an actual shape/rectangle/geometric item becomes \"create\" kind=shape (category Basic, "
            "the closest real shapeKey — rectangle, circle, diamond, etc. — to what it actually is), carrying "
-           "over its real text as the shape's label; a named, well-defined thing of a real BDCore type still "
+           "over its real text as the shape's label; a named, well-defined thing of a real OntoCore type still "
            "becomes a \"concept\" regardless of its Miro widget type. The tool result also carries each item's "
            "real position (x/y, however that source names them) — set \"x\" and \"y\" on every item you create "
            "from it to that real position, so the layout you recreate here actually resembles the source "
@@ -1118,7 +1118,7 @@ def canvas_interpret():
     reads an image (a photo or screenshot of a whiteboard, a Miro/Mural-style
     board, a hand-drawn diagram) or pasted text (a Confluence page, meeting
     notes, a requirements doc) and proposes a plan to represent what it
-    finds as real BDCore concepts, stickies, and shapes — landing as
+    finds as real OntoCore concepts, stickies, and shapes — landing as
     unpushed drafts on the canvas, same as /canvas-chat's own "create", for
     a person to review before anything is real. Reuses the exact same plan
     shape and create/pull rules (plan_create_guidance) so the dashboard
@@ -1156,7 +1156,7 @@ def canvas_interpret():
         task_intro = (
             f"You are looking at an image{source_desc} — a photo or screenshot of a "
             "whiteboard, a Miro/Mural-style board, a hand-drawn diagram, or similar — and "
-            "converting what's actually depicted in it into real BDCore concepts, "
+            "converting what's actually depicted in it into real OntoCore concepts, "
             "stickies, and shapes on a visual canvas. This is a one-shot extraction, not a "
             "conversation: read everything legible in the image — boxes, sticky notes, "
             "labels, groupings, and any arrows or lines connecting them — and propose a "
@@ -1169,7 +1169,7 @@ def canvas_interpret():
         task_intro = (
             f"You are reading pasted text{source_desc} — a Confluence page, meeting "
             "notes, a requirements doc, or similar — and converting what it describes "
-            "into real BDCore concepts, stickies, and shapes on a visual canvas. This is "
+            "into real OntoCore concepts, stickies, and shapes on a visual canvas. This is "
             "a one-shot extraction, not a conversation: identify the distinct entities, "
             "ideas, and relationships the text actually describes, and propose a plan "
             "that captures them faithfully. Don't invent anything the text doesn't "
@@ -1211,7 +1211,7 @@ def canvas_interpret():
         "anything that reads as an informal note or idea rather than a named, governed "
         "entity — most sticky-note-shaped things on a Miro-style board belong here, not "
         "as a \"concept\". Only promote something to a real \"concept\" when it's clearly a "
-        "named, well-defined thing of a real BDCore type (an application, a capability, a "
+        "named, well-defined thing of a real OntoCore type (an application, a capability, a "
         "process, etc). When genuinely unsure, prefer \"sticky\" — it's a far easier "
         "correction for a person to promote a sticky into a concept afterwards than to "
         "untangle an over-eager wrong concept.\n\n"
@@ -1809,7 +1809,7 @@ def oauth_register_client(registration_endpoint, redirect_uri):
         "token_endpoint_auth_method": "none",
         "grant_types": ["authorization_code", "refresh_token"],
         "response_types": ["code"],
-        "client_name": "BDCore",
+        "client_name": "OntoCore",
     }, timeout=10)
     resp.raise_for_status()
     return resp.json()["client_id"]

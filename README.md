@@ -1,4 +1,4 @@
-# BDCore
+# OntoCore
 
 An enterprise architecture ontology platform — model your real portfolio
 (applications, capabilities, risks, requirements, and how they all relate)
@@ -8,7 +8,7 @@ a visual canvas.
 
 ## How it's built
 
-- **`rbl-apm-dashboard-live.html`** — the entire dashboard. A single HTML
+- **`ontocore-dashboard.html`** — the entire dashboard. A single HTML
   file with React 18 and Babel Standalone loaded from the `vendor/`
   folder next to it (not a CDN), which transpiles the app's JSX in the
   browser at load time. There's no build step — you just serve this file.
@@ -29,7 +29,7 @@ a visual canvas.
   organization.
 - **`rbl-apm-dashboard-live.jsx`** — an early, no-longer-maintained
   reference copy of the frontend. The real, current source lives inside
-  `rbl-apm-dashboard-live.html` itself (in the `<script type="text/plain"
+  `ontocore-dashboard.html` itself (in the `<script type="text/plain"
   id="app-source">` block) — that's the file to edit.
 
 ## Prerequisites
@@ -98,7 +98,7 @@ a visual canvas.
    python3 -m http.server 8000
    ```
 
-   Then open **http://localhost:8000/rbl-apm-dashboard-live.html**.
+   Then open **http://localhost:8000/ontocore-dashboard.html**.
 
 6. **Connect to your Aura instance.** On first load, the dashboard shows
    a "Connect to Your Aura Instance" screen — enter the same URI,
