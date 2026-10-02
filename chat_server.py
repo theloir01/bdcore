@@ -884,6 +884,13 @@ def canvas_chat():
     mcp_tools, mcp_tool_lookup = mcp_tools_to_anthropic(mcp_servers)
     refreshed_auths = {}
     mcp_tool_executor = make_mcp_tool_executor(mcp_tool_lookup, refreshed_auths) if mcp_tools else None
+    # Skills this chat has explicitly opted into (Admin -> Skills Creator
+    # defines them; buildActiveSkillsSummary on the frontend only sends the
+    # ones actually added here) — each is just a name + reusable prompt
+    # folded into this turn's own instructions below, same trust level as
+    # everything else already in plan_system: it can steer what gets
+    # pulled/created/connected, never anything outside that.
+    active_skills = [s for s in request.json.get("skills", []) if isinstance(s, dict) and (s.get("prompt") or "").strip()]
 
     schema_context, valid_rel_types = build_schema_context()
 
@@ -983,6 +990,13 @@ def canvas_chat():
            "correct when the source genuinely has no size data for that element. Only if a tool call genuinely errors, or "
            "nothing you found actually matches what was asked for, say so plainly in \"reply\" instead — never "
            "invent content and never create a generic stand-in object to paper over not having checked." if mcp_tools else "")
+        + ("\n\nThis chat also has the following skill(s) added to it — reusable instructions an admin defined "
+           "for exactly this kind of request, each named so you know when it applies. When the current request "
+           "matches what a skill below describes, follow its instruction as part of building your plan and reply, "
+           "using the same pull/create/connections/recolor mechanics described above — a skill only changes HOW "
+           "you approach a matching request, never what you're allowed to do. If no active skill's description "
+           "matches this particular request, ignore all of them and proceed normally.\n\n"
+           + "\n\n".join(f"Skill \"{s['name']}\": {s['prompt']}" for s in active_skills) if active_skills else "")
     )
 
     messages = [{"role": h["role"], "content": h["content"]} for h in history]
