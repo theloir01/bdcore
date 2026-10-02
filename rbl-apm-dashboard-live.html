@@ -3305,10 +3305,14 @@ function APMDashboardLive() {
   const [watchRuleStatus, setWatchRuleStatus] = useState("");
   // MCP ("Model Context Protocol") integrations — lets the dashboard act as
   // an MCP *client* and pull content in from any MCP server (Miro's board
-  // tools, etc.) via chat_server.py's /mcp/* proxy. The server list (name,
-  // URL, bearer token) lives client-side in localStorage, same trust model
-  // as the Neo4j credentials above — chat_server.py only ever relays a
-  // call, it never stores a token itself.
+  // tools, etc.) via chat_server.py's /mcp/* proxy. The server list lives
+  // client-side in localStorage, same trust model as the Neo4j credentials
+  // above — chat_server.py only ever relays a call, it never stores a
+  // credential itself. Each server's `auth` is null (no auth), { type:
+  // "bearer", token } for a plain static-token server, or { type: "oauth",
+  // accessToken, refreshToken, expiresAt, tokenEndpoint, clientId } for one
+  // that only accepts a real OAuth sign-in (Miro's official MCP server
+  // among them) — see connectMcpServerOAuth below.
   const [mcpServers, setMcpServersRaw] = useState(() => {
     try { return JSON.parse(localStorage.getItem("bdcore_mcp_servers") || "[]"); } catch { return []; }
   });
@@ -3317,6 +3321,12 @@ function APMDashboardLive() {
     try { localStorage.setItem("bdcore_mcp_servers", JSON.stringify(next)); } catch {}
     return next;
   });
+  // Mirrors mcpServers for the postMessage listener below, which is
+  // registered once on mount and would otherwise only ever see the empty
+  // array it closed over at that first render — same reasoning as
+  // datasetBusyRef above for its own setInterval callback.
+  const mcpServersRef = useRef(mcpServers);
+  useEffect(() => { mcpServersRef.current = mcpServers; }, [mcpServers]);
   const [mcpServerDraft, setMcpServerDraft] = useState({ name: "", url: "", token: "" });
   // { [serverId]: { testing, ok, error, tools } } — kept per server so
   // switching between several configured servers doesn't lose each one's
@@ -3327,6 +3337,29 @@ function APMDashboardLive() {
   const [mcpCallBusy, setMcpCallBusy] = useState(false);
   const [mcpCallResult, setMcpCallResult] = useState(null); // { toolName, ok, text, error }
   const [mcpImportLabel, setMcpImportLabel] = useState("");
+  const [mcpOAuthError, setMcpOAuthError] = useState("");
+  // The OAuth popup (chat_server.py's /mcp/oauth/callback) has no channel
+  // back to this tab except postMessage — it can't call a React setter
+  // directly, since it's a whole separate window. Registered once; reads
+  // mcpServersRef (not mcpServers) to always see the latest list.
+  useEffect(() => {
+    const handler = (e) => {
+      const data = e.data;
+      if (!data || data.type !== "bdcore-mcp-oauth") return;
+      if (!data.ok) { setMcpOAuthError(data.error || "Couldn't connect."); return; }
+      setMcpOAuthError("");
+      const newAuth = {
+        type: "oauth", accessToken: data.tokens.accessToken, refreshToken: data.tokens.refreshToken,
+        expiresAt: Date.now() + (data.tokens.expiresIn || 3600) * 1000,
+        tokenEndpoint: data.tokens.tokenEndpoint, clientId: data.tokens.clientId,
+      };
+      setMcpServers((prev) => prev.map((s) => s.url === data.serverUrl ? { ...s, auth: newAuth } : s));
+      const target = mcpServersRef.current.find((s) => s.url === data.serverUrl);
+      if (target) testMcpServer({ ...target, auth: newAuth });
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, []);
   const agentScanRunningRef = useRef(false);
   const [datasetFileName, setDatasetFileName] = useState("");
   const [datasetPreview, setDatasetPreview] = useState(null); // parsed + validated upload, or null
@@ -7413,14 +7446,24 @@ function APMDashboardLive() {
   };
 
   // --- MCP integrations (Integrations admin page) -------------------------
+  // A server's auth sometimes gets refreshed as a side effect of just
+  // calling it (an expired OAuth access token silently renewed via its
+  // refresh token) — chat_server.py hands the new tokens back in the
+  // response rather than keeping them itself, so this is the one place
+  // that writes them into the persisted server list.
+  const applyRefreshedAuth = (server, refreshedAuth) => {
+    if (!refreshedAuth) return;
+    setMcpServers((prev) => prev.map((s) => s.id === server.id ? { ...s, auth: refreshedAuth } : s));
+  };
   const testMcpServer = async (server) => {
     setMcpServerStatus((prev) => ({ ...prev, [server.id]: { ...(prev[server.id] || {}), testing: true, error: "" } }));
     try {
       const res = await fetch("http://localhost:5050/mcp/tools", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: server.url, token: server.token }),
+        body: JSON.stringify({ url: server.url, auth: server.auth || null }),
       });
       const data = await res.json();
+      applyRefreshedAuth(server, data.refreshedAuth);
       setMcpServerStatus((prev) => ({ ...prev, [server.id]: data.ok
         ? { testing: false, ok: true, tools: data.tools || [], error: "" }
         : { testing: false, ok: false, tools: [], error: data.error || "Connection failed" } }));
@@ -7432,7 +7475,8 @@ function APMDashboardLive() {
     const name = mcpServerDraft.name.trim();
     const url = mcpServerDraft.url.trim();
     if (!name || !url) return;
-    const server = { id: newCanvasId("mcp"), name, url, token: mcpServerDraft.token.trim() };
+    const token = mcpServerDraft.token.trim();
+    const server = { id: newCanvasId("mcp"), name, url, auth: token ? { type: "bearer", token } : null };
     setMcpServers((prev) => [...prev, server]);
     setMcpServerDraft({ name: "", url: "", token: "" });
     testMcpServer(server);
@@ -7442,6 +7486,20 @@ function APMDashboardLive() {
     setMcpServers((prev) => prev.filter((s) => s.id !== server.id));
     setMcpServerStatus((prev) => { const next = { ...prev }; delete next[server.id]; return next; });
     if (mcpActiveServerId === server.id) setMcpActiveServerId(null);
+  };
+  // Opens chat_server.py's /mcp/oauth/start in a popup, which runs the
+  // whole authorization-code-+-PKCE dance (including the redirect to the
+  // server's own sign-in page) and reports back via postMessage — see the
+  // listener registered next to mcpServers' own state above. Needed for a
+  // server like Miro's official MCP server that only accepts a real
+  // sign-in, not a pasted token.
+  const connectMcpServerOAuth = (server) => {
+    setMcpOAuthError("");
+    const popup = window.open(
+      `http://localhost:5050/mcp/oauth/start?url=${encodeURIComponent(server.url)}`,
+      "bdcore-mcp-oauth", "width=520,height=680"
+    );
+    if (!popup) setMcpOAuthError("Pop-up blocked — allow pop-ups for this page and try again.");
   };
   const callMcpTool = async (server) => {
     const toolName = mcpToolDraft.tool;
@@ -7454,9 +7512,10 @@ function APMDashboardLive() {
     try {
       const res = await fetch("http://localhost:5050/mcp/call", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: server.url, token: server.token, tool: toolName, args }),
+        body: JSON.stringify({ url: server.url, auth: server.auth || null, tool: toolName, args }),
       });
       const data = await res.json();
+      applyRefreshedAuth(server, data.refreshedAuth);
       setMcpCallResult(data.ok
         ? { toolName, ok: true, text: JSON.stringify(data.result, null, 2) }
         : { toolName, ok: false, error: data.error || "The call failed" });
@@ -11656,9 +11715,15 @@ function APMDashboardLive() {
                     until you choose to.
                   </div>
                   <div style={{ fontSize: 12, color: COLORS.inkSecondary, marginTop: 10, lineHeight: 1.6 }}>
-                    <b>Where credentials live:</b> a server's URL and access token are kept only in this browser's
-                    local storage, the same trust model as your Neo4j connection — chat_server.py relays each call
-                    but never stores one.
+                    <b>Where credentials live:</b> a server's URL and any token or OAuth session are kept only in
+                    this browser's local storage, the same trust model as your Neo4j connection — chat_server.py
+                    relays each call but never stores one.
+                  </div>
+                  <div style={{ fontSize: 12, color: COLORS.inkSecondary, marginTop: 10, lineHeight: 1.6 }}>
+                    <b>Two ways to authenticate:</b> some servers take a plain access token pasted below. Others —
+                    Miro's official MCP server among them — only accept a real sign-in; for those, add the
+                    connection with just a name and URL, then use "Connect via OAuth" in the table below, which
+                    opens a sign-in popup and comes back connected on its own.
                   </div>
                 </div>
 
@@ -11673,7 +11738,7 @@ function APMDashboardLive() {
                         style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 13 }} />
                     </div>
                     <div>
-                      <div style={{ fontSize: 11.5, fontWeight: 600, color: COLORS.inkSecondary, marginBottom: 5 }}>Access token (if required)</div>
+                      <div style={{ fontSize: 11.5, fontWeight: 600, color: COLORS.inkSecondary, marginBottom: 5 }}>Access token (leave blank for OAuth, e.g. Miro)</div>
                       <input type="password" value={mcpServerDraft.token} onChange={(e) => setMcpServerDraft((d) => ({ ...d, token: e.target.value }))}
                         style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 13 }} />
                     </div>
@@ -11691,6 +11756,9 @@ function APMDashboardLive() {
                       opacity: (!mcpServerDraft.name.trim() || !mcpServerDraft.url.trim()) ? 0.5 : 1 }}>
                     + Add Connection
                   </button>
+                  {mcpOAuthError && (
+                    <div style={{ fontSize: 12.5, color: COLORS.risk, marginTop: 12 }}>{mcpOAuthError}</div>
+                  )}
                 </div>
 
                 <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)", borderRadius: 18, overflow: "hidden", marginBottom: 22 }}>
@@ -11711,8 +11779,10 @@ function APMDashboardLive() {
                           return <span style={{ color: COLORS.inkSecondary }}>Not tested</span>;
                         } },
                       { key: "actions", label: "", sortable: false, render: (r) => (
-                          <span style={{ display: "flex", gap: 12 }}>
+                          <span style={{ display: "flex", gap: 12, alignItems: "center" }}>
                             <span onClick={() => testMcpServer(r)} style={{ color: COLORS.accent, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>Test</span>
+                            <span onClick={() => connectMcpServerOAuth(r)} style={{ color: COLORS.accent2, cursor: "pointer", fontSize: 12, fontWeight: 600 }}
+                              title="Opens a sign-in popup — for servers (like Miro's) that don't take a plain token">Connect via OAuth</span>
                             {(mcpServerStatus[r.id] || {}).ok && (
                               <span onClick={() => { setMcpActiveServerId(r.id); setMcpToolDraft({ tool: "", argsText: "{}" }); setMcpCallResult(null); }}
                                 style={{ color: COLORS.accent, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>Browse tools</span>
