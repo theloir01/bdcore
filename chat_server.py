@@ -235,8 +235,9 @@ def call_claude_raw(system, messages, tools=None, max_tokens=1024, model=None):
     back to CLAUDE_MODEL so any caller that doesn't care still works
     exactly as before.
     """
+    resolved_model = model or CLAUDE_MODEL
     payload = {
-        "model": model or CLAUDE_MODEL, "max_tokens": max_tokens,
+        "model": resolved_model, "max_tokens": max_tokens,
         "system": _cache_last([{"type": "text", "text": system}]),
         "messages": _messages_with_trailing_cache(messages),
     }
@@ -256,6 +257,14 @@ def call_claude_raw(system, messages, tools=None, max_tokens=1024, model=None):
     data = resp.json()
     usage = data.get("usage", {})
     return data.get("content", []), data.get("stop_reason"), {
+        # The actual model id this call was billed against — carried on the
+        # usage dict itself (rather than the caller having to separately
+        # remember what it passed in) so add_usage can bucket cost by model.
+        # A single logical request can span two different-priced models
+        # (e.g. Cypher generation on the low-cost tier, the answer on the
+        # high-cost one) — a merged total would make an accurate $ cost
+        # impossible to compute downstream.
+        "model": resolved_model,
         "input": usage.get("input_tokens", 0), "output": usage.get("output_tokens", 0),
         "cacheRead": usage.get("cache_read_input_tokens", 0), "cacheWrite": usage.get("cache_creation_input_tokens", 0),
     }
@@ -290,21 +299,36 @@ USAGE_KEYS = ("input", "output", "cacheRead", "cacheWrite")
 
 
 def empty_usage():
-    return {k: 0 for k in USAGE_KEYS}
+    return {"byModel": {}}
 
 
 def add_usage(total, usage):
+    """
+    Accumulates one call's usage dict (from call_claude_raw — has "model"
+    plus the four USAGE_KEYS) into a running total, bucketed by model id.
+    A single endpoint can route different steps to different cost tiers
+    (see resolve_models), so the per-model breakdown is what makes an
+    accurate $ cost computable downstream — a flat merged total can't tell
+    you how many tokens were billed at which rate.
+    """
+    model = usage.get("model") or "unknown"
+    bucket = total["byModel"].setdefault(model, {k: 0 for k in USAGE_KEYS})
     for k in USAGE_KEYS:
-        total[k] = total.get(k, 0) + usage.get(k, 0)
+        bucket[k] += usage.get(k, 0)
 
 
 def usage_with_total(usage):
-    return {**usage, "total": sum(usage.get(k, 0) for k in USAGE_KEYS)}
+    total_tokens = sum(sum(bucket.values()) for bucket in usage["byModel"].values())
+    return {**usage, "total": total_tokens}
 
 
 def usage_log_str(usage):
-    return (f"input: {usage['input']}, output: {usage['output']}, "
-            f"cacheRead: {usage['cacheRead']}, cacheWrite: {usage['cacheWrite']}")
+    if not usage["byModel"]:
+        return "no usage"
+    return " | ".join(
+        f"{model}: input={u['input']}, output={u['output']}, cacheRead={u['cacheRead']}, cacheWrite={u['cacheWrite']}"
+        for model, u in usage["byModel"].items()
+    )
 
 
 def extract_cypher(text):
@@ -613,8 +637,7 @@ def chat():
     answer, usage = call_claude(answer_system, [{"role": "user", "content": answer_prompt}], model=high_model)
     track(usage)
 
-    total_usage["total"] = sum(total_usage[k] for k in USAGE_KEYS)
-    print(f"[{question[:60]!r}] tokens — {usage_log_str(total_usage)}, total: {total_usage['total']}")
+    print(f"[{question[:60]!r}] tokens — {usage_log_str(total_usage)}, total: {usage_with_total(total_usage)['total']}")
 
     return jsonify({"answer": answer, "cypher": cypher, "rowCount": len(results) if results else 0,
                      "entities": entities, "tokens": token_summary()})
@@ -1214,7 +1237,9 @@ def refine_filters():
         f"hosting: {options.get('hosting', [])}"
     )
     raw, usage = call_claude(system, [{"role": "user", "content": req_text}], max_tokens=400, model=low_model)
-    total_usage = usage_with_total(usage)
+    total_usage = empty_usage()
+    add_usage(total_usage, usage)
+    total_usage = usage_with_total(total_usage)
 
     try:
         result = json.loads(extract_json(raw))
