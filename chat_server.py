@@ -622,10 +622,10 @@ def plan_create_guidance(schema_context, canvas_snapshot, custom_palettes=None):
         "from where they actually visually sit relative to smaller ones next to them. A tool "
         "result that contains Miro canvas-composer elements comes with an "
         "\"[Extracted absolute center positions...]\" block appended to it — a ready-made "
-        "miroId -> centerX/centerY lookup, already computed from each element's real "
-        "data-rendered-bounds for exactly this purpose. When that block is present, READ THE "
-        "CENTERX/CENTERY VALUES DIRECTLY FROM IT and copy them as a \"create\" item's x/y for "
-        "the matching miroId — do not parse the raw SVG's own x/y/cx/cy yourself (Miro's native "
+        "miroId -> centerX/centerY lookup, already computed server-side for exactly this "
+        "purpose. When that block is present, READ THE CENTERX/CENTERY VALUES DIRECTLY FROM IT "
+        "and copy them as a \"create\" item's x/y for the matching miroId — do not parse the "
+        "raw SVG's own x/y/cx/cy yourself (Miro's native "
         "convention varies by element type: top-left for a rect/sticky/shape, center for a "
         "circle/ellipse, baseline-anchor for text, relative to its parent frame's own translate "
         "when nested — the extracted block has already resolved all of that). Without that "
@@ -1282,28 +1282,63 @@ _RENDERED_BOUNDS_ATTR_RES = {
     "miroId": re.compile(r'data-miro-id=\\*"([^"\\]*)'),
     "bounds": re.compile(r'data-rendered-bounds=\\*"([^"\\]*)'),
     "content": re.compile(r'data-content=\\*"([^"\\]*)'),
+    "x": re.compile(r'\sx=\\*"([^"\\]*)'),
+    "y": re.compile(r'\sy=\\*"([^"\\]*)'),
+    "width": re.compile(r'\swidth=\\*"([^"\\]*)'),
+    "height": re.compile(r'\sheight=\\*"([^"\\]*)'),
 }
+
+
+def _tag_center(tag):
+    """
+    An element's own box as (x, y, width, height) read directly from its
+    native x/y/width/height attributes — correct ONLY for the top-left
+    convention a <rect> actually uses per Miro's own canvas-composer spec
+    (a circle/ellipse's cx/cy is already its center and a <text>'s y is a
+    baseline, neither of which this covers). Returns None for anything else
+    or when an attribute is missing/unparseable.
+    """
+    if not tag.startswith("<rect"):
+        return None
+    try:
+        x = float(_RENDERED_BOUNDS_ATTR_RES["x"].search(tag).group(1))
+        y = float(_RENDERED_BOUNDS_ATTR_RES["y"].search(tag).group(1))
+        w = float(_RENDERED_BOUNDS_ATTR_RES["width"].search(tag).group(1))
+        h = float(_RENDERED_BOUNDS_ATTR_RES["height"].search(tag).group(1))
+    except (AttributeError, ValueError):
+        return None
+    return x + w / 2, y + h / 2
 
 
 def extract_rendered_bounds(raw_result_text):
     """
-    Best-effort extraction of Miro canvas-composer's data-rendered-bounds
-    (plus data-content, for correlation) straight out of a raw MCP tool
-    result — asking Claude to reliably parse a whole SVG document's
-    per-element geometry (which itself varies by tag: top-left for a rect,
-    center for a circle, frame-relative when nested, ...) inline while also
-    deciding what to create turned out to not be reliable in practice
-    (confirmed: a recreated board kept landing as a flat row indistinguishable
-    from having no position data at all, across several guidance rewrites).
-    Doing the one well-specified, unambiguous part — data-rendered-bounds is
-    a single already-absolute "x y width height" the server itself stamps on
-    each measured element — in code removes that step from Claude's plate
-    entirely, leaving it a lookup instead of an SVG-parsing-plus-arithmetic
-    task. Regex over the raw text (not real XML parsing) on purpose: the
-    exact envelope shape around the SVG text varies by tool and is often
+    Best-effort extraction of each element's real center straight out of a
+    raw MCP tool result — asking Claude to reliably parse a whole SVG
+    document's per-element geometry (which itself varies by tag: top-left
+    for a rect, center for a circle, frame-relative when nested, ...)
+    inline while also deciding what to create turned out to not be reliable
+    in practice (confirmed over several rounds: a recreated board kept
+    landing as a flat row indistinguishable from having no position data at
+    all, even once the guidance named the exact right attribute). Doing the
+    well-specified, unambiguous part in code removes that step from
+    Claude's plate entirely, leaving it a lookup instead of an
+    SVG-parsing-plus-arithmetic task.
+
+    Two sources, tried in order per element: Miro's own
+    data-rendered-bounds="x y width height" when present (already absolute,
+    already normalized regardless of element type or frame nesting — but
+    confirmed NOT always present, e.g. a canvas_read_as_svg of plain
+    pre-existing content came back with none at all); otherwise a <rect>'s
+    own native x/y/width/height, which is top-left per the DSL spec and was
+    confirmed present on every element in that same real response. Anything
+    else (a circle, an unmeasured non-rect) is left for Claude's own
+    judgement, same as before this existed.
+
+    Regex over the raw text (not real XML parsing) on purpose: the exact
+    envelope shape around the SVG text varies by tool and is often
     JSON-escaped, so this never assumes a specific result shape, only the
-    attribute itself — anything that doesn't match this exact Miro attribute
-    returns [], a safe no-op for any other MCP server's result.
+    attributes themselves — anything that matches neither returns [], a
+    safe no-op for any other MCP server's result.
 
     Deduplicated by miroId: a tool's own JSON envelope commonly mirrors the
     same SVG text in more than one field (e.g. once inside a content[].text
@@ -1314,18 +1349,26 @@ def extract_rendered_bounds(raw_result_text):
     seen_ids = set()
     for tag in _RENDERED_BOUNDS_TAG_RE.findall(raw_result_text):
         id_match = _RENDERED_BOUNDS_ATTR_RES["miroId"].search(tag)
+        if not id_match or id_match.group(1) in seen_ids:
+            continue
+
+        center = None
         bounds_match = _RENDERED_BOUNDS_ATTR_RES["bounds"].search(tag)
-        if not (id_match and bounds_match) or id_match.group(1) in seen_ids:
+        if bounds_match:
+            parts = bounds_match.group(1).split()
+            if len(parts) == 4:
+                try:
+                    x, y, w, h = (float(p) for p in parts)
+                    center = (x + w / 2, y + h / 2)
+                except ValueError:
+                    center = None
+        if center is None:
+            center = _tag_center(tag)
+        if center is None:
             continue
-        parts = bounds_match.group(1).split()
-        if len(parts) != 4:
-            continue
-        try:
-            x, y, w, h = (float(p) for p in parts)
-        except ValueError:
-            continue
+
         seen_ids.add(id_match.group(1))
-        entry = {"miroId": id_match.group(1), "centerX": round(x + w / 2, 1), "centerY": round(y + h / 2, 1)}
+        entry = {"miroId": id_match.group(1), "centerX": round(center[0], 1), "centerY": round(center[1], 1)}
         content_match = _RENDERED_BOUNDS_ATTR_RES["content"].search(tag)
         if content_match:
             entry["content"] = content_match.group(1)
@@ -1364,8 +1407,8 @@ def make_mcp_tool_executor(lookup, refreshed_auths):
             extracted = extract_rendered_bounds(text)
             summary = ""
             if extracted:
-                summary = ("\n\n[Extracted absolute center positions, already computed from each element's "
-                           "data-rendered-bounds — use centerX/centerY directly as a \"create\" item's x/y for "
+                summary = ("\n\n[Extracted absolute center positions, already computed server-side from each "
+                           "element's own geometry — use centerX/centerY directly as a \"create\" item's x/y for "
                            "the matching miroId, instead of parsing the raw SVG geometry yourself]: "
                            + json.dumps(extracted))
 
