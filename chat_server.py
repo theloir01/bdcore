@@ -309,10 +309,25 @@ def get_validated_plan(system, messages, max_tokens=2048, tools=None, tool_execu
     for attempt in range(2):
         rounds = 0
         while True:
-            content_blocks, stop_reason, usage = call_claude_raw(system, convo, tools=tools, max_tokens=max_tokens)
+            # Once the round cap is hit, stop offering tools entirely —
+            # with nothing left to call, Claude is structurally forced to
+            # answer in text instead of requesting yet another round (the
+            # API can't return stop_reason "tool_use" when no tools were
+            # offered). Without this, a request needing more tool calls
+            # than the cap allows (e.g. listing boards, then fetching one,
+            # then something else) can keep asking for tools until this
+            # function gives up on an empty response that never had a
+            # chance to contain the plan.
+            offer_tools = tools if rounds < max_tool_rounds else None
+            convo_this_call = convo
+            if offer_tools is None and tools:
+                convo_this_call = convo + [{"role": "user", "content":
+                    "Stop calling tools now and answer with ONLY the final JSON plan, in the exact shape "
+                    "described above, based on whatever you've already found."}]
+            content_blocks, stop_reason, usage = call_claude_raw(system, convo_this_call, tools=offer_tools, max_tokens=max_tokens)
             total_usage["input"] += usage["input"]
             total_usage["output"] += usage["output"]
-            if stop_reason == "tool_use" and tool_executor and rounds < max_tool_rounds:
+            if stop_reason == "tool_use" and tool_executor and offer_tools:
                 convo.append({"role": "assistant", "content": content_blocks})
                 tool_results = []
                 for block in content_blocks:
@@ -812,7 +827,16 @@ def canvas_chat():
     messages = [{"role": h["role"], "content": h["content"]} for h in history]
     messages.append({"role": "user", "content": request_text})
     plan, raw_plan, total_usage = get_validated_plan(
-        plan_system, messages, tools=mcp_tools or None, tool_executor=mcp_tool_executor
+        plan_system, messages, tools=mcp_tools or None, tool_executor=mcp_tool_executor,
+        # A request that pulled in a real MCP tool result (e.g. a whole
+        # Miro board's items) needs real room to both read that content and
+        # write out a full create[] array reproducing it — the same reason
+        # canvas-interpret already uses more than the plain-chat default
+        # below. Without this, a board with more than a handful of items
+        # reliably gets cut off mid-JSON and fails to parse on both
+        # attempts, surfacing as a flat "I wasn't able to put together a
+        # response for that" with no indication it was a length problem.
+        max_tokens=4096 if mcp_tools else 2048,
     )
 
     if plan is None:
