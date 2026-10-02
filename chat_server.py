@@ -825,9 +825,13 @@ def canvas_chat():
            "is never an acceptable response to this kind of request, even as a fallback. If a question just "
            "asks what's on something (no drawing requested), still call the tool(s) to find out, then answer "
            "with the real content in \"reply\" and leave pull/create/connections/recolor empty, same as any "
-           "other question. Once you do have the real content, treat it the same way you'd treat a pasted "
-           "Miro-style board: most sticky-note-shaped items become \"sticky\", not \"concept\", unless clearly "
-           "a named, well-defined thing of a real BDCore type. Only if a tool call genuinely errors, or "
+           "other question. Once you have the real content, you have its actual widget/item type from the "
+           "tool result itself — this is real structured data, not a photo to guess at — so use that type "
+           "directly rather than defaulting everything to one kind: an actual sticky-note-type item becomes "
+           "\"sticky\"; an actual shape/rectangle/geometric item becomes \"create\" kind=shape (category Basic, "
+           "the closest real shapeKey — rectangle, circle, diamond, etc. — to what it actually is), carrying "
+           "over its real text as the shape's label; a named, well-defined thing of a real BDCore type still "
+           "becomes a \"concept\" regardless of its Miro widget type. Only if a tool call genuinely errors, or "
            "nothing you found actually matches what was asked for, say so plainly in \"reply\" instead — never "
            "invent content and never create a generic stand-in object to paper over not having checked." if mcp_tools else "")
     )
