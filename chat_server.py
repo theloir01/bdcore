@@ -909,7 +909,7 @@ def canvas_chat():
 
     print(f"[canvas-chat: {request_text[:60]!r}] tokens — input: {total_usage['input']}, output: {total_usage['output']}")
     if mcp_tools:
-        positioned = [c.get("tempId") for c in plan.get("create", []) if isinstance(c.get("x"), (int, float))]
+        positioned = [(c.get("tempId"), c.get("x"), c.get("y")) for c in plan.get("create", []) if isinstance(c.get("x"), (int, float))]
         unpositioned = [c.get("tempId") for c in plan.get("create", []) if not isinstance(c.get("x"), (int, float))]
         print(f"[canvas-chat: mcp plan] create items with x/y: {positioned} — without: {unpositioned}")
 
@@ -1423,7 +1423,7 @@ def make_mcp_tool_executor(lookup, refreshed_auths):
             # whether it called the right tool, with what arguments, and
             # whether there was any position data in the result to find.
             print(f"[mcp-tool-call] {tool_name!r} on {server.get('name', '?')!r} args={arguments} "
-                  f"result_len={len(text)} rendered_bounds_found={len(extracted)}")
+                  f"result_len={len(text)} rendered_bounds_found={len(extracted)} extracted={extracted}")
             return text + summary, False
         except Exception as e:
             return f'Error calling "{tool_name}" on "{server.get("name", "?")}": {e}', True
