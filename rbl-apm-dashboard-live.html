@@ -3360,6 +3360,18 @@ function APMDashboardLive() {
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
   }, []);
+  // mcpServerStatus (unlike mcpServers itself) is only ever in memory, not
+  // localStorage — without this, every saved connection looks "Not tested"
+  // on a fresh page load, the Canvas Assistant sees zero available tools
+  // (buildConnectedMcpServersSummary only sends servers with a known-ok
+  // status), and a request like "bring in X from Miro" gets flatly denied
+  // even though the connection itself is still perfectly valid. Reads the
+  // mcpServers value from this first render only (deliberately empty deps
+  // — this is a once-per-load reconciliation, not a live subscription).
+  useEffect(() => {
+    mcpServers.forEach((s) => testMcpServer(s));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const agentScanRunningRef = useRef(false);
   const [datasetFileName, setDatasetFileName] = useState("");
   const [datasetPreview, setDatasetPreview] = useState(null); // parsed + validated upload, or null
