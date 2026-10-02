@@ -814,14 +814,22 @@ def canvas_chat():
         "all four you'd pick\" both creates something and answers in the same reply.\n\n"
         + plan_create_guidance(schema_context, canvas_snapshot, custom_palettes)
         + ("\n\nYou also have live tools connected to these outside sources: "
-           + ", ".join(sorted({s.get("name", "?") for s in mcp_servers})) + ". When the request plausibly "
-           "means something from one of them (e.g. \"bring in X from Miro\", \"what's on the Y board\"), call "
-           "the matching tool(s) yourself before writing your plan — search/list first if you're not sure of "
-           "an exact id or exact name match, then fetch the specific item's content. Treat whatever comes back "
-           "the same way you'd treat a pasted Miro-style board: most sticky-note-shaped items become "
-           "\"sticky\", not \"concept\", unless clearly a named, well-defined thing of a real BDCore type. If "
-           "a tool call errors, or nothing you found actually matches what was asked for, say so plainly in "
-           "\"reply\" rather than inventing content or silently creating nothing." if mcp_tools else "")
+           + ", ".join(sorted({s.get("name", "?") for s in mcp_servers})) + ". Any request that names or "
+           "refers to a specific board, page, document, or item that could live in one of them — \"add X from "
+           "Miro\", \"bring in Y\", \"what's on the Z board\", or just naming something that sounds like it "
+           "could be a real board/page title — means you MUST actually call the matching tool(s) and read "
+           "what comes back before writing your plan or your reply. Search/list first if you're not sure of "
+           "an exact id, then fetch that specific item's real content. NEVER substitute a generic placeholder "
+           "instead — e.g. a single shape or sticky just labeled \"Miro board\" or describing what a "
+           "whiteboard tool generally is, without any of the item's actual real content, is always wrong and "
+           "is never an acceptable response to this kind of request, even as a fallback. If a question just "
+           "asks what's on something (no drawing requested), still call the tool(s) to find out, then answer "
+           "with the real content in \"reply\" and leave pull/create/connections/recolor empty, same as any "
+           "other question. Once you do have the real content, treat it the same way you'd treat a pasted "
+           "Miro-style board: most sticky-note-shaped items become \"sticky\", not \"concept\", unless clearly "
+           "a named, well-defined thing of a real BDCore type. Only if a tool call genuinely errors, or "
+           "nothing you found actually matches what was asked for, say so plainly in \"reply\" instead — never "
+           "invent content and never create a generic stand-in object to paper over not having checked." if mcp_tools else "")
     )
 
     messages = [{"role": h["role"], "content": h["content"]} for h in history]
