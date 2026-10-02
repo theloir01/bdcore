@@ -1125,6 +1125,41 @@ function pluralizeConceptLabel(conceptType) {
   words[words.length - 1] = pluralizeWord(words[words.length - 1]);
   return words.join(" ");
 }
+
+// Turns a chat response's { byModel: {model: {input,output,cacheRead,
+// cacheWrite}}, total }  usage into an actual $ figure, using the per-tier
+// rate cards from Admin -> AI Models. A response can span two
+// different-priced models (e.g. Cypher generation on the low-cost tier,
+// the answer on the high-cost one), which is exactly why usage comes back
+// broken down by model rather than merged — this is where that breakdown
+// actually gets used. Returns null if there's no usage at all; otherwise
+// { cost, complete } where complete=false means some portion of the usage
+// had no matching/fully-filled-in rate card, so `cost` only covers what
+// could actually be priced — never silently presented as the full amount.
+function estimateUsageCost(tokens, aiModels) {
+  if (!tokens || !tokens.byModel || Object.keys(tokens.byModel).length === 0) return null;
+  let cost = 0, complete = true;
+  for (const [model, u] of Object.entries(tokens.byModel)) {
+    const rates = model === aiModels.lowCost ? aiModels.lowCostRates
+      : model === aiModels.highCost ? aiModels.highCostRates : null;
+    const fields = rates && ["input", "output", "cacheRead", "cacheWrite"].map((k) => rates[k]);
+    if (!fields || fields.some((v) => v === null || v === undefined || v === "" || isNaN(Number(v)))) {
+      complete = false;
+      continue;
+    }
+    cost += (u.input / 1e6) * Number(rates.input) + (u.output / 1e6) * Number(rates.output)
+      + (u.cacheRead / 1e6) * Number(rates.cacheRead) + (u.cacheWrite / 1e6) * Number(rates.cacheWrite);
+  }
+  return { cost, complete };
+}
+
+function formatUsageCostLabel(tokens, aiModels) {
+  const result = estimateUsageCost(tokens, aiModels);
+  if (!result) return null;
+  if (result.cost === 0 && !result.complete) return "cost unknown — set rates in Admin → AI Models";
+  const costStr = result.cost < 0.01 && result.cost > 0 ? `$${result.cost.toFixed(4)}` : `$${result.cost.toFixed(2)}`;
+  return result.complete ? costStr : `~${costStr} (set all rates for a full estimate)`;
+}
 const CONCEPT_ICON_COMMON = { width: 15, height: 15, viewBox: "0 0 24 24", fill: "none", stroke: "#fff", strokeWidth: 1.8, strokeLinecap: "round", strokeLinejoin: "round" };
 const CONCEPT_TYPE_STYLE = {
   Strategy: { color: "#8A6B82", icon: <svg {...CONCEPT_ICON_COMMON}><polygon points="13,2 4,14 12,14 11,22 20,10 12,10 13,2" /></svg> },
@@ -3397,7 +3432,16 @@ function APMDashboardLive() {
   // chat_server.py's own fallbacks (resolve_models) exactly, so a server
   // that never receives this field still behaves the same as before it
   // existed.
-  const DEFAULT_AI_MODELS = { lowCost: "claude-haiku-4-5-20251001", highCost: "claude-sonnet-4-5" };
+  // Rate cards are deliberately left unset (null) rather than pre-filled
+  // with remembered prices — Anthropic's pricing changes over time and a
+  // stale hard-coded number would silently misreport real spend, which is
+  // worse than no number at all. Admin -> AI Models prompts for these
+  // directly from Anthropic's own pricing page.
+  const EMPTY_RATES = { input: null, output: null, cacheRead: null, cacheWrite: null };
+  const DEFAULT_AI_MODELS = {
+    lowCost: "claude-haiku-4-5-20251001", highCost: "claude-sonnet-4-5",
+    lowCostRates: { ...EMPTY_RATES }, highCostRates: { ...EMPTY_RATES },
+  };
   const [aiModels, setAiModelsRaw] = useState(() => {
     try { return { ...DEFAULT_AI_MODELS, ...JSON.parse(localStorage.getItem("bdcore_ai_models") || "{}") }; } catch { return DEFAULT_AI_MODELS; }
   });
@@ -7504,7 +7548,7 @@ function APMDashboardLive() {
         recolored: (data.recolor || []).length,
       };
       const hasChanges = meta.pulled || meta.created || meta.connected || meta.recolored;
-      setCanvasChatLog((prev) => [...prev, { role: "assistant", content: data.reply || "Done.", meta: hasChanges ? meta : null }]);
+      setCanvasChatLog((prev) => [...prev, { role: "assistant", content: data.reply || "Done.", meta: hasChanges ? meta : null, tokens: data.tokens }]);
     } catch (e) {
       setCanvasChatLog((prev) => [...prev, { role: "assistant",
         content: `Couldn't reach the chat backend: ${e.message}. Is chat_server.py running on port 5050?`, error: true }]);
@@ -7541,7 +7585,7 @@ function APMDashboardLive() {
         recolored: 0,
       };
       const hasChanges = meta.pulled || meta.created || meta.connected;
-      setCanvasChatLog((prev) => [...prev, { role: "assistant", content: data.reply || "Done.", meta: hasChanges ? meta : null }]);
+      setCanvasChatLog((prev) => [...prev, { role: "assistant", content: data.reply || "Done.", meta: hasChanges ? meta : null, tokens: data.tokens }]);
     } catch (e) {
       setCanvasChatLog((prev) => [...prev, { role: "assistant",
         content: `Couldn't reach the chat backend: ${e.message}. Is chat_server.py running on port 5050?`, error: true }]);
@@ -12056,6 +12100,38 @@ function APMDashboardLive() {
                     empty field falls back to chat_server.py's own default for that tier.
                   </div>
                 </div>
+
+                <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 2px rgba(10,14,26,0.05), 0 10px 26px rgba(10,14,26,0.07)",
+                  borderRadius: 16, padding: 22, marginBottom: 22, maxWidth: 820 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 6 }}>Pricing (for cost estimates)</div>
+                  <div style={{ fontSize: 12.5, color: COLORS.inkSecondary, marginBottom: 16, lineHeight: 1.6 }}>
+                    Left blank on purpose — rates change over time, and a remembered number would silently misreport
+                    real spend. Copy today's $ per million tokens for each model from Anthropic's pricing page and
+                    enter them below; every chat response's token badge then shows an actual $ estimate instead of
+                    just a token count. Any field left blank shows the estimate as partial rather than guessing.
+                  </div>
+                  {[["lowCost", "lowCostRates", "Low-cost"], ["highCost", "highCostRates", "High-cost"]].map(([modelKey, ratesKey, label]) => (
+                    <div key={ratesKey} style={{ marginBottom: 16 }}>
+                      <div style={{ fontSize: 11.5, fontWeight: 600, color: COLORS.inkSecondary, marginBottom: 6 }}>
+                        {label} <span style={{ fontFamily: "monospace", fontWeight: 400 }}>({aiModels[modelKey] || "—"})</span> — $ / million tokens
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
+                        {[["input", "Input"], ["output", "Output"], ["cacheWrite", "Cache write"], ["cacheRead", "Cache read"]].map(([field, fieldLabel]) => (
+                          <div key={field}>
+                            <div style={{ fontSize: 10.5, color: COLORS.inkSecondary, marginBottom: 3 }}>{fieldLabel}</div>
+                            <input type="number" min="0" step="0.01" value={aiModels[ratesKey][field] ?? ""}
+                              onChange={(e) => {
+                                const v = e.target.value === "" ? null : e.target.value;
+                                setAiModels((m) => ({ ...m, [ratesKey]: { ...m[ratesKey], [field]: v } }));
+                              }}
+                              placeholder="not set"
+                              style={{ width: "100%", boxSizing: "border-box", padding: "7px 8px", border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 12.5 }} />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             );
           })()}
@@ -12530,11 +12606,18 @@ function APMDashboardLive() {
                               </summary>
                               <pre style={{ fontSize: 11.5, background: "#F3F4F7", padding: 10, borderRadius: 8,
                                 marginTop: 6, whiteSpace: "pre-wrap", color: COLORS.inkSecondary }}>{m.cypher}</pre>
-                              {m.tokens && (
-                                <div style={{ fontSize: 10.5, color: COLORS.inkSecondary, marginTop: 4 }}>
-                                  {m.tokens.total.toLocaleString()} tokens ({m.tokens.input.toLocaleString()} in, {m.tokens.output.toLocaleString()} out)
-                                </div>
-                              )}
+                              {m.tokens && (() => {
+                                const buckets = Object.values(m.tokens.byModel || {});
+                                const sum = (k) => buckets.reduce((s, u) => s + (u[k] || 0), 0);
+                                const costLabel = formatUsageCostLabel(m.tokens, aiModels);
+                                return (
+                                  <div style={{ fontSize: 10.5, color: COLORS.inkSecondary, marginTop: 4 }}>
+                                    {m.tokens.total.toLocaleString()} tokens ({sum("input").toLocaleString()} in, {sum("output").toLocaleString()} out
+                                    {sum("cacheRead") > 0 ? `, ${sum("cacheRead").toLocaleString()} cached` : ""})
+                                    {costLabel && <> · {costLabel}</>}
+                                  </div>
+                                );
+                              })()}
                             </details>
                           )}
                         </div>
@@ -14447,6 +14530,18 @@ function APMDashboardLive() {
                           ].filter(Boolean).join(" · ")}
                         </div>
                       )}
+                      {msg.tokens && msg.tokens.byModel && (() => {
+                        const buckets = Object.values(msg.tokens.byModel);
+                        const sum = (k) => buckets.reduce((s, u) => s + (u[k] || 0), 0);
+                        const costLabel = formatUsageCostLabel(msg.tokens, aiModels);
+                        return (
+                          <div style={{ marginTop: 4, fontSize: 10, color: COLORS.inkSecondary }}>
+                            {msg.tokens.total.toLocaleString()} tokens ({sum("input").toLocaleString()} in, {sum("output").toLocaleString()} out
+                            {sum("cacheRead") > 0 ? `, ${sum("cacheRead").toLocaleString()} cached` : ""})
+                            {costLabel && <> · {costLabel}</>}
+                          </div>
+                        );
+                      })()}
                     </div>
                   ))}
                   {canvasChatLoading && (
