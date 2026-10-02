@@ -216,7 +216,7 @@ def _messages_with_trailing_cache(messages):
     return messages
 
 
-def call_claude_raw(system, messages, tools=None, max_tokens=1024):
+def call_claude_raw(system, messages, tools=None, max_tokens=1024, model=None):
     """
     The full Messages API call, returning the raw content blocks and stop
     reason rather than just concatenated text — call_claude below collapses
@@ -229,9 +229,14 @@ def call_claude_raw(system, messages, tools=None, max_tokens=1024):
     (live schema + full canvas contents) is by far the largest, most
     repeated part of every call this file makes, and was previously sent
     and billed in full on every single round of a multi-step tool-use loop.
+
+    `model` lets a caller route a given task to whichever model id the
+    Admin has configured for that cost tier (see resolve_models) — falls
+    back to CLAUDE_MODEL so any caller that doesn't care still works
+    exactly as before.
     """
     payload = {
-        "model": CLAUDE_MODEL, "max_tokens": max_tokens,
+        "model": model or CLAUDE_MODEL, "max_tokens": max_tokens,
         "system": _cache_last([{"type": "text", "text": system}]),
         "messages": _messages_with_trailing_cache(messages),
     }
@@ -256,10 +261,29 @@ def call_claude_raw(system, messages, tools=None, max_tokens=1024):
     }
 
 
-def call_claude(system, messages, max_tokens=1024):
-    content_blocks, _, usage = call_claude_raw(system, messages, max_tokens=max_tokens)
+def call_claude(system, messages, max_tokens=1024, model=None):
+    content_blocks, _, usage = call_claude_raw(system, messages, max_tokens=max_tokens, model=model)
     text = "".join(block["text"] for block in content_blocks if block["type"] == "text")
     return text, usage
+
+
+DEFAULT_LOW_COST_MODEL = "claude-haiku-4-5-20251001"
+
+
+def resolve_models(data):
+    """
+    Reads the Admin-configured low/high-cost model ids out of a request
+    body's "models" field (see the Admin -> AI Models page), falling back
+    to sane defaults — CLAUDE_MODEL (Sonnet) for high-cost, Haiku for
+    low-cost — for any request that predates this field or left a tier
+    blank. Keeps the actual choice of WHICH id means "cheap" vs
+    "expensive" entirely client-configurable, while which TASK uses which
+    tier stays a code decision below.
+    """
+    models = data.get("models") or {}
+    high = (models.get("highCost") or "").strip() or CLAUDE_MODEL
+    low = (models.get("lowCost") or "").strip() or DEFAULT_LOW_COST_MODEL
+    return low, high
 
 
 USAGE_KEYS = ("input", "output", "cacheRead", "cacheWrite")
@@ -350,7 +374,7 @@ def describe_pull_outcome(pull_requested, pulled):
     return "I couldn't find a match in the portfolio for what you asked me to pull in — double-check the exact names and try again."
 
 
-def get_validated_plan(system, messages, max_tokens=2048, tools=None, tool_executor=None, max_tool_rounds=4):
+def get_validated_plan(system, messages, max_tokens=2048, tools=None, tool_executor=None, max_tool_rounds=4, model=None):
     """
     Calls Claude and parses its JSON plan, retrying once if the response
     comes back empty or unparseable. The Anthropic API occasionally returns
@@ -395,7 +419,7 @@ def get_validated_plan(system, messages, max_tokens=2048, tools=None, tool_execu
                 convo_this_call = convo + [{"role": "user", "content":
                     "Stop calling tools now and answer with ONLY the final JSON plan, in the exact shape "
                     "described above, based on whatever you've already found."}]
-            content_blocks, stop_reason, usage = call_claude_raw(system, convo_this_call, tools=offer_tools, max_tokens=max_tokens)
+            content_blocks, stop_reason, usage = call_claude_raw(system, convo_this_call, tools=offer_tools, max_tokens=max_tokens, model=model)
             add_usage(total_usage, usage)
             if stop_reason == "tool_use" and tool_executor and offer_tools:
                 convo.append({"role": "assistant", "content": content_blocks})
@@ -437,6 +461,7 @@ def chat():
     history = request.json.get("history", [])  # [{role, content}, ...] — prior turns in this conversation
     if not question:
         return jsonify({"error": "No question provided"}), 400
+    low_model, high_model = resolve_models(request.json)
 
     recent = history[-8:]
     history_text = "\n".join(f"{'You' if h.get('role') == 'user' else 'Assistant'}: {h.get('content', '')}" for h in recent)
@@ -497,7 +522,7 @@ def chat():
     def token_summary():
         return usage_with_total(total_usage)
 
-    raw_cypher, usage = call_claude(cypher_system, [{"role": "user", "content": cypher_user_content}])
+    raw_cypher, usage = call_claude(cypher_system, [{"role": "user", "content": cypher_user_content}], model=low_model)
     track(usage)
     cypher = extract_cypher(raw_cypher)
 
@@ -523,6 +548,7 @@ def chat():
         raw_retry, usage = call_claude(
             cypher_system,
             [{"role": "user", "content": cypher_user_content}, {"role": "assistant", "content": cypher}, {"role": "user", "content": retry_prompt}],
+            model=low_model,
         )
         track(usage)
         cypher = extract_cypher(raw_retry)
@@ -584,7 +610,7 @@ def chat():
         (f"Recent conversation:\n{history_text}\n\n" if history_text else "") +
         f"Current question: {question}\n\nQuery results (JSON): {json.dumps(results, default=str)[:4000]}"
     )
-    answer, usage = call_claude(answer_system, [{"role": "user", "content": answer_prompt}])
+    answer, usage = call_claude(answer_system, [{"role": "user", "content": answer_prompt}], model=high_model)
     track(usage)
 
     total_usage["total"] = sum(total_usage[k] for k in USAGE_KEYS)
@@ -816,6 +842,7 @@ def canvas_chat():
     request_text = request.json.get("request", "").strip()
     if not request_text:
         return jsonify({"error": "No request provided"}), 400
+    _, high_model = resolve_models(request.json)
     canvas_snapshot = request.json.get("canvas", [])
     custom_palettes = request.json.get("customPalettes", [])
     # Prior turns in this canvas's chat thread — {role: "user"|"assistant", content}
@@ -956,6 +983,7 @@ def canvas_chat():
         # that content afterward. Give the MCP path real headroom for a
         # multi-step server protocol, not just a single list-then-fetch call.
         max_tool_rounds=10 if mcp_tools else 4,
+        model=high_model,
     )
 
     if plan is None:
@@ -1032,6 +1060,7 @@ def canvas_interpret():
     source_label = (request.json.get("sourceLabel") or "").strip()
     if not image_data_url and not pasted_text:
         return jsonify({"error": "No image or text provided"}), 400
+    _, high_model = resolve_models(request.json)
 
     canvas_snapshot = request.json.get("canvas", [])
     custom_palettes = request.json.get("customPalettes", [])
@@ -1110,7 +1139,7 @@ def canvas_interpret():
     )
 
     messages = [{"role": "user", "content": content_blocks}]
-    plan, raw_plan, total_usage = get_validated_plan(plan_system, messages, max_tokens=3072)
+    plan, raw_plan, total_usage = get_validated_plan(plan_system, messages, max_tokens=3072, model=high_model)
 
     if plan is None:
         return jsonify({"error": "I wasn't able to read that into a plan — please try again.",
@@ -1166,6 +1195,7 @@ def refine_filters():
     options = request.json.get("options", {})
     if not req_text:
         return jsonify({"error": "No request provided"}), 400
+    low_model, _ = resolve_models(request.json)
 
     system = (
         "You map a natural-language filter request onto real, available filter options for an "
@@ -1183,7 +1213,7 @@ def refine_filters():
         f"disposition: {options.get('disposition', [])}\n"
         f"hosting: {options.get('hosting', [])}"
     )
-    raw, usage = call_claude(system, [{"role": "user", "content": req_text}], max_tokens=400)
+    raw, usage = call_claude(system, [{"role": "user", "content": req_text}], max_tokens=400, model=low_model)
     total_usage = usage_with_total(usage)
 
     try:
