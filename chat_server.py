@@ -30,13 +30,19 @@ Run this alongside load_schema.py's Neo4j — same credentials — and your
 own Anthropic API key from console.anthropic.com.
 """
 
+import base64
+import hashlib
+import html
 import json
 import os
 import re
+import secrets
 import sys
+import time
 import uuid
+from urllib.parse import urlencode, urlparse
 from dotenv import load_dotenv
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, redirect
 from neo4j import GraphDatabase
 import requests
 
@@ -1060,6 +1066,46 @@ def mcp_handshake(url, token):
     return session_id
 
 
+def _refresh_oauth_token(auth):
+    resp = requests.post(auth["tokenEndpoint"], data={
+        "grant_type": "refresh_token",
+        "refresh_token": auth["refreshToken"],
+        "client_id": auth["clientId"],
+    }, headers={"Accept": "application/json"}, timeout=10)
+    resp.raise_for_status()
+    tokens = resp.json()
+    return {
+        "type": "oauth",
+        "accessToken": tokens.get("access_token"),
+        "refreshToken": tokens.get("refresh_token") or auth["refreshToken"],
+        "expiresAt": time.time() * 1000 + tokens.get("expires_in", 3600) * 1000,
+        "tokenEndpoint": auth["tokenEndpoint"],
+        "clientId": auth["clientId"],
+    }
+
+
+def resolve_token(auth):
+    """
+    Turns whatever auth shape the frontend sent — none, a plain static
+    token, or an OAuth token that may need refreshing first — into the
+    bearer token value to actually send. Returns (token, refreshed_auth);
+    refreshed_auth is only non-None when a refresh just happened, so the
+    caller can hand the new tokens back to the frontend to persist (this
+    backend keeps no state between requests beyond an in-flight OAuth
+    handshake — see _oauth_pending below).
+    """
+    if not auth:
+        return None, None
+    if auth.get("type") == "bearer":
+        return (auth.get("token") or None), None
+    if auth.get("type") == "oauth":
+        if time.time() * 1000 < (auth.get("expiresAt") or 0) - 60_000:
+            return auth.get("accessToken"), None
+        refreshed = _refresh_oauth_token(auth)
+        return refreshed["accessToken"], refreshed
+    return None, None
+
+
 @app.route("/mcp/tools", methods=["POST", "OPTIONS"])
 def mcp_tools():
     """
@@ -1072,14 +1118,18 @@ def mcp_tools():
         return "", 204
 
     url = (request.json.get("url") or "").strip()
-    token = (request.json.get("token") or "").strip()
+    auth = request.json.get("auth")
     if not url:
         return jsonify({"ok": False, "error": "No server URL provided"}), 200
 
     try:
+        token, refreshed = resolve_token(auth)
         session_id = mcp_handshake(url, token)
         result, _ = mcp_request(url, token, "tools/list", {}, session_id=session_id)
-        return jsonify({"ok": True, "tools": (result or {}).get("tools", [])})
+        resp = {"ok": True, "tools": (result or {}).get("tools", [])}
+        if refreshed:
+            resp["refreshedAuth"] = refreshed
+        return jsonify(resp)
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 200
 
@@ -1096,7 +1146,7 @@ def mcp_call():
         return "", 204
 
     url = (request.json.get("url") or "").strip()
-    token = (request.json.get("token") or "").strip()
+    auth = request.json.get("auth")
     tool_name = (request.json.get("tool") or "").strip()
     args = request.json.get("args") or {}
     if not url or not tool_name:
@@ -1105,11 +1155,174 @@ def mcp_call():
         return jsonify({"ok": False, "error": "Tool arguments must be a JSON object"}), 200
 
     try:
+        token, refreshed = resolve_token(auth)
         session_id = mcp_handshake(url, token)
         result, _ = mcp_request(url, token, "tools/call", {"name": tool_name, "arguments": args}, session_id=session_id)
-        return jsonify({"ok": True, "result": result})
+        resp = {"ok": True, "result": result}
+        if refreshed:
+            resp["refreshedAuth"] = refreshed
+        return jsonify(resp)
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 200
+
+
+# ---------------------------------------------------------------------------
+# MCP OAuth 2.1 (Authorization Code + PKCE, dynamic client registration) —
+# only needed for a server that rejects a plain static bearer token, Miro's
+# official MCP server among them. This runs the browser-redirect dance on
+# the dashboard's behalf (per the MCP authorization spec's discovery chain:
+# RFC 9728 protected-resource metadata -> RFC 8414 authorization-server
+# metadata -> RFC 7591 dynamic client registration -> PKCE auth-code
+# exchange) and hands the resulting tokens back to the open dashboard tab
+# via a postMessage from a small callback page, since that's the only
+# channel a popup has back to its opener. _oauth_pending holds an
+# in-flight handshake's state only until its callback arrives — nothing
+# here outlives the exchange, consistent with this backend never
+# persisting a credential.
+# ---------------------------------------------------------------------------
+REDIRECT_BASE = "http://localhost:5050"
+_oauth_pending = {}
+
+
+def _well_known_fetch(url):
+    try:
+        resp = requests.get(url, headers={"Accept": "application/json"}, timeout=10)
+        if resp.status_code == 200:
+            return resp.json()
+    except Exception:
+        pass
+    return None
+
+
+def oauth_discover(mcp_url):
+    parsed = urlparse(mcp_url)
+    origin = f"{parsed.scheme}://{parsed.netloc}"
+    prm = _well_known_fetch(f"{origin}/.well-known/oauth-protected-resource")
+    if prm is None and parsed.path not in ("", "/"):
+        prm = _well_known_fetch(f"{origin}/.well-known/oauth-protected-resource{parsed.path}")
+    if not prm or not prm.get("authorization_servers"):
+        raise RuntimeError(
+            "This server didn't publish OAuth protected-resource metadata — it may not "
+            "support OAuth at all, or may need a plain access token instead (use the "
+            "\"Access token\" field above)."
+        )
+
+    issuer = prm["authorization_servers"][0].rstrip("/")
+    asm = (_well_known_fetch(f"{issuer}/.well-known/oauth-authorization-server")
+           or _well_known_fetch(f"{issuer}/.well-known/openid-configuration"))
+    if not asm:
+        raise RuntimeError(f"Couldn't read the authorization server's metadata at {issuer}.")
+    for key in ("authorization_endpoint", "token_endpoint"):
+        if key not in asm:
+            raise RuntimeError(f"The authorization server's metadata is missing {key}.")
+    return {
+        "authorization_endpoint": asm["authorization_endpoint"],
+        "token_endpoint": asm["token_endpoint"],
+        "registration_endpoint": asm.get("registration_endpoint"),
+    }
+
+
+def oauth_register_client(registration_endpoint, redirect_uri):
+    if not registration_endpoint:
+        raise RuntimeError(
+            "This authorization server doesn't support dynamic client registration — it "
+            "needs a pre-registered app instead, which isn't something this page can set up."
+        )
+    resp = requests.post(registration_endpoint, json={
+        "redirect_uris": [redirect_uri],
+        "token_endpoint_auth_method": "none",
+        "grant_types": ["authorization_code", "refresh_token"],
+        "response_types": ["code"],
+        "client_name": "BDCore",
+    }, timeout=10)
+    resp.raise_for_status()
+    return resp.json()["client_id"]
+
+
+def _pkce_pair():
+    verifier = base64.urlsafe_b64encode(secrets.token_bytes(40)).rstrip(b"=").decode()
+    challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
+    return verifier, challenge
+
+
+def _oauth_popup_close_page(ok, server_url=None, tokens=None, error=None):
+    """
+    The page the OAuth popup lands on at the very end of the dance — hands
+    the result back to the dashboard tab via postMessage (the only channel
+    a popup has back to its opener) and closes itself, rather than leaving
+    a stray tab open with nothing to do.
+    """
+    payload = json.dumps({
+        "type": "bdcore-mcp-oauth", "ok": ok, "serverUrl": server_url,
+        "tokens": tokens, "error": error,
+    }).replace("</script>", "<\\/script>")
+    message = f"Couldn't connect: {error}" if (not ok and error) else "Connected — this window will close automatically."
+    color = "#F0384D" if not ok else "#0A0E1A"
+    delay_ms = 4000 if not ok else 1200
+    return f"""<!doctype html><html><body style="font-family:sans-serif;padding:24px;color:{color}">
+<p>{html.escape(message)}</p>
+<script>
+  if (window.opener) {{ window.opener.postMessage({payload}, "*"); }}
+  setTimeout(() => window.close(), {delay_ms});
+</script>
+</body></html>"""
+
+
+@app.route("/mcp/oauth/start", methods=["GET"])
+def mcp_oauth_start():
+    mcp_url = (request.args.get("url") or "").strip()
+    if not mcp_url:
+        return "Missing ?url=", 400
+    redirect_uri = f"{REDIRECT_BASE}/mcp/oauth/callback"
+    try:
+        endpoints = oauth_discover(mcp_url)
+        client_id = oauth_register_client(endpoints["registration_endpoint"], redirect_uri)
+    except Exception as e:
+        return _oauth_popup_close_page(ok=False, error=str(e))
+
+    state = secrets.token_urlsafe(24)
+    verifier, challenge = _pkce_pair()
+    _oauth_pending[state] = {
+        "mcp_url": mcp_url, "client_id": client_id, "code_verifier": verifier,
+        "token_endpoint": endpoints["token_endpoint"], "created": time.time(),
+    }
+    auth_url = endpoints["authorization_endpoint"] + "?" + urlencode({
+        "response_type": "code", "client_id": client_id, "redirect_uri": redirect_uri,
+        "state": state, "code_challenge": challenge, "code_challenge_method": "S256",
+    })
+    return redirect(auth_url)
+
+
+@app.route("/mcp/oauth/callback", methods=["GET"])
+def mcp_oauth_callback():
+    state = request.args.get("state") or ""
+    pending = _oauth_pending.pop(state, None)
+    error = request.args.get("error")
+    if error:
+        return _oauth_popup_close_page(ok=False, error=request.args.get("error_description") or error)
+    if not pending:
+        return _oauth_popup_close_page(ok=False, error="This authorization link expired or was already used — try connecting again.")
+
+    try:
+        resp = requests.post(pending["token_endpoint"], data={
+            "grant_type": "authorization_code",
+            "code": request.args.get("code"),
+            "redirect_uri": f"{REDIRECT_BASE}/mcp/oauth/callback",
+            "client_id": pending["client_id"],
+            "code_verifier": pending["code_verifier"],
+        }, headers={"Accept": "application/json"}, timeout=10)
+        resp.raise_for_status()
+        tokens = resp.json()
+    except Exception as e:
+        return _oauth_popup_close_page(ok=False, error=f"Token exchange failed: {e}")
+
+    return _oauth_popup_close_page(ok=True, server_url=pending["mcp_url"], tokens={
+        "accessToken": tokens.get("access_token"),
+        "refreshToken": tokens.get("refresh_token"),
+        "expiresIn": tokens.get("expires_in"),
+        "tokenEndpoint": pending["token_endpoint"],
+        "clientId": pending["client_id"],
+    })
 
 
 if __name__ == "__main__":
