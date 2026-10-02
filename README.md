@@ -17,9 +17,11 @@ a visual canvas.
 - **`chat_server.py`** — a small local Flask backend that powers every AI
   feature (portfolio chat, filter refinement, and the canvas assistant).
   It holds your Anthropic API key and Neo4j credentials server-side so
-  they never sit in the browser. The dashboard works fine without it for
-  everything else (browsing, editing, the canvas) — only the AI features
-  need it running.
+  they never sit in the browser. It also serves `ontocore-dashboard.html`
+  and `vendor/` itself, so this one process is the whole app — there's no
+  separate static file server to run. The dashboard works fine without it
+  for everything else (browsing, editing, the canvas) — only the AI
+  features need it running.
 - **`bdcore_schema.yaml`** / **`load_schema.py`** — the ontology's schema
   layer (concept types, attributes, valid relationship types) and the
   script that loads it into Neo4j.
@@ -81,31 +83,44 @@ a visual canvas.
    python load_instances.py
    ```
 
-4. **Start the AI chat backend** (needed for chat / canvas assistant /
-   filter refinement — leave this running in its own terminal):
+4. **Start the server and open the dashboard.** This one process serves
+   both the AI backend and the dashboard itself — no separate static
+   file server needed:
 
    ```bash
    python chat_server.py
    ```
 
-   This serves on `http://localhost:5050`.
+   Then open **http://localhost:5050/**.
 
-5. **Serve the dashboard.** It needs to be served over HTTP (not opened
-   as a `file://` URL) so it can load `vendor/` and talk to Neo4j. From
-   the repo root, in a second terminal:
+   (You can still run the dashboard without `chat_server.py` — e.g.
+   `python3 -m http.server 8000` and open
+   `http://localhost:8000/ontocore-dashboard.html` — but the AI features
+   won't work, since nothing is listening on `/chat`, `/canvas-chat`,
+   etc.)
 
-   ```bash
-   python3 -m http.server 8000
-   ```
-
-   Then open **http://localhost:8000/ontocore-dashboard.html**.
-
-6. **Connect to your Aura instance.** On first load, the dashboard shows
+5. **Connect to your Aura instance.** On first load, the dashboard shows
    a "Connect to Your Aura Instance" screen — enter the same URI,
    username, and password from your `.env` file (and the database name,
    usually `neo4j`, from the `NEO4J_DATABASE` line in the credentials
    file Aura gave you). These are stored only in the browser's local
    storage, never sent anywhere but directly to Neo4j's Query API.
+
+## Sharing a running instance
+
+Since `chat_server.py` serves the whole app on one port, you can expose it
+to someone else with a single [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/get-started/create-local-tunnel/)
+(no account needed for a quick link):
+
+```bash
+brew install cloudflared       # macOS; see Cloudflare's docs for other platforms
+cloudflared tunnel --url http://localhost:5050
+```
+
+It prints a `https://*.trycloudflare.com` URL — share that. Anyone who has
+it can reach the dashboard and the AI features while your `chat_server.py`
+keeps running. These quick tunnels have no login wall, so don't leave one
+up longer than you need it.
 
 ## Notes
 

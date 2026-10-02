@@ -42,7 +42,7 @@ import time
 import uuid
 from urllib.parse import urlencode, urlparse
 from dotenv import load_dotenv
-from flask import Flask, request, jsonify, redirect
+from flask import Flask, request, jsonify, redirect, send_from_directory
 from neo4j import GraphDatabase
 import requests
 
@@ -69,6 +69,32 @@ ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
 
 app = Flask(__name__)
 driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USERNAME, NEO4J_PASSWORD))
+
+# Serves the dashboard itself, not just the AI endpoints — so the whole app
+# (static HTML + every /chat, /canvas-chat, /mcp/* route) lives behind one
+# origin and one port. The frontend's own fetch calls are relative (e.g.
+# "/chat", not "http://localhost:5050/chat") specifically so this works
+# correctly whether you're opening it locally or through something like a
+# Cloudflare Tunnel pointed at this one port — there's no separate static
+# file server to also expose, and no hardcoded hostname to keep in sync
+# with wherever this happens to be reachable from.
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DASHBOARD_FILENAME = "ontocore-dashboard.html"
+
+
+@app.route("/")
+def serve_dashboard_root():
+    return send_from_directory(BASE_DIR, DASHBOARD_FILENAME)
+
+
+@app.route(f"/{DASHBOARD_FILENAME}")
+def serve_dashboard():
+    return send_from_directory(BASE_DIR, DASHBOARD_FILENAME)
+
+
+@app.route("/vendor/<path:filename>")
+def serve_vendor(filename):
+    return send_from_directory(os.path.join(BASE_DIR, "vendor"), filename)
 
 
 def build_schema_context():
