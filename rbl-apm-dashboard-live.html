@@ -7213,14 +7213,40 @@ function APMDashboardLive() {
     }
 
     // 2. New concepts/shapes/stickies — BPM shapes get a deliberate left-to-right
-    // sequence since they're meant to read as a flow, not a scatter
+    // sequence since they're meant to read as a flow, not a scatter.
+    //
+    // A plan recreating something with a real known layout (a whiteboard
+    // photo, a fetched external board) can set "x"/"y" per item (see
+    // plan_create_guidance) to carry that layout over instead of everything
+    // landing in whatever the default placement for its kind would be. Those
+    // items are translated as a group so their OWN relative arrangement is
+    // preserved — the group's center lands at `center`, same anchor every
+    // other placement below already uses — and scaled down only if the
+    // source layout is far larger than comfortably fits here (never scaled
+    // up: anything too tightly packed is nudged apart by the collision
+    // avoidance every placement already goes through via findFreePosition).
+    const hintedItems = (plan.create || []).filter((it) => typeof it.x === "number" && typeof it.y === "number");
+    let hintedScale = 1, hintedCenterX = 0, hintedCenterY = 0;
+    if (hintedItems.length > 0) {
+      const xs = hintedItems.map((it) => it.x), ys = hintedItems.map((it) => it.y);
+      hintedCenterX = (Math.min(...xs) + Math.max(...xs)) / 2;
+      hintedCenterY = (Math.min(...ys) + Math.max(...ys)) / 2;
+      const extent = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys), 1);
+      const MAX_EXTENT = 2200;
+      if (extent > MAX_EXTENT) hintedScale = MAX_EXTENT / extent;
+    }
+    const hintedPos = (item, w, h) => (typeof item.x !== "number" || typeof item.y !== "number") ? null : {
+      x: center.x + (item.x - hintedCenterX) * hintedScale - w / 2,
+      y: center.y + (item.y - hintedCenterY) * hintedScale - h / 2,
+    };
     let bpmX = null, bpmY = null;
     let stickyStackOrigin = null, stickyStackCount = 0;
     (plan.create || []).forEach((item) => {
       if (item.kind === "concept" && CANVAS_CONCEPT_TYPES.includes(item.conceptType)) {
         const name = item.name || `New ${item.conceptType}`;
         const h = estimateConceptHeight(name, CONCEPT_W, CONCEPT_H);
-        const pos = findFreePosition(center.x - CONCEPT_W / 2, center.y - h / 2, occupied(), CONCEPT_W, h);
+        const desired = hintedPos(item, CONCEPT_W, h) || { x: center.x - CONCEPT_W / 2, y: center.y - h / 2 };
+        const pos = findFreePosition(desired.x, desired.y, occupied(), CONCEPT_W, h);
         const attrs = {};
         Object.entries(item.attributes || {}).forEach(([k, v]) => { attrs[toSnakeCase(k)] = v; });
         const concept = { id: newCanvasId("concept"), x: pos.x, y: pos.y, width: CONCEPT_W, height: h,
@@ -7233,13 +7259,15 @@ function APMDashboardLive() {
         // "Installed custom icon packs" section), and those only resolve
         // through getShapeDef, the same lookup the manual shape palette uses.
         const def = getShapeDef(item.shapeKey);
+        const hinted = hintedPos(item, SHAPE_W, SHAPE_H);
         let pos;
-        if (item.category === "BPM") {
+        if (item.category === "BPM" && !hinted) {
           if (bpmX === null) { const s = findFreePosition(center.x - SHAPE_W / 2, center.y - SHAPE_H / 2, occupied(), SHAPE_W, SHAPE_H); bpmX = s.x; bpmY = s.y; }
           else { bpmX += SHAPE_W + 60; }
           pos = { x: bpmX, y: bpmY };
         } else {
-          pos = findFreePosition(center.x - SHAPE_W / 2, center.y - SHAPE_H / 2, occupied(), SHAPE_W, SHAPE_H);
+          const desired = hinted || { x: center.x - SHAPE_W / 2, y: center.y - SHAPE_H / 2 };
+          pos = findFreePosition(desired.x, desired.y, occupied(), SHAPE_W, SHAPE_H);
         }
         const shape = { id: newCanvasId("shape"), x: pos.x, y: pos.y, width: SHAPE_W, height: SHAPE_H,
           zIndex: zCounterRef.current++, category: item.category, shapeKey: item.shapeKey, label: item.label || def.label };
@@ -7252,8 +7280,13 @@ function APMDashboardLive() {
         // landing in a scatter. The column sits clear of where a concept
         // tree from this same plan will end up (autoOrganizeCanvas below
         // treats this column as an obstacle it lays the tree out around).
+        // A hinted position (see above) always wins over this stacking —
+        // it already encodes a real intended arrangement of its own.
+        const hinted = hintedPos(item, 160, 120);
         let desiredX, desiredY;
-        if (stickyStackOrigin === null) {
+        if (hinted) {
+          desiredX = hinted.x; desiredY = hinted.y;
+        } else if (stickyStackOrigin === null) {
           const seed = findFreePosition(center.x + 420, center.y - 200, occupied(), 160, 120);
           stickyStackOrigin = seed;
           desiredX = seed.x; desiredY = seed.y;
@@ -7318,8 +7351,16 @@ function APMDashboardLive() {
     // own early return), and a single plan can genuinely contain both a
     // concept tree and a shape diagram (see plan_create_guidance's "onboarding
     // process" worked example) that need laying out independently.
-    autoOrganizeCanvas(localConcepts, localCanvasEdges, localShapes, localStickies);
-    autoOrganizeShapes(localShapes, localShapeEdges, localConcepts, localStickies);
+    // Both auto-organize passes re-lay-out EVERY node they're given into a
+    // tree, with no notion of "this one already has a real position, leave
+    // it" — exactly right for an AI-drawn diagram with no layout of its own,
+    // but it would silently erase the whole point of the x/y hints above
+    // (recreating a real source's actual layout) by immediately overwriting
+    // them. Skip both for a plan that used any hint at all.
+    if (hintedItems.length === 0) {
+      autoOrganizeCanvas(localConcepts, localCanvasEdges, localShapes, localStickies);
+      autoOrganizeShapes(localShapes, localShapeEdges, localConcepts, localStickies);
+    }
   };
 
   // What the AI sees of the canvas today — just enough per object to answer
