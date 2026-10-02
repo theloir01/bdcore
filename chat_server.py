@@ -610,6 +610,13 @@ def plan_create_guidance(schema_context, canvas_snapshot, custom_palettes=None):
         "event — not for representing a single named business entity.\n"
         "- \"create\" kind=sticky: for an informal note, open question, or idea that "
         "doesn't deserve to be a first-class concept or shape.\n"
+        "- \"x\" and \"y\" on any create item are optional and almost always left out — only "
+        "set them when you're recreating something whose source had a real, known layout "
+        "(a whiteboard photo, a pasted board, a fetched external board's own items) and you "
+        "want that relative arrangement preserved, using the item's real coordinates from "
+        "that source as-is (don't invent or estimate a position for something with no known "
+        "layout). Leaving x/y out entirely (the normal case) lets placement pick a sensible "
+        "spot automatically.\n"
         "- When the request asks for a MAP or HIERARCHY of things that already exist and "
         "are related to each other (e.g. \"draw a capability map\"), don't just pull a flat "
         "list — pull the relationship itself and connect the specific pulled rows to each "
@@ -760,11 +767,12 @@ def canvas_chat():
         'AS name, \\"Capability\\" AS type" } ],\n'
         '  "create": [\n'
         '    { "tempId": "n1", "kind": "concept", "conceptType": "<real concept type>", '
-        '"name": "...", "attributes": { "<real attribute name>": "<value>" } },\n'
+        '"name": "...", "attributes": { "<real attribute name>": "<value>" }, "x": <optional number>, "y": <optional number> },\n'
         '    { "tempId": "n2", "kind": "shape", "category": "<Basic|Cloud|Network|Security|'
         'Generic|BPM, OR an installed custom pack\'s own id — see below>", "shapeKey": '
-        '"<real shape key — a built-in one below, or an installed custom pack\'s own icon key>", "label": "..." },\n'
-        '    { "tempId": "n3", "kind": "sticky", "text": "..." }\n'
+        '"<real shape key — a built-in one below, or an installed custom pack\'s own icon key>", "label": "...", '
+        '"x": <optional number>, "y": <optional number> },\n'
+        '    { "tempId": "n3", "kind": "sticky", "text": "...", "x": <optional number>, "y": <optional number> }\n'
         "  ],\n"
         '  "connections": [\n'
         '    { "from": "<tempId, or pull:QUERY_INDEX:ROW_INDEX for a pulled entity>", '
@@ -831,7 +839,10 @@ def canvas_chat():
            "\"sticky\"; an actual shape/rectangle/geometric item becomes \"create\" kind=shape (category Basic, "
            "the closest real shapeKey — rectangle, circle, diamond, etc. — to what it actually is), carrying "
            "over its real text as the shape's label; a named, well-defined thing of a real BDCore type still "
-           "becomes a \"concept\" regardless of its Miro widget type. Only if a tool call genuinely errors, or "
+           "becomes a \"concept\" regardless of its Miro widget type. The tool result also carries each item's "
+           "real position (x/y, however that source names them) — set \"x\" and \"y\" on every item you create "
+           "from it to that real position, so the layout you recreate here actually resembles the source "
+           "instead of every item landing in an arbitrary row. Only if a tool call genuinely errors, or "
            "nothing you found actually matches what was asked for, say so plainly in \"reply\" instead — never "
            "invent content and never create a generic stand-in object to paper over not having checked." if mcp_tools else "")
     )
@@ -971,11 +982,12 @@ def canvas_interpret():
         'already exists in the real portfolio, instead of creating a duplicate draft" } ],\n'
         '  "create": [\n'
         '    { "tempId": "n1", "kind": "concept", "conceptType": "<real concept type>", '
-        '"name": "...", "attributes": { "<real attribute name>": "<value>" } },\n'
+        '"name": "...", "attributes": { "<real attribute name>": "<value>" }, "x": <optional number>, "y": <optional number> },\n'
         '    { "tempId": "n2", "kind": "shape", "category": "<Basic|Cloud|Network|Security|'
         'Generic|BPM, OR an installed custom pack\'s own id — see below>", "shapeKey": '
-        '"<real shape key — a built-in one below, or an installed custom pack\'s own icon key>", "label": "..." },\n'
-        '    { "tempId": "n3", "kind": "sticky", "text": "..." }\n'
+        '"<real shape key — a built-in one below, or an installed custom pack\'s own icon key>", "label": "...", '
+        '"x": <optional number>, "y": <optional number> },\n'
+        '    { "tempId": "n3", "kind": "sticky", "text": "...", "x": <optional number>, "y": <optional number> }\n'
         "  ],\n"
         '  "connections": [\n'
         '    { "from": "<tempId, or pull:QUERY_INDEX:ROW_INDEX for a pulled entity>", '
