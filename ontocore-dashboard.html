@@ -278,7 +278,7 @@ const ROLE_VIEWS = {
     "blocked", "decisionlog", "dependencies", "dataflow", "transitionroadmap", "redundancy",
     "health", "renewals", "fieldreview", "ownership", "businessunits", "residency", "stakeholdermap",
     "ai", "obsolescence", "cloudmigration", "initiatives",
-    "journeytrace", "maturity", "ontology", "help",
+    "journeytrace", "maturity", "valuestream", "ontology", "help",
   ]),
   workspace: new Set(["workspaces", "canvas", "help"]),
 };
@@ -551,6 +551,20 @@ const GUIDE_SECTIONS = [
         description: "A CMMI-style maturity model across six dimensions — Governance, Policies, Process, People, Applications, Metrics — scored 1 (Initial) to 5 (Optimizing) per capability.",
         tips: [
           "These starting scores are illustrative, grounded in what the tool already knows about each capability — not a completed real assessment. Overwrite them with genuine scores via Ontology Manager once you've actually done the assessment.",
+        ] },
+    ],
+  },
+  {
+    title: "Value Streams",
+    items: [
+      { key: "valuestream", label: "Value Stream Map",
+        description: "The BIZBOK value-stream chain — trigger event → stages → capabilities & processes → applications → technology — walked the same way Journey Trace walks a customer journey, and showing the same kind of gap.",
+        tips: [
+          "Stereotype (Core/Support/Management) and Strategic Importance show as badges above the stage chain — Core streams create direct stakeholder value, Support streams enable Core ones, Management streams govern and steer.",
+          "Each stage's Value Item — the specific incremental value BIZBOK says that stage adds — shows in italics under its name.",
+          "A stage flagged \"⚠ No capability or process linked\" or \"⚠ Capability linked, but no application supports this stage\" is a computed gap, not a manual note — worth fixing at the source.",
+          "Applications support a Value Stream Stage directly in the schema, not only through a Capability — so an application can show up on a stage even without a capability also being linked.",
+          "Switch value streams using the picker chips at the top.",
         ] },
     ],
   },
@@ -3274,6 +3288,8 @@ function APMDashboardLive() {
   const [apps, setApps] = useState([]);
   const [capCoverage, setCapCoverage] = useState([]);
   const [journeys, setJourneys] = useState([]);
+  const [valueStreams, setValueStreams] = useState([]);
+  const [selectedValueStreamId, setSelectedValueStreamId] = useState(null);
   const [decisions, setDecisions] = useState([]);
   const [decisionStatusFilter, setDecisionStatusFilter] = useState("All");
   const [decisionTypeFilter, setDecisionTypeFilter] = useState("All");
@@ -4028,6 +4044,27 @@ function APMDashboardLive() {
                 collect(DISTINCT tech.name) AS technologies
          ORDER BY j.name, js.sequence`
       );
+      // Same journey/journey-stage shape, but ValueStreamStage has its own
+      // direct SUPPORTS edge from Application (schema line ~494) rather than
+      // needing to hop through Capability like JourneyStage does — so
+      // applications are matched straight off the stage, not via cap.
+      const valueStreamRows = await runCypher(apiUrl, authHeader,
+        `MATCH (vs:Instance:ValueStream)
+         OPTIONAL MATCH (vs)-[:CONTAINS]->(vss:Instance:ValueStreamStage)
+         OPTIONAL MATCH (cap:Instance:Capability)-[:ENABLES]->(vss)
+         OPTIONAL MATCH (proc:Instance:Process)-[:SUPPORTS]->(vss)
+         OPTIONAL MATCH (app:Instance:Application)-[:SUPPORTS]->(vss)
+         OPTIONAL MATCH (app)-[:RUNS_ON]->(tech)
+         RETURN vs.id AS vsId, vs.name AS vsName, vs.stereotype AS vsStereotype,
+                vs.trigger_event AS vsTriggerEvent, vs.value_delivered AS vsValueDelivered,
+                vs.stakeholder AS vsStakeholder, vs.strategic_importance AS vsStrategicImportance,
+                vss.id AS stageId, vss.name AS stageName, vss.sequence AS stageSeq, vss.value_item AS stageValueItem,
+                collect(DISTINCT cap.name) AS capabilities,
+                collect(DISTINCT proc.name) AS processes,
+                collect(DISTINCT app.name) AS applications,
+                collect(DISTINCT tech.name) AS technologies
+         ORDER BY vs.name, vss.sequence`
+      );
       const capRows = await runCypher(apiUrl, authHeader,
         `MATCH (c:Instance:Capability)
          OPTIONAL MATCH (c)<-[:SUPPORTS]-(a:Instance:Application)
@@ -4243,9 +4280,32 @@ function APMDashboardLive() {
       });
       const journeysNormalised = Object.values(journeysGrouped).map((j) => ({ ...j, stages: j.stages.sort((a, b) => (a.sequence || 0) - (b.sequence || 0)) }));
 
+      const valueStreamsGrouped = {};
+      valueStreamRows.forEach((r) => {
+        if (!valueStreamsGrouped[r.vsId]) {
+          valueStreamsGrouped[r.vsId] = {
+            id: r.vsId, name: r.vsName, stereotype: r.vsStereotype,
+            triggerEvent: r.vsTriggerEvent, valueDelivered: r.vsValueDelivered,
+            stakeholder: r.vsStakeholder, strategicImportance: r.vsStrategicImportance,
+            stages: [],
+          };
+        }
+        if (r.stageId) {
+          valueStreamsGrouped[r.vsId].stages.push({
+            id: r.stageId, name: r.stageName, sequence: r.stageSeq, valueItem: r.stageValueItem,
+            capabilities: (r.capabilities || []).filter(Boolean),
+            processes: (r.processes || []).filter(Boolean),
+            applications: (r.applications || []).filter(Boolean),
+            technologies: (r.technologies || []).filter(Boolean),
+          });
+        }
+      });
+      const valueStreamsNormalised = Object.values(valueStreamsGrouped).map((vs) => ({ ...vs, stages: vs.stages.sort((a, b) => (a.sequence || 0) - (b.sequence || 0)) }));
+
       setApps(normalised);
       setCapCoverage(capCoverageNormalised);
       setJourneys(journeysNormalised);
+      setValueStreams(valueStreamsNormalised);
 
       const decisionsNormalised = decisionRows.map((r) => ({
         id: r.d.id, name: r.d.name, status: r.d.status || "—", type: r.d.stereotype || "—",
@@ -6482,12 +6542,16 @@ function APMDashboardLive() {
     ["journeytrace", "Journey Trace", "journeytrace"],
     ["maturity", "Capability Maturity", "maturity"],
   ];
+  const VALUESTREAM_NAV_ITEMS = [
+    ["valuestream", "Value Stream Map", "valuestream"],
+  ];
   const NAV_GROUPS = [
     { key: "costrisk", label: "Cost & Risk", icon: "costrisk", items: COST_RISK_NAV_ITEMS },
     { key: "datatrust", label: "Data Trust", icon: "datatrust", items: DATA_TRUST_NAV_ITEMS },
     { key: "ai", label: "AI", icon: "ai", items: AI_NAV_ITEMS },
     { key: "modernisation", label: "Modernisation", icon: "modernisation", items: MODERNISATION_NAV_ITEMS },
     { key: "journeys", label: "Journeys & Maturity", icon: "journeytrace", items: JOURNEY_NAV_ITEMS },
+    { key: "valuestreams", label: "Value Streams", icon: "valuestream", items: VALUESTREAM_NAV_ITEMS },
   ];
   // Which collapsible sidebar group each view lives under — views not listed
   // here (brief, portfolio, capboard, canvas, ontology, auditlog) sit at the
@@ -6498,6 +6562,7 @@ function APMDashboardLive() {
     ai: "ai",
     obsolescence: "modernisation", cloudmigration: "modernisation", initiatives: "modernisation",
     journeytrace: "journeys", maturity: "journeys",
+    valuestream: "valuestreams",
   };
   const EXECUTIVE_KEYS = new Set(["brief", "valuedelivered"]);
   const ADMIN_NAV_ITEMS = [
@@ -6587,6 +6652,7 @@ function APMDashboardLive() {
     ontology: <svg {...ICON_COMMON}><rect x="4" y="4" width="16" height="16" rx="3" /><path d="M4 10h16M10 4v16" /></svg>,
     aimodels: <svg {...ICON_COMMON}><rect x="7" y="7" width="10" height="10" rx="1.5" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.5 4.5l2 2M17.5 17.5l2 2M19.5 4.5l-2 2M6.5 17.5l-2 2" /></svg>,
     skills: <svg {...ICON_COMMON}><path d="M12 2.5 L20.5 7 V17 L12 21.5 L3.5 17 V7 Z" /><path d="M12 2.5V21.5M3.5 7l8.5 4.5 8.5-4.5M3.5 17l8.5-4.5 8.5 4.5" /></svg>,
+    valuestream: <svg {...ICON_COMMON}><path d="M2 12h3M9 12h3M15.5 12h2" /><circle cx="6" cy="12" r="2.2" /><circle cx="12.5" cy="12" r="2.2" /><path d="M19 8l3.5 4-3.5 4" /></svg>,
   };
 
   // --- Modelling Canvas functions ---
@@ -8620,6 +8686,7 @@ function APMDashboardLive() {
     initiatives: "Initiatives Roadmap", dataflow: "Data Flow", transitionroadmap: "Transition Roadmap", businessunits: "Business Units",
     valuedelivered: "Value Delivered",
     journeytrace: "Journey Trace", maturity: "Capability Maturity", decisionlog: "Decision Log",
+    valuestream: "Value Stream Map",
     help: "Help", stakeholdermap: "Stakeholder Map",
     customrules: "Custom Watch Rules", aimodels: "AI Models", skills: "Skills Creator",
   };
@@ -15868,6 +15935,138 @@ function APMDashboardLive() {
                                   )}
                                   {noApp ? (
                                     <div style={{ fontSize: 12, color: "#D97706", fontWeight: 600 }}>⚠ Capability linked, but no application supports it</div>
+                                  ) : stage.applications.length > 0 && (
+                                    <div style={{ marginBottom: stage.technologies.length > 0 ? 8 : 0 }}>
+                                      <span style={{ fontSize: 10.5, fontWeight: 700, color: CONCEPT_TYPE_STYLE.Application.color, textTransform: "uppercase" }}>Applications: </span>
+                                      {stage.applications.map((a) => {
+                                        const full = apps.find((x) => x.name === a);
+                                        return (
+                                          <span key={a} onClick={() => full && (setProfileAppId(full.id), setView("profile"))}
+                                            style={{ fontSize: 11.5, background: "#F6F4EF", padding: "2px 8px", borderRadius: 6, marginRight: 6,
+                                              cursor: full ? "pointer" : "default", textDecoration: full ? "underline" : "none" }}>{a}</span>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                  {stage.technologies.length > 0 && (
+                                    <div>
+                                      <span style={{ fontSize: 10.5, fontWeight: 700, color: "#5B6E4F", textTransform: "uppercase" }}>Technology: </span>
+                                      {stage.technologies.map((t) => (
+                                        <span key={t} style={{ fontSize: 11.5, background: "#F6F4EF", padding: "2px 8px", borderRadius: 6, marginRight: 6 }}>{t}</span>
+                                      ))}
+                                    </div>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          {view === "valuestream" && (() => {
+            const vs = valueStreams.find((v) => v.id === selectedValueStreamId) || valueStreams[0];
+            const stereotypeColor = { Core: COLORS.accent, Support: COLORS.accent2, Management: COLORS.inkSecondary };
+            return (
+              <div style={{ maxWidth: 900 }}>
+                <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginBottom: 18, lineHeight: 1.6 }}>
+                  The same chain as Journey Trace, but told from the value stream's point of view — trigger event →
+                  stages → capabilities & processes → applications → technology — using BIZBOK's own value-stream
+                  vocabulary, already wired into your relationships rather than a new thing to build.
+                </div>
+                <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
+                  {valueStreams.map((v) => (
+                    <button key={v.id} onClick={() => setSelectedValueStreamId(v.id)}
+                      style={{ padding: "7px 14px", fontSize: 12.5, fontWeight: 600, borderRadius: 8, cursor: "pointer",
+                        border: `1px solid ${(vs && vs.id === v.id) ? CONCEPT_TYPE_STYLE.ValueStream.color : COLORS.border}`,
+                        background: (vs && vs.id === v.id) ? CONCEPT_TYPE_STYLE.ValueStream.color : COLORS.card,
+                        color: (vs && vs.id === v.id) ? "#fff" : COLORS.ink }}>
+                      {v.name}
+                    </button>
+                  ))}
+                </div>
+
+                {!vs ? (
+                  <div style={{ fontSize: 13, color: COLORS.inkSecondary }}>No value streams found.</div>
+                ) : (
+                  <div>
+                    <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`,
+                      borderRadius: 14, padding: "16px 20px", marginBottom: 20 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
+                        {vs.stereotype && (
+                          <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 999, color: "#fff",
+                            background: stereotypeColor[vs.stereotype] || COLORS.inkSecondary }}>
+                            {vs.stereotype}
+                          </span>
+                        )}
+                        {vs.strategicImportance && (
+                          <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 999,
+                            border: `1px solid ${COLORS.border}`, color: COLORS.inkSecondary }}>
+                            {vs.strategicImportance} strategic importance
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, flexWrap: "wrap" }}>
+                        {vs.triggerEvent && (
+                          <span><span style={{ color: COLORS.inkSecondary }}>Triggered by:</span> <strong>{vs.triggerEvent}</strong></span>
+                        )}
+                        {vs.triggerEvent && vs.valueDelivered && <span style={{ color: COLORS.inkSecondary }}>→</span>}
+                        {vs.valueDelivered && (
+                          <span><span style={{ color: COLORS.inkSecondary }}>Delivers:</span> <strong>{vs.valueDelivered}</strong></span>
+                        )}
+                      </div>
+                      {vs.stakeholder && (
+                        <div style={{ fontSize: 12.5, color: COLORS.inkSecondary, marginTop: 6 }}>Stakeholder: {vs.stakeholder}</div>
+                      )}
+                    </div>
+
+                    {vs.stages.map((stage, i) => {
+                      const noCapability = stage.capabilities.length === 0 && stage.processes.length === 0;
+                      const noApp = stage.capabilities.length > 0 && stage.applications.length === 0;
+                      return (
+                        <div key={stage.id} style={{ display: "flex", gap: 16 }}>
+                          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0 }}>
+                            <div style={{ width: 30, height: 30, borderRadius: "50%", background: CONCEPT_TYPE_STYLE.ValueStreamStage.color,
+                              color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12.5, fontWeight: 700 }}>
+                              {i + 1}
+                            </div>
+                            {i < vs.stages.length - 1 && <div style={{ width: 2, flex: 1, background: COLORS.border, minHeight: 30 }} />}
+                          </div>
+                          <div style={{ flex: 1, paddingBottom: 24 }}>
+                            <div style={{ fontSize: 14.5, fontWeight: 600, marginBottom: 2 }}>{stage.name}</div>
+                            {stage.valueItem && (
+                              <div style={{ fontSize: 11, color: CONCEPT_TYPE_STYLE.ValueStream.color, fontStyle: "italic", marginBottom: 10 }}>
+                                + {stage.valueItem}
+                              </div>
+                            )}
+                            <div className="ds-card" style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: 14 }}>
+                              {noCapability ? (
+                                <div style={{ fontSize: 12.5, color: COLORS.risk, fontWeight: 600 }}>⚠ No capability or process linked to this stage</div>
+                              ) : (
+                                <>
+                                  {stage.capabilities.length > 0 && (
+                                    <div style={{ marginBottom: 8 }}>
+                                      <span style={{ fontSize: 10.5, fontWeight: 700, color: CONCEPT_TYPE_STYLE.Capability.color, textTransform: "uppercase" }}>Capabilities: </span>
+                                      {stage.capabilities.map((c) => (
+                                        <span key={c} style={{ fontSize: 11.5, background: "#F6F4EF", padding: "2px 8px", borderRadius: 6, marginRight: 6 }}>{c}</span>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {stage.processes.length > 0 && (
+                                    <div style={{ marginBottom: 8 }}>
+                                      <span style={{ fontSize: 10.5, fontWeight: 700, color: CONCEPT_TYPE_STYLE.Process.color, textTransform: "uppercase" }}>Processes: </span>
+                                      {stage.processes.map((p) => (
+                                        <span key={p} style={{ fontSize: 11.5, background: "#F6F4EF", padding: "2px 8px", borderRadius: 6, marginRight: 6 }}>{p}</span>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {noApp ? (
+                                    <div style={{ fontSize: 12, color: "#D97706", fontWeight: 600 }}>⚠ Capability linked, but no application supports this stage</div>
                                   ) : stage.applications.length > 0 && (
                                     <div style={{ marginBottom: stage.technologies.length > 0 ? 8 : 0 }}>
                                       <span style={{ fontSize: 10.5, fontWeight: 700, color: CONCEPT_TYPE_STYLE.Application.color, textTransform: "uppercase" }}>Applications: </span>
