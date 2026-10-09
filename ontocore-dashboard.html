@@ -179,6 +179,10 @@
     }
     .help-print-header { display: block !important; }
     .ds-card { break-inside: avoid; }
+    /* The Concept Glossary hides every category but the one selected on
+       screen via inline display:none — override it so the PDF always
+       contains the whole ontology, not just that one chapter. */
+    .glossary-group { display: block !important; }
   }
 </style>
 </head>
@@ -13450,9 +13454,6 @@ function APMDashboardLive() {
             const groups = groupConceptTypesByCategory(CANVAS_CONCEPT_TYPES)
               .map((g) => ({ ...g, types: g.types.filter(matches) }))
               .filter((g) => g.types.length > 0);
-            const glossaryGroupsToShow = isSearching
-              ? groups
-              : groups.filter((g) => helpGlossaryChapter === "All" || g.label === helpGlossaryChapter);
             const guideItemMatches = (item) => !q || item.label.toLowerCase().includes(q) ||
               item.description.toLowerCase().includes(q) || item.tips.some((tip) => tip.toLowerCase().includes(q));
             const guideSectionsMatched = GUIDE_SECTIONS
@@ -13492,7 +13493,11 @@ function APMDashboardLive() {
             // this is the only context a printed/PDF'd page has left) and
             // the suggested filename a "Save as PDF" print dialog offers.
             const activeTabLabel = helpTab === "guide" ? "Site Guide" : helpTab === "glossary" ? "Concept Glossary" : "By Persona";
-            const activeChapterLabel = helpTab === "guide" ? helpGuideChapter : helpTab === "glossary" ? helpGlossaryChapter : helpPersona;
+            // The glossary always PDFs the whole ontology regardless of which
+            // chapter is selected on screen (see the .glossary-group print
+            // override below), so its title never names a single chapter —
+            // only Site Guide and By Persona still export just what's shown.
+            const activeChapterLabel = helpTab === "guide" ? helpGuideChapter : helpTab === "glossary" ? "All" : helpPersona;
             const printTitle = "OntoCore Help — " + activeTabLabel +
               (isSearching ? ` — search "${helpSearch.trim()}"` : activeChapterLabel === "All" ? "" : ` — ${activeChapterLabel}`);
             const downloadHelpPdf = () => {
@@ -13601,10 +13606,18 @@ function APMDashboardLive() {
                 </div>
                 )}
 
-                {glossaryGroupsToShow.length === 0 ? (
+                {groups.length === 0 ? (
                   <div style={{ fontSize: 13, color: COLORS.inkSecondary }}>No concepts match "{helpSearch}".</div>
-                ) : glossaryGroupsToShow.map((group) => (
-                  <div key={group.key} style={{ marginBottom: 28 }}>
+                ) : groups.map((group) => (
+                  // Every category always renders — even one the chapter rail
+                  // has hidden on screen — so "Download PDF" always exports
+                  // the whole ontology, not just whichever chapter happens to
+                  // be selected. The print stylesheet forces .glossary-group
+                  // back to visible regardless of this inline display, which
+                  // only hides it for the on-screen view.
+                  <div key={group.key} className="glossary-group"
+                    style={{ marginBottom: 28,
+                      display: (isSearching || helpGlossaryChapter === "All" || group.label === helpGlossaryChapter) ? undefined : "none" }}>
                     <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.inkSecondary, textTransform: "uppercase",
                       letterSpacing: "0.05em", marginBottom: 10 }}>
                       {group.label}
