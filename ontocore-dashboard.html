@@ -161,6 +161,29 @@
     border: 2px solid rgba(255,255,255,0.35); border-top-color: #fff;
     animation: spin 0.7s linear infinite; display: inline-block;
   }
+
+  /* Printing a single Help section as a PDF: everything on the page is
+     hidden except #help-print-root (the sidebar, topbar, tab/search
+     controls, and the chapter rail are all siblings or ancestors of it,
+     never descendants, so they disappear for free). position: absolute,
+     not fixed — fixed content is treated as a per-page running fixture
+     in paged media and doesn't flow past the first page, which silently
+     truncated anything longer than one sheet. */
+  .help-print-header { display: none; }
+  @media print {
+    body * { visibility: hidden !important; }
+    #help-print-root, #help-print-root * { visibility: visible !important; }
+    #help-print-root {
+      position: absolute !important; left: 0; top: 0; width: 100% !important;
+      margin: 0 !important; padding: 28px 36px !important;
+    }
+    .help-print-header { display: block !important; }
+    .ds-card { break-inside: avoid; }
+    /* The Concept Glossary hides every category but the one selected on
+       screen via inline display:none — override it so the PDF always
+       contains the whole ontology, not just that one chapter. */
+    .glossary-group { display: block !important; }
+  }
 </style>
 </head>
 <body>
@@ -13431,9 +13454,6 @@ function APMDashboardLive() {
             const groups = groupConceptTypesByCategory(CANVAS_CONCEPT_TYPES)
               .map((g) => ({ ...g, types: g.types.filter(matches) }))
               .filter((g) => g.types.length > 0);
-            const glossaryGroupsToShow = isSearching
-              ? groups
-              : groups.filter((g) => helpGlossaryChapter === "All" || g.label === helpGlossaryChapter);
             const guideItemMatches = (item) => !q || item.label.toLowerCase().includes(q) ||
               item.description.toLowerCase().includes(q) || item.tips.some((tip) => tip.toLowerCase().includes(q));
             const guideSectionsMatched = GUIDE_SECTIONS
@@ -13468,12 +13488,45 @@ function APMDashboardLive() {
                 ))}
               </div>
             );
+            // What's actually on screen right now — drives both the print
+            // header (the normal page chrome disappears when printing, so
+            // this is the only context a printed/PDF'd page has left) and
+            // the suggested filename a "Save as PDF" print dialog offers.
+            const activeTabLabel = helpTab === "guide" ? "Site Guide" : helpTab === "glossary" ? "Concept Glossary" : "By Persona";
+            // The glossary always PDFs the whole ontology regardless of which
+            // chapter is selected on screen (see the .glossary-group print
+            // override below), so its title never names a single chapter —
+            // only Site Guide and By Persona still export just what's shown.
+            const activeChapterLabel = helpTab === "guide" ? helpGuideChapter : helpTab === "glossary" ? "All" : helpPersona;
+            const printTitle = "OntoCore Help — " + activeTabLabel +
+              (isSearching ? ` — search "${helpSearch.trim()}"` : activeChapterLabel === "All" ? "" : ` — ${activeChapterLabel}`);
+            const downloadHelpPdf = () => {
+              const prevTitle = document.title;
+              document.title = printTitle.replace(/[\\/:*?"<>|]/g, "-");
+              const restoreTitle = () => { document.title = prevTitle; window.removeEventListener("afterprint", restoreTitle); };
+              window.addEventListener("afterprint", restoreTitle);
+              window.print();
+            };
+            const PrintHeader = () => (
+              <div className="help-print-header" style={{ marginBottom: 20, paddingBottom: 14, borderBottom: "2px solid #000" }}>
+                <div style={{ fontSize: 18, fontWeight: 800 }}>{printTitle}</div>
+                <div style={{ fontSize: 11, color: "#444", marginTop: 3 }}>{new Date().toLocaleDateString()}</div>
+              </div>
+            );
             return (
               <div>
-                <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
-                  <button onClick={() => setHelpTab("guide")} style={tabStyle("guide")}>Site Guide</button>
-                  <button onClick={() => setHelpTab("glossary")} style={tabStyle("glossary")}>Concept Glossary</button>
-                  <button onClick={() => setHelpTab("personas")} style={tabStyle("personas")}>By Persona</button>
+                <div style={{ display: "flex", gap: 8, marginBottom: 18, alignItems: "center", justifyContent: "space-between" }}>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button onClick={() => setHelpTab("guide")} style={tabStyle("guide")}>Site Guide</button>
+                    <button onClick={() => setHelpTab("glossary")} style={tabStyle("glossary")}>Concept Glossary</button>
+                    <button onClick={() => setHelpTab("personas")} style={tabStyle("personas")}>By Persona</button>
+                  </div>
+                  <button onClick={downloadHelpPdf}
+                    title="Opens your browser's print dialog — choose “Save as PDF” to download just what's shown below"
+                    style={{ padding: "7px 14px", background: "transparent", color: COLORS.inkSecondary, border: `1px solid ${COLORS.border}`,
+                      borderRadius: 8, fontSize: 12.5, cursor: "pointer", flexShrink: 0 }}>
+                    ⬇ Download PDF
+                  </button>
                 </div>
 
                 <input value={helpSearch} onChange={(e) => setHelpSearch(e.target.value)}
@@ -13486,7 +13539,8 @@ function APMDashboardLive() {
                 {helpTab === "guide" && (
                   <div style={{ display: "flex", gap: 28 }}>
                     <Rail chapters={GUIDE_SECTIONS.map((s) => s.title)} active={helpGuideChapter} onSelect={setHelpGuideChapter} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
+                    <div id="help-print-root" style={{ flex: 1, minWidth: 0 }}>
+                      <PrintHeader />
                       {!isSearching && (
                         <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginBottom: 24, maxWidth: 780, lineHeight: 1.6 }}>
                           What each view in the product shows, and how to actually get the most out of it — organised the
@@ -13541,7 +13595,8 @@ function APMDashboardLive() {
                   <div style={{ display: "flex", gap: 28 }}>
                     <Rail chapters={groupConceptTypesByCategory(CANVAS_CONCEPT_TYPES).map((g) => g.label)}
                       active={helpGlossaryChapter} onSelect={setHelpGlossaryChapter} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
+                    <div id="help-print-root" style={{ flex: 1, minWidth: 0 }}>
+                <PrintHeader />
                 {!isSearching && (
                 <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginBottom: 18, maxWidth: 780, lineHeight: 1.6 }}>
                   What each of the {CANVAS_CONCEPT_TYPES.length} concept types in the ontology means, and what it's
@@ -13551,10 +13606,18 @@ function APMDashboardLive() {
                 </div>
                 )}
 
-                {glossaryGroupsToShow.length === 0 ? (
+                {groups.length === 0 ? (
                   <div style={{ fontSize: 13, color: COLORS.inkSecondary }}>No concepts match "{helpSearch}".</div>
-                ) : glossaryGroupsToShow.map((group) => (
-                  <div key={group.key} style={{ marginBottom: 28 }}>
+                ) : groups.map((group) => (
+                  // Every category always renders — even one the chapter rail
+                  // has hidden on screen — so "Download PDF" always exports
+                  // the whole ontology, not just whichever chapter happens to
+                  // be selected. The print stylesheet forces .glossary-group
+                  // back to visible regardless of this inline display, which
+                  // only hides it for the on-screen view.
+                  <div key={group.key} className="glossary-group"
+                    style={{ marginBottom: 28,
+                      display: (isSearching || helpGlossaryChapter === "All" || group.label === helpGlossaryChapter) ? undefined : "none" }}>
                     <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.inkSecondary, textTransform: "uppercase",
                       letterSpacing: "0.05em", marginBottom: 10 }}>
                       {group.label}
@@ -13634,7 +13697,8 @@ function APMDashboardLive() {
                 {helpTab === "personas" && (
                   <div style={{ display: "flex", gap: 28 }}>
                     <Rail chapters={PERSONAS.map((p) => p.label)} active={helpPersona} onSelect={setHelpPersona} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
+                    <div id="help-print-root" style={{ flex: 1, minWidth: 0 }}>
+                      <PrintHeader />
                       {!isSearching && (
                         <div style={{ fontSize: 13, color: COLORS.inkSecondary, marginBottom: 24, maxWidth: 780, lineHeight: 1.6 }}>
                           Who actually opens this tool, and what they'd use it for day to day — a way in if "here's every
